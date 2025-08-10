@@ -2,7 +2,6 @@ package github.com/hashicorp/terraform-provider-azuread/internal/services/approl
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log"
 	"net/http"
 	"time"

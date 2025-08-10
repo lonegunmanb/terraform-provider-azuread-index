@@ -2,7 +2,6 @@ package github.com/hashicorp/terraform-provider-azuread/internal/services/polici
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log"
 	"time"
 

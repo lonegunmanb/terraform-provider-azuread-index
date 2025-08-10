@@ -2,7 +2,6 @@ package github.com/hashicorp/terraform-provider-azuread/internal/services/admini
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log"
 	"time"
 

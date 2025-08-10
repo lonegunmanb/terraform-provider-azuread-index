@@ -10,6 +10,7 @@ import (
 	"github.com/hashicorp/go-azure-helpers/lang/pointer"
 	"github.com/hashicorp/go-azure-helpers/lang/response"
 	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/stable"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/rolemanagement/stable/directoryroleeligibilityschedule"
 	"github.com/hashicorp/go-azure-sdk/microsoft-graph/rolemanagement/stable/directoryroleeligibilityschedulerequest"
 	"github.com/hashicorp/go-azure-sdk/sdk/nullable"
 	"github.com/hashicorp/go-azure-sdk/sdk/odata"

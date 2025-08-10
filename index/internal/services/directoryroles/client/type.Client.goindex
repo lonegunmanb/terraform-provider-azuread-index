@@ -6,6 +6,7 @@ import (
 	"github.com/hashicorp/go-azure-sdk/microsoft-graph/directoryroletemplates/stable/directoryroletemplate"
 	"github.com/hashicorp/go-azure-sdk/microsoft-graph/rolemanagement/stable/directoryroleassignment"
 	"github.com/hashicorp/go-azure-sdk/microsoft-graph/rolemanagement/stable/directoryroledefinition"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/rolemanagement/stable/directoryroleeligibilityschedule"
 	"github.com/hashicorp/go-azure-sdk/microsoft-graph/rolemanagement/stable/directoryroleeligibilityschedulerequest"
 	"github.com/hashicorp/terraform-provider-azuread/internal/common"
 )
@@ -14,6 +15,7 @@ type Client struct {
 	DirectoryRoleAssignmentClient                 *directoryroleassignment.DirectoryRoleAssignmentClient
 	DirectoryRoleClient                           *directoryrole.DirectoryRoleClient
 	DirectoryRoleDefinitionClient                 *directoryroledefinition.DirectoryRoleDefinitionClient
+	DirectoryRoleEligibilityScheduleClient        *directoryroleeligibilityschedule.DirectoryRoleEligibilityScheduleClient
 	DirectoryRoleEligibilityScheduleRequestClient *directoryroleeligibilityschedulerequest.DirectoryRoleEligibilityScheduleRequestClient
 	DirectoryRoleMemberClient                     *member.MemberClient
 	DirectoryRoleTemplateClient                   *directoryroletemplate.DirectoryRoleTemplateClient

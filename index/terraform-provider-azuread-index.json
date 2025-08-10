@@ -1,5 +1,5 @@
 {
-  "version": "v3.2.0",
+  "version": "v3.3.0",
   "services": [
     {
       "service_name": "conditionalaccess",
@@ -186,6 +186,44 @@
       "ephemeral_terraform_types": {}
     },
     {
+      "service_name": "directoryobjects",
+      "package_path": "github.com/hashicorp/terraform-provider-azuread/internal/services/directoryobjects",
+      "supported_resources": {},
+      "supported_data_sources": {
+        "azuread_directory_object": "directoryObjectDataSource"
+      },
+      "resources": [],
+      "data_sources": [],
+      "ephemeral_functions": [],
+      "resource_crud_methods": {},
+      "data_source_methods": {
+        "azuread_directory_object": {
+          "read_method": "directoryObjectDataSourceRead"
+        }
+      },
+      "resource_terraform_types": {},
+      "data_source_terraform_types": {},
+      "ephemeral_terraform_types": {}
+    },
+    {
+      "service_name": "domains",
+      "package_path": "github.com/hashicorp/terraform-provider-azuread/internal/services/domains",
+      "supported_resources": {},
+      "supported_data_sources": {},
+      "resources": [],
+      "data_sources": [
+        "DomainsDataSource"
+      ],
+      "ephemeral_functions": [],
+      "resource_crud_methods": {},
+      "data_source_methods": {},
+      "resource_terraform_types": {},
+      "data_source_terraform_types": {
+        "DomainsDataSource": "azuread_domains"
+      },
+      "ephemeral_terraform_types": {}
+    },
+    {
       "service_name": "directoryroles",
       "package_path": "github.com/hashicorp/terraform-provider-azuread/internal/services/directoryroles",
       "supported_resources": {
@@ -238,44 +276,6 @@
         "DirectoryRoleResource": "azuread_directory_role"
       },
       "data_source_terraform_types": {},
-      "ephemeral_terraform_types": {}
-    },
-    {
-      "service_name": "directoryobjects",
-      "package_path": "github.com/hashicorp/terraform-provider-azuread/internal/services/directoryobjects",
-      "supported_resources": {},
-      "supported_data_sources": {
-        "azuread_directory_object": "directoryObjectDataSource"
-      },
-      "resources": [],
-      "data_sources": [],
-      "ephemeral_functions": [],
-      "resource_crud_methods": {},
-      "data_source_methods": {
-        "azuread_directory_object": {
-          "read_method": "directoryObjectDataSourceRead"
-        }
-      },
-      "resource_terraform_types": {},
-      "data_source_terraform_types": {},
-      "ephemeral_terraform_types": {}
-    },
-    {
-      "service_name": "domains",
-      "package_path": "github.com/hashicorp/terraform-provider-azuread/internal/services/domains",
-      "supported_resources": {},
-      "supported_data_sources": {},
-      "resources": [],
-      "data_sources": [
-        "DomainsDataSource"
-      ],
-      "ephemeral_functions": [],
-      "resource_crud_methods": {},
-      "data_source_methods": {},
-      "resource_terraform_types": {},
-      "data_source_terraform_types": {
-        "DomainsDataSource": "azuread_domains"
-      },
       "ephemeral_terraform_types": {}
     },
     {
@@ -342,6 +342,44 @@
       "data_source_methods": {},
       "resource_terraform_types": {},
       "data_source_terraform_types": {},
+      "ephemeral_terraform_types": {}
+    },
+    {
+      "service_name": "policies",
+      "package_path": "github.com/hashicorp/terraform-provider-azuread/internal/services/policies",
+      "supported_resources": {
+        "azuread_authentication_strength_policy": "authenticationStrengthPolicyResource",
+        "azuread_claims_mapping_policy": "claimsMappingPolicyResource"
+      },
+      "supported_data_sources": {},
+      "resources": [
+        "GroupRoleManagementPolicyResource"
+      ],
+      "data_sources": [
+        "GroupRoleManagementPolicyDataSource"
+      ],
+      "ephemeral_functions": [],
+      "resource_crud_methods": {
+        "azuread_authentication_strength_policy": {
+          "create_method": "authenticationStrengthPolicyCreate",
+          "read_method": "authenticationStrengthPolicyRead",
+          "update_method": "authenticationStrengthPolicyUpdate",
+          "delete_method": "authenticationStrengthPolicyDelete"
+        },
+        "azuread_claims_mapping_policy": {
+          "create_method": "claimsMappingPolicyResourceCreate",
+          "read_method": "claimsMappingPolicyResourceRead",
+          "update_method": "claimsMappingPolicyResourceUpdate",
+          "delete_method": "claimsMappingPolicyResourceDelete"
+        }
+      },
+      "data_source_methods": {},
+      "resource_terraform_types": {
+        "GroupRoleManagementPolicyResource": "azuread_group_role_management_policy"
+      },
+      "data_source_terraform_types": {
+        "GroupRoleManagementPolicyDataSource": "azuread_group_role_management_policy"
+      },
       "ephemeral_terraform_types": {}
     },
     {
@@ -417,44 +455,6 @@
         "PrivilegedAccessGroupEligibilityScheduleResource": "azuread_privileged_access_group_eligibility_schedule"
       },
       "data_source_terraform_types": {},
-      "ephemeral_terraform_types": {}
-    },
-    {
-      "service_name": "policies",
-      "package_path": "github.com/hashicorp/terraform-provider-azuread/internal/services/policies",
-      "supported_resources": {
-        "azuread_authentication_strength_policy": "authenticationStrengthPolicyResource",
-        "azuread_claims_mapping_policy": "claimsMappingPolicyResource"
-      },
-      "supported_data_sources": {},
-      "resources": [
-        "GroupRoleManagementPolicyResource"
-      ],
-      "data_sources": [
-        "GroupRoleManagementPolicyDataSource"
-      ],
-      "ephemeral_functions": [],
-      "resource_crud_methods": {
-        "azuread_authentication_strength_policy": {
-          "create_method": "authenticationStrengthPolicyCreate",
-          "read_method": "authenticationStrengthPolicyRead",
-          "update_method": "authenticationStrengthPolicyUpdate",
-          "delete_method": "authenticationStrengthPolicyDelete"
-        },
-        "azuread_claims_mapping_policy": {
-          "create_method": "claimsMappingPolicyResourceCreate",
-          "read_method": "claimsMappingPolicyResourceRead",
-          "update_method": "claimsMappingPolicyResourceUpdate",
-          "delete_method": "claimsMappingPolicyResourceDelete"
-        }
-      },
-      "data_source_methods": {},
-      "resource_terraform_types": {
-        "GroupRoleManagementPolicyResource": "azuread_group_role_management_policy"
-      },
-      "data_source_terraform_types": {
-        "GroupRoleManagementPolicyDataSource": "azuread_group_role_management_policy"
-      },
       "ephemeral_terraform_types": {}
     },
     {
