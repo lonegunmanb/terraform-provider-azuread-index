@@ -41,7 +41,7 @@ func servicePrincipalCertificateResource() *pluginsdk.Resource {
 				Type:         pluginsdk.TypeString,
 				Required:     true,
 				ForceNew:     true,
-				ValidateFunc: validation.IsUUID,
+				ValidateFunc: stable.ValidateServicePrincipalID,
 			},
 
 			"key_id": {

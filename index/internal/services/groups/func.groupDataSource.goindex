@@ -29,12 +29,12 @@ func groupDataSource() *pluginsdk.Resource {
 
 		Schema: map[string]*pluginsdk.Schema{
 			"display_name": {
-				Description:      "The display name for the group",
-				Type:             pluginsdk.TypeString,
-				Optional:         true,
-				Computed:         true,
-				ExactlyOneOf:     []string{"display_name", "object_id", "mail_nickname"},
-				ValidateDiagFunc: validation.ValidateDiag(validation.StringIsNotEmpty),
+				Description:  "The display name for the group",
+				Type:         pluginsdk.TypeString,
+				Optional:     true,
+				Computed:     true,
+				ExactlyOneOf: []string{"display_name", "object_id", "mail_nickname"},
+				ValidateFunc: validation.StringIsNotEmpty,
 			},
 
 			"mail_nickname": {
@@ -46,12 +46,12 @@ func groupDataSource() *pluginsdk.Resource {
 			},
 
 			"object_id": {
-				Description:      "The object ID of the group",
-				Type:             pluginsdk.TypeString,
-				Optional:         true,
-				Computed:         true,
-				ExactlyOneOf:     []string{"display_name", "object_id", "mail_nickname"},
-				ValidateDiagFunc: validation.ValidateDiag(validation.IsUUID),
+				Description:  "The object ID of the group",
+				Type:         pluginsdk.TypeString,
+				Optional:     true,
+				Computed:     true,
+				ExactlyOneOf: []string{"display_name", "object_id", "mail_nickname"},
+				ValidateFunc: validation.IsUUID,
 			},
 
 			"mail_enabled": {

@@ -434,7 +434,7 @@ func conditionalAccessPolicyResource() *pluginsdk.Resource {
 							AtLeastOneOf: []string{"grant_controls.0.built_in_controls", "grant_controls.0.authentication_strength_policy_id", "grant_controls.0.terms_of_use"},
 							Type:         pluginsdk.TypeString,
 							Optional:     true,
-							ValidateFunc: validation.IsUUID,
+							ValidateFunc: stable.ValidatePolicyAuthenticationStrengthPolicyID,
 						},
 
 						"custom_authentication_factors": {
@@ -518,6 +518,12 @@ func conditionalAccessPolicyResource() *pluginsdk.Resource {
 						},
 					},
 				},
+			},
+
+			"object_id": {
+				Description: "The object ID of the policy",
+				Type:        pluginsdk.TypeString,
+				Computed:    true,
 			},
 		},
 	}

@@ -13,7 +13,6 @@ import (
 	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
 	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf"
 	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/pluginsdk"
-	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/validation"
 	"github.com/hashicorp/terraform-provider-azuread/internal/services/serviceprincipals/migrations"
 )
 func servicePrincipalClaimsMappingPolicyAssignmentResourceRead(ctx context.Context, d *pluginsdk.ResourceData, meta interface{}) pluginsdk.Diagnostics {
@@ -24,6 +23,7 @@ func servicePrincipalClaimsMappingPolicyAssignmentResourceRead(ctx context.Conte
 		return tf.ErrorDiagPathF(err, "id", "Parsing Claims Mapping Policy Assignment ID %q", d.Id())
 	}
 
+	policyId := stable.NewPolicyClaimsMappingPolicyID(id.ClaimsMappingPolicyId)
 	servicePrincipalId := stable.NewServicePrincipalID(id.ServicePrincipalId)
 
 	resp, err := client.ListClaimsMappingPolicies(ctx, servicePrincipalId, claimsmappingpolicy.DefaultListClaimsMappingPoliciesOperationOptions())
@@ -57,8 +57,8 @@ func servicePrincipalClaimsMappingPolicyAssignmentResourceRead(ctx context.Conte
 		return nil
 	}
 
-	tf.Set(d, "service_principal_id", id.ServicePrincipalId)
-	tf.Set(d, "claims_mapping_policy_id", id.ClaimsMappingPolicyId)
+	tf.Set(d, "service_principal_id", servicePrincipalId.ID())
+	tf.Set(d, "claims_mapping_policy_id", policyId.ID())
 
 	return nil
 }

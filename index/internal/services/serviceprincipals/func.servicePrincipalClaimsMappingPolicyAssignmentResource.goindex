@@ -13,7 +13,6 @@ import (
 	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
 	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf"
 	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/pluginsdk"
-	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/validation"
 	"github.com/hashicorp/terraform-provider-azuread/internal/services/serviceprincipals/migrations"
 )
 func servicePrincipalClaimsMappingPolicyAssignmentResource() *pluginsdk.Resource {
@@ -54,15 +53,15 @@ func servicePrincipalClaimsMappingPolicyAssignmentResource() *pluginsdk.Resource
 				Type:         pluginsdk.TypeString,
 				ForceNew:     true,
 				Required:     true,
-				ValidateFunc: validation.StringIsNotEmpty,
+				ValidateFunc: stable.ValidatePolicyClaimsMappingPolicyID,
 			},
 
 			"service_principal_id": {
-				Description:  "Object ID of the service principal for which to assign the policy",
+				Description:  "ID of the service principal for which to assign the policy",
 				Type:         pluginsdk.TypeString,
 				ForceNew:     true,
 				Required:     true,
-				ValidateFunc: validation.IsUUID,
+				ValidateFunc: stable.ValidateServicePrincipalID,
 			},
 		},
 	}

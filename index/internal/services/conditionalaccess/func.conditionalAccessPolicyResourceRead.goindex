@@ -41,6 +41,7 @@ func conditionalAccessPolicyResourceRead(ctx context.Context, d *pluginsdk.Resou
 		return tf.ErrorDiagF(errors.New("model was nil"), "retrieving %s", id)
 	}
 
+	tf.Set(d, "object_id", pointer.From(policy.Id))
 	tf.Set(d, "display_name", pointer.From(policy.DisplayName))
 	tf.Set(d, "state", pointer.From(policy.State))
 	tf.Set(d, "conditions", flattenConditionalAccessConditionSet(policy.Conditions))

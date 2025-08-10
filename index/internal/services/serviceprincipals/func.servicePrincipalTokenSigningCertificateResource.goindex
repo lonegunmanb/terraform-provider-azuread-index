@@ -40,11 +40,11 @@ func servicePrincipalTokenSigningCertificateResource() *pluginsdk.Resource {
 
 		Schema: map[string]*pluginsdk.Schema{
 			"service_principal_id": {
-				Description:  "The object ID of the service principal for which this certificate should be created",
+				Description:  "The ID of the service principal for which this certificate should be created",
 				Type:         pluginsdk.TypeString,
 				Required:     true,
 				ForceNew:     true,
-				ValidateFunc: validation.IsUUID,
+				ValidateFunc: stable.ValidateServicePrincipalID,
 			},
 
 			"display_name": {

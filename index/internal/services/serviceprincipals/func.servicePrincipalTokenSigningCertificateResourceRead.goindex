@@ -56,7 +56,7 @@ func servicePrincipalTokenSigningCertificateResourceRead(ctx context.Context, d 
 		return nil
 	}
 
-	tf.Set(d, "service_principal_id", id.ObjectId)
+	tf.Set(d, "service_principal_id", servicePrincipalId.ID())
 	tf.Set(d, "key_id", id.KeyId)
 	tf.Set(d, "display_name", credential.DisplayName.GetOrZero())
 	tf.Set(d, "value", credential.Key.GetOrZero())

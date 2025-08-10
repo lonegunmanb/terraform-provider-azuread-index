@@ -34,14 +34,15 @@ func synchronizationJobProvisionOnDemandResource() *schema.Resource {
 				Type:         schema.TypeString,
 				Required:     true,
 				ForceNew:     true,
-				ValidateFunc: validation.IsUUID,
+				ValidateFunc: stable.ValidateServicePrincipalID,
 			},
 
 			"synchronization_job_id": {
-				Description: "The identifier for the synchronization jop.",
-				Type:        schema.TypeString,
-				Required:    true,
-				ForceNew:    true,
+				Description:  "The identifier for the synchronization jop.",
+				Type:         schema.TypeString,
+				Required:     true,
+				ForceNew:     true,
+				ValidateFunc: stable.ValidateServicePrincipalIdSynchronizationJobID,
 			},
 
 			"parameter": {
