@@ -1,0 +1,127 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/users
+import (
+	"context"
+	"errors"
+	"fmt"
+	"log"
+	"net/http"
+	"strings"
+	"time"
+
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/go-uuid"
+	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func userResourceCreate(ctx context.Context, d *pluginsdk.ResourceData, meta interface{}) pluginsdk.Diagnostics {
+	client := meta.(*clients.Client).Users.UsersClient
+	directoryObjectsClient := meta.(*clients.Client).Users.DirectoryObjectsClient
+	tenantId := meta.(*clients.Client).TenantID
+
+	password := d.Get("password").(string)
+	if password == "" {
+		return tf.ErrorDiagPathF(errors.New("`password` is required when creating a new user"), "password", "Could not create user")
+	}
+
+	upn := d.Get("user_principal_name").(string)
+	mailNickName := d.Get("mail_nickname").(string)
+
+	// Default mail nickname to the first part of the UPN (matches the portal)
+	if mailNickName == "" {
+		mailNickName = strings.Split(upn, "@")[0]
+	}
+
+	var passwordPolicies string
+	disableStrongPassword := d.Get("disable_strong_password").(bool)
+	disablePasswordExpiration := d.Get("disable_password_expiration").(bool)
+
+	switch {
+	case disableStrongPassword && (!disablePasswordExpiration):
+		passwordPolicies = "DisableStrongPassword"
+	case (!disableStrongPassword) && disablePasswordExpiration:
+		passwordPolicies = "DisablePasswordExpiration"
+	case disableStrongPassword && disablePasswordExpiration:
+		passwordPolicies = "DisablePasswordExpiration, DisableStrongPassword"
+	}
+
+	properties := msgraph.User{
+		AccountEnabled:          pointer.To(d.Get("account_enabled").(bool)),
+		AgeGroup:                tf.NullableString(d.Get("age_group").(string)),
+		City:                    tf.NullableString(d.Get("city").(string)),
+		ConsentProvidedForMinor: tf.NullableString(d.Get("consent_provided_for_minor").(string)),
+		CompanyName:             tf.NullableString(d.Get("company_name").(string)),
+		Country:                 tf.NullableString(d.Get("country").(string)),
+		Department:              tf.NullableString(d.Get("department").(string)),
+		DisplayName:             pointer.To(d.Get("display_name").(string)),
+		EmployeeId:              tf.NullableString(d.Get("employee_id").(string)),
+		EmployeeOrgData: &msgraph.EmployeeOrgData{
+			CostCenter: pointer.To(d.Get("cost_center").(string)),
+			Division:   pointer.To(d.Get("division").(string)),
+		},
+		EmployeeType:      tf.NullableString(d.Get("employee_type").(string)),
+		FaxNumber:         tf.NullableString(d.Get("fax_number").(string)),
+		GivenName:         tf.NullableString(d.Get("given_name").(string)),
+		JobTitle:          tf.NullableString(d.Get("job_title").(string)),
+		Mail:              tf.NullableString(d.Get("mail").(string)),
+		MailNickname:      pointer.To(mailNickName),
+		MobilePhone:       tf.NullableString(d.Get("mobile_phone").(string)),
+		OfficeLocation:    tf.NullableString(d.Get("office_location").(string)),
+		OtherMails:        tf.ExpandStringSlicePtr(d.Get("other_mails").(*pluginsdk.Set).List()),
+		PasswordPolicies:  tf.NullableString(passwordPolicies),
+		PostalCode:        tf.NullableString(d.Get("postal_code").(string)),
+		PreferredLanguage: tf.NullableString(d.Get("preferred_language").(string)),
+		ShowInAddressList: pointer.To(d.Get("show_in_address_list").(bool)),
+		State:             tf.NullableString(d.Get("state").(string)),
+		StreetAddress:     tf.NullableString(d.Get("street_address").(string)),
+		Surname:           tf.NullableString(d.Get("surname").(string)),
+		UsageLocation:     tf.NullableString(d.Get("usage_location").(string)),
+		UserPrincipalName: pointer.To(upn),
+
+		PasswordProfile: &msgraph.UserPasswordProfile{
+			ForceChangePasswordNextSignIn: pointer.To(d.Get("force_password_change").(bool)),
+			Password:                      pointer.To(password),
+		},
+	}
+
+	if v, ok := d.GetOk("business_phones"); ok {
+		properties.BusinessPhones = tf.ExpandStringSlicePtr(v.([]interface{}))
+	}
+
+	if v, ok := d.GetOk("onpremises_immutable_id"); ok {
+		properties.OnPremisesImmutableId = pointer.To(v.(string))
+	}
+
+	user, _, err := client.Create(ctx, properties)
+	if err != nil {
+		return tf.ErrorDiagF(err, "Creating user %q", upn)
+	}
+
+	if user.ID() == nil || *user.ID() == "" {
+		return tf.ErrorDiagF(errors.New("API returned group with nil object ID"), "Bad API Response")
+	}
+
+	d.SetId(*user.ID())
+
+	// Wait until the user is updatable (the SDK handles retries for us)
+	_, err = client.Update(ctx, msgraph.User{
+		DirectoryObject: msgraph.DirectoryObject{
+			Id: user.ID(),
+		},
+	})
+	if err != nil {
+		return tf.ErrorDiagF(err, "Timed out whilst waiting for new user to be replicated in Azure AD")
+	}
+
+	if managerId := d.Get("manager_id").(string); managerId != "" {
+		if err := assignManager(ctx, client, directoryObjectsClient, tenantId, d.Id(), managerId); err != nil {
+			return tf.ErrorDiagPathF(err, "manager_id", "Could not assign manager for user with object ID %q", d.Id())
+		}
+	}
+
+	return userResourceRead(ctx, d, meta)
+}

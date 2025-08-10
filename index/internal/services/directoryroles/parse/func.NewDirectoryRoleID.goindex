@@ -1,0 +1,5 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/directoryroles/parse
+import "fmt"
+func NewDirectoryRoleID(input string) DirectoryRoleId {
+	return DirectoryRoleId{val: input}
+}

@@ -1,0 +1,34 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/sdk
+import (
+	"fmt"
+	"reflect"
+
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
+)
+func decodeReflectedType(input interface{}, stateRetriever stateRetriever, debugLogger Logger) error {
+	if reflect.TypeOf(input).Kind() != reflect.Ptr {
+		return fmt.Errorf("need a pointer")
+	}
+
+	objType := reflect.TypeOf(input).Elem()
+	for i := 0; i < objType.NumField(); i++ {
+		field := objType.Field(i)
+		debugLogger.Infof("Field", field)
+
+		if val, exists := field.Tag.Lookup("tfschema"); exists {
+			tfschemaValue, valExists := stateRetriever.GetOkExists(val)
+			if !valExists {
+				continue
+			}
+
+			debugLogger.Infof("TFSchemaValue: ", tfschemaValue)
+			debugLogger.Infof("Input Type: ", reflect.ValueOf(input).Elem().Field(i).Type())
+
+			fieldName := reflect.ValueOf(input).Elem().Field(i).String()
+			if err := setValue(input, tfschemaValue, i, fieldName, debugLogger); err != nil {
+				return fmt.Errorf("while setting value %+v of model field %q: %+v", tfschemaValue, fieldName, err)
+			}
+		}
+	}
+	return nil
+}

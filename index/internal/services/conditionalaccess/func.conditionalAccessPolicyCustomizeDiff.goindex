@@ -1,0 +1,37 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/conditionalaccess
+import (
+	"context"
+	"errors"
+	"fmt"
+	"log"
+	"net/http"
+	"time"
+
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/go-uuid"
+	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func conditionalAccessPolicyCustomizeDiff(_ context.Context, diff *pluginsdk.ResourceDiff, _ interface{}) error {
+	// The API does not like sessionControls being set with ineffectual properties, so this additional validation complements
+	// AtLeastOneOf: []string{"grant_controls", "session_controls"} by helping to ensure that either `grant_controls` or a
+	// useful `session_controls` block has been set in the configuration.
+	var sessionControlsSetButIneffective bool
+	if diff.Get("session_controls.#").(int) == 1 && !diff.Get("session_controls.0.application_enforced_restrictions_enabled").(bool) &&
+		diff.Get("session_controls.0.cloud_app_security_policy").(string) == "" && !diff.Get("session_controls.0.disable_resilience_defaults").(bool) &&
+		diff.Get("session_controls.0.persistent_browser_mode").(string) == "" && diff.Get("session_controls.0.sign_in_frequency").(int) == 0 &&
+		diff.Get("session_controls.0.sign_in_frequency_authentication_type").(string) == msgraph.ConditionalAccessAuthenticationTypePrimaryAndSecondaryAuthentication &&
+		diff.Get("session_controls.0.sign_in_frequency_interval").(string) == msgraph.ConditionalAccessFrequencyIntervalTimeBased {
+		sessionControlsSetButIneffective = true
+	}
+	if diff.Get("grant_controls.#").(int) == 0 && sessionControlsSetButIneffective {
+		return fmt.Errorf("when specifying `session_controls` but not `grant_controls`, one of the properties in the `session_controls` block must be set to an effective value in order for session controls to work")
+	}
+
+	return nil
+}

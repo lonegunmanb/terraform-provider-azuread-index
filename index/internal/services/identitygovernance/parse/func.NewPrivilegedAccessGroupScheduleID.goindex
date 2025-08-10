@@ -1,0 +1,15 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/identitygovernance/parse
+import (
+	"fmt"
+	"strings"
+
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func NewPrivilegedAccessGroupScheduleID(groupId, relationship, scheduleId string) *PrivilegedAccessGroupScheduleId {
+	return &PrivilegedAccessGroupScheduleId{
+		GroupId:      groupId,
+		Relationship: relationship,
+		ScheduleId:   scheduleId,
+	}
+}

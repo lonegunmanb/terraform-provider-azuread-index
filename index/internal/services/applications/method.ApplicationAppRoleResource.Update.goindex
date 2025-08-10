@@ -1,0 +1,93 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/applications
+import (
+	"context"
+	"fmt"
+	"net/http"
+	"strings"
+	"time"
+
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/terraform-provider-azuread/internal/sdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/services/applications/parse"
+	applicationsValidate "github.com/hashicorp/terraform-provider-azuread/internal/services/applications/validate"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func (r ApplicationAppRoleResource) Update() sdk.ResourceFunc {
+	return sdk.ResourceFunc{
+		Timeout: 10 * time.Minute,
+		Func: func(ctx context.Context, metadata sdk.ResourceMetaData) error {
+			client := metadata.Client.Applications.ApplicationsClient
+
+			id, err := parse.ParseAppRoleID(metadata.ResourceData.Id())
+			if err != nil {
+				return err
+			}
+
+			var model ApplicationAppRoleModel
+			if err := metadata.Decode(&model); err != nil {
+				return fmt.Errorf("decoding: %+v", err)
+			}
+
+			// Prepare a new role to replace the existing one
+			role := msgraph.AppRole{
+				ID:                 &id.RoleID,
+				IsEnabled:          pointer.To(true),
+				AllowedMemberTypes: &model.AllowedMemberTypes,
+				Description:        &model.Description,
+				DisplayName:        &model.DisplayName,
+				Value:              &model.Value,
+			}
+
+			tf.LockByName(applicationResourceName, id.ApplicationId)
+			defer tf.UnlockByName(applicationResourceName, id.ApplicationId)
+
+			applicationId := parse.NewApplicationID(id.ApplicationId)
+			result, _, err := client.Get(ctx, applicationId.ApplicationId, odata.Query{})
+			if err != nil {
+				return fmt.Errorf("retrieving %s: %+v", applicationId, err)
+			}
+			if result == nil || result.AppRoles == nil {
+				return fmt.Errorf("retrieving %s: appRoles was nil", applicationId)
+			}
+
+			// Look for a role to replace, matching by ID
+			newRoles := make([]msgraph.AppRole, 0)
+			found := false
+			for _, existingRole := range *result.AppRoles {
+				if strings.EqualFold(*existingRole.ID, id.RoleID) {
+					newRoles = append(newRoles, role)
+					found = true
+				} else {
+					newRoles = append(newRoles, existingRole)
+				}
+			}
+			if !found {
+				return fmt.Errorf("updating %s: could not identify existing app role", id)
+			}
+
+			// Disable the existing role prior to update
+			if err = applicationDisableAppRoles(ctx, client, result, &newRoles); err != nil {
+				return fmt.Errorf("disabling %s in preparation for update: %+v", id, err)
+			}
+
+			properties := msgraph.Application{
+				DirectoryObject: msgraph.DirectoryObject{
+					Id: &applicationId.ApplicationId,
+				},
+				AppRoles: &newRoles,
+			}
+
+			// Patch the application with the new set of roles
+			_, err = client.Update(ctx, properties)
+			if err != nil {
+				return fmt.Errorf("updating %s: %+v", id, err)
+			}
+
+			return nil
+		},
+	}
+}

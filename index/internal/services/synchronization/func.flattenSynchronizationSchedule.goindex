@@ -1,0 +1,22 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/synchronization
+import (
+	"time"
+
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func flattenSynchronizationSchedule(in *msgraph.SynchronizationSchedule) []map[string]interface{} {
+	if in == nil {
+		return []map[string]interface{}{}
+	}
+
+	expiration := ""
+	if v := in.Expiration; v != nil {
+		expiration = v.Format(time.RFC3339)
+	}
+	return []map[string]interface{}{{
+		"expiration": expiration,
+		"interval":   in.Interval,
+		"state":      in.State,
+	}}
+}

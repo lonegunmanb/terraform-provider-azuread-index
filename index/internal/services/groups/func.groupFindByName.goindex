@@ -1,0 +1,30 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/groups
+import (
+	"context"
+	"fmt"
+	"math/rand"
+	"net/http"
+
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func groupFindByName(ctx context.Context, client *msgraph.GroupsClient, displayName string) (*[]msgraph.Group, error) {
+	query := odata.Query{
+		Filter: fmt.Sprintf("displayName eq '%s'", displayName),
+	}
+	groups, _, err := client.List(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("unable to list Groups with filter %q: %+v", query.Filter, err)
+	}
+
+	result := make([]msgraph.Group, 0)
+	if groups != nil {
+		for _, group := range *groups {
+			if group.DisplayName != nil && *group.DisplayName == displayName {
+				result = append(result, group)
+			}
+		}
+	}
+
+	return &result, nil
+}

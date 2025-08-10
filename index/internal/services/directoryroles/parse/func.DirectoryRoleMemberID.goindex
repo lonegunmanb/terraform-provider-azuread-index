@@ -1,0 +1,14 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/directoryroles/parse
+import "fmt"
+func DirectoryRoleMemberID(idString string) (*DirectoryRoleMemberId, error) {
+	id, err := ObjectSubResourceID(idString, "member")
+	if err != nil {
+		return nil, fmt.Errorf("unable to parse Member ID: %v", err)
+	}
+
+	return &DirectoryRoleMemberId{
+		ObjectSubResourceId: *id,
+		DirectoryRoleId:     id.objectId,
+		MemberId:            id.subId,
+	}, nil
+}

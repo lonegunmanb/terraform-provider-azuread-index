@@ -1,0 +1,10 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/applications/parse
+import (
+	"fmt"
+
+	"github.com/hashicorp/go-azure-helpers/resourcemanager/resourceids"
+)
+func (id *OptionalClaimsId) ID() string {
+	fmtString := "/applications/%s"
+	return fmt.Sprintf(fmtString, id.ApplicationId)
+}

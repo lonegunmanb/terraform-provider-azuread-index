@@ -1,0 +1,3 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/invitations
+import "github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+type Registration struct{}

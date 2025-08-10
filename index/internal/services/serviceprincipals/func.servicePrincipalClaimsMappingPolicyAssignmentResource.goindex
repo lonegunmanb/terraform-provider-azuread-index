@@ -1,0 +1,50 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/serviceprincipals
+import (
+	"context"
+	"fmt"
+	"log"
+	"net/http"
+	"time"
+
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
+	"github.com/hashicorp/terraform-provider-azuread/internal/services/serviceprincipals/parse"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func servicePrincipalClaimsMappingPolicyAssignmentResource() *pluginsdk.Resource {
+	return &pluginsdk.Resource{
+		CreateContext: servicePrincipalClaimsMappingPolicyAssignmentResourceCreate,
+		ReadContext:   servicePrincipalClaimsMappingPolicyAssignmentResourceRead,
+		DeleteContext: servicePrincipalClaimsMappingPolicyAssignmentResourceDelete,
+
+		Timeouts: &pluginsdk.ResourceTimeout{
+			Create: pluginsdk.DefaultTimeout(5 * time.Minute),
+			Read:   pluginsdk.DefaultTimeout(5 * time.Minute),
+			Delete: pluginsdk.DefaultTimeout(5 * time.Minute),
+		},
+
+		Importer: pluginsdk.ImporterValidatingResourceId(func(id string) error {
+			_, err := parse.ObjectSubResourceID(id, "claimsMappingPolicy")
+			return err
+		}),
+
+		Schema: map[string]*pluginsdk.Schema{
+			"claims_mapping_policy_id": {
+				Description: "ID of the claims mapping policy to assign",
+				Type:        pluginsdk.TypeString,
+				ForceNew:    true,
+				Required:    true,
+			},
+
+			"service_principal_id": {
+				Description: "Object ID of the service principal for which to assign the policy",
+				Type:        pluginsdk.TypeString,
+				ForceNew:    true,
+				Required:    true,
+			},
+		},
+	}
+}

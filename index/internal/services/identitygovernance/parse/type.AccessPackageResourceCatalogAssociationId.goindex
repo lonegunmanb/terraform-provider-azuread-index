@@ -1,0 +1,11 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/identitygovernance/parse
+import (
+	"fmt"
+	"strings"
+
+	"github.com/hashicorp/go-uuid"
+)
+type AccessPackageResourceCatalogAssociationId struct {
+	CatalogId string
+	OriginId  string
+}

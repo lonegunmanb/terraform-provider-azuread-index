@@ -1,0 +1,14 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/applications/parse
+import (
+	"fmt"
+
+	"github.com/hashicorp/go-azure-helpers/resourcemanager/resourceids"
+)
+func (id *IdentifierUriId) Segments() []resourceids.Segment {
+	return []resourceids.Segment{
+		resourceids.StaticSegment("applications", "applications", "applications"),
+		resourceids.UserSpecifiedSegment("applicationId", "00000000-0000-0000-0000-000000000000"),
+		resourceids.StaticSegment("identifierUris", "identifierUris", "identifierUris"),
+		resourceids.UserSpecifiedSegment("identifierUri", "aHR0cHM6Ly9leGFtcGxlLm5ldC8="),
+	}
+}

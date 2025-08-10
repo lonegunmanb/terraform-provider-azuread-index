@@ -1,0 +1,13 @@
+{
+  "terraform_type": "azuread_directory_role_assignment",
+  "struct_type": "",
+  "namespace": "github.com/hashicorp/terraform-provider-azuread/internal/services/directoryroles",
+  "registration_method": "directoryRoleAssignmentResource",
+  "sdk_type": "legacy_pluginsdk",
+  "schema_index": "func.directoryRoleAssignmentResource.goindex",
+  "create_index": "func.directoryRoleAssignmentResourceCreate.goindex",
+  "read_index": "func.directoryRoleAssignmentResourceRead.goindex",
+  "update_index": "func..goindex",
+  "delete_index": "func.directoryRoleAssignmentResourceDelete.goindex",
+  "attribute_index": "func.directoryRoleAssignmentResource.goindex"
+}

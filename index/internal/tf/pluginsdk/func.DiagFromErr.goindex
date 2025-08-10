@@ -1,0 +1,17 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk
+import (
+	"fmt"
+
+	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
+)
+func DiagFromErr(err error) Diagnostics {
+	if err == nil {
+		return nil
+	}
+	return Diagnostics{
+		Diagnostic{
+			Severity: DiagError,
+			Summary:  err.Error(),
+		},
+	}
+}

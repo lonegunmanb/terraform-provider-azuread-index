@@ -1,0 +1,22 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/conditionalaccess
+import (
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func expandGuestsOrExternalUsers(in []interface{}) *msgraph.ConditionalAccessGuestsOrExternalUsers {
+	if len(in) == 0 || in[0] == nil {
+		return nil
+	}
+
+	result := msgraph.ConditionalAccessGuestsOrExternalUsers{}
+
+	config := in[0].(map[string]interface{})
+
+	types := config["guest_or_external_user_types"].([]interface{})
+
+	result.GuestOrExternalUserTypes = tf.ExpandStringSlicePtr(types)
+	result.ExternalTenants = expandExternalTenants(config["external_tenants"].([]interface{}))
+
+	return &result
+}

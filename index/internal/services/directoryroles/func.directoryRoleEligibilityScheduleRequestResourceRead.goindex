@@ -1,0 +1,40 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/directoryroles
+import (
+	"context"
+	"errors"
+	"fmt"
+	"log"
+	"net/http"
+	"time"
+
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/go-uuid"
+	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func directoryRoleEligibilityScheduleRequestResourceRead(ctx context.Context, d *pluginsdk.ResourceData, meta interface{}) pluginsdk.Diagnostics {
+	client := meta.(*clients.Client).DirectoryRoles.RoleEligibilityScheduleRequestClient
+
+	id := d.Id()
+	roleEligibilityScheduleRequest, status, err := client.Get(ctx, id, odata.Query{})
+	if err != nil {
+		if status == http.StatusNotFound {
+			log.Printf("[DEBUG] roleEligibilityScheduleRequest with ID %q was not found - removing from state", id)
+			d.SetId("")
+			return nil
+		}
+		return tf.ErrorDiagF(err, "Retrieving roleEligibilityScheduleRequest %q", id)
+	}
+
+	tf.Set(d, "role_definition_id", roleEligibilityScheduleRequest.RoleDefinitionId)
+	tf.Set(d, "principal_id", roleEligibilityScheduleRequest.PrincipalId)
+	tf.Set(d, "justification", roleEligibilityScheduleRequest.Justification)
+	tf.Set(d, "directory_scope_id", roleEligibilityScheduleRequest.DirectoryScopeId)
+
+	return nil
+}

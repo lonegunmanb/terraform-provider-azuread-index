@@ -1,0 +1,27 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/identitygovernance
+import (
+	"fmt"
+	"time"
+
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func flattenUserSets(input *[]msgraph.UserSet) []interface{} {
+	if input == nil || len(*input) == 0 {
+		return nil
+	}
+
+	userSets := make([]interface{}, 0)
+	for _, v := range *input {
+		userSet := map[string]interface{}{
+			"subject_type": userSetShortType(*v.ODataType),
+			"backup":       v.IsBackup,
+			"object_id":    v.ID,
+		}
+
+		userSets = append(userSets, userSet)
+	}
+
+	return userSets
+}

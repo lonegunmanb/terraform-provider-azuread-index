@@ -1,0 +1,13 @@
+{
+  "terraform_type": "azuread_administrative_unit_role_member",
+  "struct_type": "",
+  "namespace": "github.com/hashicorp/terraform-provider-azuread/internal/services/administrativeunits",
+  "registration_method": "administrativeUnitRoleMemberResource",
+  "sdk_type": "legacy_pluginsdk",
+  "schema_index": "func.administrativeUnitRoleMemberResource.goindex",
+  "create_index": "func.administrativeUnitRoleMemberResourceCreate.goindex",
+  "read_index": "func.administrativeUnitRoleMemberResourceRead.goindex",
+  "update_index": "func..goindex",
+  "delete_index": "func.administrativeUnitRoleMemberResourceDelete.goindex",
+  "attribute_index": "func.administrativeUnitRoleMemberResource.goindex"
+}

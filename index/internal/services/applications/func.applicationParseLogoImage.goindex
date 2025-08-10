@@ -1,0 +1,28 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/applications
+import (
+	"context"
+	"encoding/base64"
+	"fmt"
+	"net/http"
+	"reflect"
+	"strings"
+	"time"
+
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func applicationParseLogoImage(encodedImage string) (string, []byte, error) {
+	imageData, err := base64.StdEncoding.DecodeString(strings.TrimSpace(encodedImage))
+	if err != nil {
+		return "", nil, err
+	}
+	contentType := http.DetectContentType(imageData)
+	if !strings.HasPrefix(contentType, "image/") {
+		return "", nil, fmt.Errorf("unrecognised MIME type detected: %q", contentType)
+	}
+	return contentType, imageData, nil
+}

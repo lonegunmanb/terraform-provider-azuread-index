@@ -1,0 +1,28 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/applications
+import (
+	"context"
+	"fmt"
+	"net/http"
+	"strings"
+	"time"
+
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/terraform-provider-azuread/internal/sdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/services/applications/parse"
+	applicationsValidate "github.com/hashicorp/terraform-provider-azuread/internal/services/applications/validate"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
+	"github.com/manicminer/hamilton/msgraph"
+)
+type ApplicationPermissionScopeModel struct {
+	ApplicationId           string `tfschema:"application_id"`
+	ScopeId                 string `tfschema:"scope_id"`
+	AdminConsentDescription string `tfschema:"admin_consent_description"`
+	AdminConsentDisplayName string `tfschema:"admin_consent_display_name"`
+	Type                    string `tfschema:"type"`
+	UserConsentDescription  string `tfschema:"user_consent_description"`
+	UserConsentDisplayName  string `tfschema:"user_consent_display_name"`
+	Value                   string `tfschema:"value"`
+}

@@ -1,0 +1,6 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/applications/parse
+import "fmt"
+type ApplicationPreAuthorizedId struct {
+	ObjectId string
+	AppId    string
+}

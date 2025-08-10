@@ -1,0 +1,21 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/directoryroles
+import (
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func flattenCustomRolePermissions(in *[]msgraph.UnifiedRolePermission) []interface{} {
+	result := make([]interface{}, 0)
+
+	if in == nil {
+		return result
+	}
+
+	for _, perm := range *in {
+		result = append(result, map[string]interface{}{
+			"allowed_resource_actions": tf.FlattenStringSlicePtr(perm.AllowedResourceActions),
+		})
+	}
+
+	return result
+}

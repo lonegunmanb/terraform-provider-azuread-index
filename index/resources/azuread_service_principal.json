@@ -1,0 +1,13 @@
+{
+  "terraform_type": "azuread_service_principal",
+  "struct_type": "",
+  "namespace": "github.com/hashicorp/terraform-provider-azuread/internal/services/serviceprincipals",
+  "registration_method": "servicePrincipalResource",
+  "sdk_type": "legacy_pluginsdk",
+  "schema_index": "func.servicePrincipalResource.goindex",
+  "create_index": "func.servicePrincipalResourceCreate.goindex",
+  "read_index": "func.servicePrincipalResourceRead.goindex",
+  "update_index": "func.servicePrincipalResourceUpdate.goindex",
+  "delete_index": "func.servicePrincipalResourceDelete.goindex",
+  "attribute_index": "func.servicePrincipalResource.goindex"
+}

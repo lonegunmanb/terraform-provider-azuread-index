@@ -1,0 +1,248 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/policies
+import (
+	"context"
+	"fmt"
+	"time"
+
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/terraform-provider-azuread/internal/sdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/services/policies/parse"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func (r GroupRoleManagementPolicyResource) Arguments() map[string]*pluginsdk.Schema {
+	return map[string]*pluginsdk.Schema{
+		"group_id": {
+			Description:      "ID of the group to which this policy is assigned",
+			Type:             pluginsdk.TypeString,
+			Required:         true,
+			ForceNew:         true,
+			ValidateDiagFunc: validation.ValidateDiag(validation.IsUUID),
+		},
+
+		"role_id": {
+			Description: "The ID of the role of this policy to the group",
+			Type:        pluginsdk.TypeString,
+			Required:    true,
+			ForceNew:    true,
+			ValidateDiagFunc: validation.ValidateDiag(validation.StringInSlice([]string{
+				msgraph.PrivilegedAccessGroupRelationshipMember,
+				msgraph.PrivilegedAccessGroupRelationshipOwner,
+				msgraph.PrivilegedAccessGroupRelationshipUnknown,
+			}, false)),
+		},
+
+		"eligible_assignment_rules": {
+			Description: "The rules for eligible assignment of the policy",
+			Type:        pluginsdk.TypeList,
+			Optional:    true,
+			Computed:    true,
+			MaxItems:    1,
+			Elem: &pluginsdk.Resource{
+				Schema: map[string]*pluginsdk.Schema{
+					"expiration_required": {
+						Description: "Must the assignment have an expiry date",
+						Type:        pluginsdk.TypeBool,
+						Optional:    true,
+						Computed:    true,
+					},
+
+					"expire_after": {
+						Description:      "The duration after which assignments expire",
+						Type:             pluginsdk.TypeString,
+						Optional:         true,
+						Computed:         true,
+						ValidateDiagFunc: validation.ValidateDiag(validation.StringInSlice([]string{"P15D", "P30D", "P90D", "P180D", "P365D"}, false)),
+					},
+				},
+			},
+		},
+
+		"active_assignment_rules": {
+			Description: "The rules for active assignment of the policy",
+			Type:        pluginsdk.TypeList,
+			Optional:    true,
+			Computed:    true,
+			MaxItems:    1,
+			Elem: &pluginsdk.Resource{
+				Schema: map[string]*pluginsdk.Schema{
+					"expiration_required": {
+						Description: "Must the assignment have an expiry date",
+						Type:        pluginsdk.TypeBool,
+						Optional:    true,
+						Computed:    true,
+					},
+
+					"expire_after": {
+						Description:      "The duration after which assignments expire",
+						Type:             pluginsdk.TypeString,
+						Optional:         true,
+						Computed:         true,
+						ValidateDiagFunc: validation.ValidateDiag(validation.StringInSlice([]string{"P15D", "P30D", "P90D", "P180D", "P365D"}, false)),
+					},
+
+					"require_multifactor_authentication": {
+						Description: "Whether multi-factor authentication is required to make an assignment",
+						Type:        pluginsdk.TypeBool,
+						Optional:    true,
+						Computed:    true,
+					},
+
+					"require_justification": {
+						Description: "Whether a justification is required to make an assignment",
+						Type:        pluginsdk.TypeBool,
+						Optional:    true,
+						Computed:    true,
+					},
+
+					"require_ticket_info": {
+						Description: "Whether ticket information is required to make an assignment",
+						Type:        pluginsdk.TypeBool,
+						Optional:    true,
+						Computed:    true,
+					},
+				},
+			},
+		},
+
+		"activation_rules": {
+			Description: "The activation rules of the policy",
+			Type:        pluginsdk.TypeList,
+			Optional:    true,
+			Computed:    true,
+			MaxItems:    1,
+			Elem: &pluginsdk.Resource{
+				Schema: map[string]*pluginsdk.Schema{
+					"maximum_duration": {
+						Description: "The time after which the an activation can be valid for",
+						Type:        pluginsdk.TypeString,
+						Optional:    true,
+						Computed:    true,
+						ValidateDiagFunc: validation.ValidateDiag(validation.StringInSlice([]string{
+							"PT30M", "PT1H", "PT1H30M", "PT2H", "PT2H30M", "PT3H", "PT3H30M", "PT4H", "PT4H30M", "PT5H", "PT5H30M", "PT6H",
+							"PT6H30M", "PT7H", "PT7H30M", "PT8H", "PT8H30M", "PT9H", "PT9H30M", "PT10H", "PT10H30M", "PT11H", "PT11H30M", "PT12H",
+							"PT12H30M", "PT13H", "PT13H30M", "PT14H", "PT14H30M", "PT15H", "PT15H30M", "PT16H", "PT16H30M", "PT17H", "PT17H30M", "PT18H",
+							"PT18H30M", "PT19H", "PT19H30M", "PT20H", "PT20H30M", "PT21H", "PT21H30M", "PT22H", "PT22H30M", "PT23H", "PT23H30M", "P1D",
+						}, false)),
+					},
+
+					"require_approval": {
+						Description: "Whether an approval is required for activation",
+						Type:        pluginsdk.TypeBool,
+						Optional:    true,
+						Computed:    true,
+					},
+
+					"approval_stage": {
+						Description: "The approval stages for the activation",
+						Type:        pluginsdk.TypeList,
+						Optional:    true,
+						MaxItems:    1,
+						Elem: &pluginsdk.Resource{
+							Schema: map[string]*pluginsdk.Schema{
+								"primary_approver": {
+									Description: "The IDs of the users or groups who can approve the activation",
+									Type:        pluginsdk.TypeSet,
+									Required:    true,
+									MinItems:    1,
+									Elem: &pluginsdk.Resource{
+										Schema: map[string]*pluginsdk.Schema{
+											"object_id": {
+												Description:      "The ID of the object to act as an approver",
+												Type:             pluginsdk.TypeString,
+												Required:         true,
+												ValidateDiagFunc: validation.ValidateDiag(validation.IsUUID),
+											},
+
+											"type": {
+												Description:      "The type of object acting as an approver",
+												Type:             pluginsdk.TypeString,
+												Optional:         true,
+												ValidateDiagFunc: validation.ValidateDiag(validation.StringInSlice([]string{"singleUser", "groupMembers"}, false)),
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+
+					"required_conditional_access_authentication_context": {
+						Description:      "Whether a conditional access context is required during activation",
+						Type:             pluginsdk.TypeString,
+						Optional:         true,
+						Computed:         true,
+						ConflictsWith:    []string{"activation_rules.0.require_multifactor_authentication"},
+						ValidateDiagFunc: validation.ValidateDiag(validation.StringIsNotEmpty),
+					},
+
+					"require_multifactor_authentication": {
+						Description:   "Whether multi-factor authentication is required during activation",
+						Type:          pluginsdk.TypeBool,
+						Optional:      true,
+						Computed:      true,
+						ConflictsWith: []string{"activation_rules.0.required_conditional_access_authentication_context"},
+					},
+
+					"require_justification": {
+						Description: "Whether a justification is required during activation",
+						Type:        pluginsdk.TypeBool,
+						Optional:    true,
+						Computed:    true,
+					},
+
+					"require_ticket_info": {
+						Description: "Whether ticket information is required during activation",
+						Type:        pluginsdk.TypeBool,
+						Optional:    true,
+						Computed:    true,
+					},
+				},
+			},
+		},
+
+		"notification_rules": {
+			Description: "The notification rules of the policy",
+			Type:        pluginsdk.TypeList,
+			Optional:    true,
+			Computed:    true,
+			MaxItems:    1,
+			Elem: &pluginsdk.Resource{
+				Schema: map[string]*pluginsdk.Schema{
+					"active_assignments": {
+						Description: "Notifications about active assignments",
+						Type:        pluginsdk.TypeList,
+						Optional:    true,
+						Computed:    true,
+						MaxItems:    1,
+						Elem: &pluginsdk.Resource{
+							Schema: notificationRuleSchema(),
+						},
+					},
+					"eligible_activations": {
+						Description: "Notifications about activations of eligible assignments",
+						Type:        pluginsdk.TypeList,
+						Optional:    true,
+						Computed:    true,
+						MaxItems:    1,
+						Elem: &pluginsdk.Resource{
+							Schema: notificationRuleSchema(),
+						},
+					},
+					"eligible_assignments": {
+						Description: "Notifications about eligible assignments",
+						Type:        pluginsdk.TypeList,
+						Optional:    true,
+						Computed:    true,
+						MaxItems:    1,
+						Elem: &pluginsdk.Resource{
+							Schema: notificationRuleSchema(),
+						},
+					},
+				},
+			},
+		},
+	}
+}

@@ -1,0 +1,17 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/policies/parse
+import (
+	"fmt"
+	"strings"
+)
+func ParseRoleManagementPolicyRuleID(input string) (*RoleManagementPolicyRuleId, error) {
+	parts := strings.Split(input, "_")
+	if len(parts) == 3 && parts[0] == "Notification" {
+		return nil, fmt.Errorf("parsing RoleManagementPolicyRuleId: invalid format")
+	} else if len(parts) == 4 && parts[0] != "Notification" {
+		return nil, fmt.Errorf("parsing RoleManagementPolicyRuleId: invalid format")
+	}
+
+	return &RoleManagementPolicyRuleId{
+		RuleId: input,
+	}, nil
+}

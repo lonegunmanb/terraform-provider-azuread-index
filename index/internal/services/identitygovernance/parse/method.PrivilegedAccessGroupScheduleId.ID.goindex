@@ -1,0 +1,11 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/identitygovernance/parse
+import (
+	"fmt"
+	"strings"
+
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func (id *PrivilegedAccessGroupScheduleId) ID() string {
+	return strings.Join([]string{id.GroupId, id.Relationship, id.ScheduleId}, "_")
+}

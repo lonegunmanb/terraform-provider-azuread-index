@@ -1,0 +1,22 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/directoryroles
+import (
+	"context"
+	"fmt"
+	"net/http"
+	"strings"
+	"time"
+
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/terraform-provider-azuread/internal/sdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/services/directoryroles/parse"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/suppress"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
+	"github.com/manicminer/hamilton/msgraph"
+)
+type DirectoryRoleModel struct {
+	Description string `tfschema:"description"`
+	DisplayName string `tfschema:"display_name"`
+	ObjectId    string `tfschema:"object_id"`
+	TemplateId  string `tfschema:"template_id"`
+}

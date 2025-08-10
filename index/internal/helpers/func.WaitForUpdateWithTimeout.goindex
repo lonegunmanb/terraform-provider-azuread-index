@@ -1,0 +1,36 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/helpers
+import (
+	"context"
+	"errors"
+	"fmt"
+	"time"
+
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+)
+func WaitForUpdateWithTimeout(ctx context.Context, timeout time.Duration, f ChangeFunc) (bool, error) {
+	res, err := (&pluginsdk.StateChangeConf{ //nolint:staticcheck
+		Pending:                   []string{"Waiting"},
+		Target:                    []string{"Done"},
+		Timeout:                   timeout,
+		MinTimeout:                5 * time.Second,
+		ContinuousTargetOccurence: 5,
+		Refresh: func() (interface{}, string, error) {
+			updated, err := f(ctx)
+			if err != nil {
+				return nil, "Error", fmt.Errorf("retrieving resource: %+v", err)
+			}
+			if updated == nil {
+				return nil, "Error", fmt.Errorf("retrieving resource: updated was nil")
+			}
+			if *updated {
+				return true, "Done", nil
+			}
+			return false, "Waiting", nil
+		},
+	}).WaitForStateContext(ctx)
+
+	if res == nil {
+		return false, err
+	}
+	return res.(bool), err
+}

@@ -1,0 +1,70 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/applications
+import (
+	"context"
+	"fmt"
+	"net/http"
+	"time"
+
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/terraform-provider-azuread/internal/sdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/services/applications/parse"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func (r ApplicationKnownClientsResource) Create() sdk.ResourceFunc {
+	return sdk.ResourceFunc{
+		Timeout: 10 * time.Minute,
+		Func: func(ctx context.Context, metadata sdk.ResourceMetaData) error {
+			client := metadata.Client.Applications.ApplicationsClient
+			client.BaseClient.DisableRetries = true
+			defer func() { client.BaseClient.DisableRetries = false }()
+
+			var model ApplicationKnownClientsModel
+			if err := metadata.Decode(&model); err != nil {
+				return fmt.Errorf("decoding: %+v", err)
+			}
+
+			applicationId, err := parse.ParseApplicationID(model.ApplicationId)
+			if err != nil {
+				return err
+			}
+
+			id := parse.NewKnownClientsID(applicationId.ApplicationId)
+
+			tf.LockByName(applicationResourceName, id.ApplicationId)
+			defer tf.UnlockByName(applicationResourceName, id.ApplicationId)
+
+			result, _, err := client.Get(ctx, applicationId.ApplicationId, odata.Query{})
+			if err != nil {
+				return fmt.Errorf("retrieving %s: %+v", applicationId, err)
+			}
+			if result == nil {
+				return fmt.Errorf("retrieving %s: result was nil", applicationId)
+			}
+
+			// Check for existing known clients
+			if result.Api != nil && result.Api.KnownClientApplications != nil && len(*result.Api.KnownClientApplications) > 0 {
+				return metadata.ResourceRequiresImport(r.ResourceType(), id)
+			}
+
+			properties := msgraph.Application{
+				DirectoryObject: msgraph.DirectoryObject{
+					Id: &id.ApplicationId,
+				},
+				Api: &msgraph.ApplicationApi{
+					KnownClientApplications: pointer.To(model.KnownClientIds),
+				},
+			}
+
+			if _, err = client.Update(ctx, properties); err != nil {
+				return fmt.Errorf("creating %s: %+v", id, err)
+			}
+
+			metadata.SetID(id)
+			return nil
+		},
+	}
+}

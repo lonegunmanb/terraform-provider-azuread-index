@@ -1,0 +1,22 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/conditionalaccess
+import (
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func expandConditionalAccessPlatforms(in []interface{}) *msgraph.ConditionalAccessPlatforms {
+	result := msgraph.ConditionalAccessPlatforms{}
+	if len(in) == 0 || in[0] == nil {
+		return nil
+	}
+
+	config := in[0].(map[string]interface{})
+
+	includePlatforms := config["included_platforms"].([]interface{})
+	excludePlatforms := config["excluded_platforms"].([]interface{})
+
+	result.IncludePlatforms = tf.ExpandStringSlicePtr(includePlatforms)
+	result.ExcludePlatforms = tf.ExpandStringSlicePtr(excludePlatforms)
+
+	return &result
+}

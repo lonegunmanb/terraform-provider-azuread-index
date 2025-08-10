@@ -1,0 +1,10 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/policies/parse
+import (
+	"fmt"
+	"strings"
+)
+func NewRoleManagementPolicyRuleID(ruleId string) *RoleManagementPolicyRuleId {
+	return &RoleManagementPolicyRuleId{
+		RuleId: ruleId,
+	}
+}

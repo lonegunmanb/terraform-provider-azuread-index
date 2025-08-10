@@ -1,0 +1,12 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/identitygovernance
+import (
+	"github.com/hashicorp/terraform-provider-azuread/internal/sdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+)
+func (r Registration) SupportedDataSources() map[string]*pluginsdk.Resource {
+	return map[string]*pluginsdk.Resource{
+		"azuread_access_package":              accessPackageDataSource(),
+		"azuread_access_package_catalog":      accessPackageCatalogDataSource(),
+		"azuread_access_package_catalog_role": accessPackageCatalogRoleDataSource(),
+	}
+}

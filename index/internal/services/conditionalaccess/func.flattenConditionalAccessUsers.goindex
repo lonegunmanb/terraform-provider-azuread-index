@@ -1,0 +1,24 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/conditionalaccess
+import (
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func flattenConditionalAccessUsers(in *msgraph.ConditionalAccessUsers) []interface{} {
+	if in == nil {
+		return []interface{}{}
+	}
+
+	return []interface{}{
+		map[string]interface{}{
+			"included_users":                    tf.FlattenStringSlicePtr(in.IncludeUsers),
+			"excluded_users":                    tf.FlattenStringSlicePtr(in.ExcludeUsers),
+			"included_groups":                   tf.FlattenStringSlicePtr(in.IncludeGroups),
+			"excluded_groups":                   tf.FlattenStringSlicePtr(in.ExcludeGroups),
+			"included_roles":                    tf.FlattenStringSlicePtr(in.IncludeRoles),
+			"excluded_roles":                    tf.FlattenStringSlicePtr(in.ExcludeRoles),
+			"included_guests_or_external_users": flattenGuestsOrExternalUsers(in.IncludeGuestsOrExternalUsers),
+			"excluded_guests_or_external_users": flattenGuestsOrExternalUsers(in.ExcludeGuestsOrExternalUsers),
+		},
+	}
+}

@@ -1,0 +1,29 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/serviceprincipals
+import (
+	"context"
+	"fmt"
+	"time"
+
+	"github.com/hashicorp/terraform-provider-azuread/internal/sdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+)
+func (r ClientConfigDataSource) Read() sdk.ResourceFunc {
+	return sdk.ResourceFunc{
+		Timeout: 5 * time.Minute,
+		Func: func(ctx context.Context, metadata sdk.ResourceMetaData) error {
+			state := ClientConfigDataSourceModel{
+				TenantId: metadata.Client.TenantID,
+				ClientId: metadata.Client.ClientID,
+				ObjectId: metadata.Client.ObjectID,
+			}
+
+			metadata.SetID(ClientConfigId{
+				TenantId: metadata.Client.TenantID,
+				ClientId: metadata.Client.ClientID,
+				ObjectId: metadata.Client.ObjectID,
+			})
+
+			return metadata.Encode(&state)
+		},
+	}
+}

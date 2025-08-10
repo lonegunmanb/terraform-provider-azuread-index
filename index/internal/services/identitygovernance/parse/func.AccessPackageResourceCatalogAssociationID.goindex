@@ -1,0 +1,24 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/identitygovernance/parse
+import (
+	"fmt"
+	"strings"
+
+	"github.com/hashicorp/go-uuid"
+)
+func AccessPackageResourceCatalogAssociationID(idString string) (*AccessPackageResourceCatalogAssociationId, error) {
+	parts := strings.Split(idString, "/")
+	if len(parts) != 2 {
+		return nil, fmt.Errorf("ID should be in the format {catalogId}/{originId} - but got %q", idString)
+	}
+
+	for i, p := range parts {
+		if _, err := uuid.ParseUUID(p); err != nil {
+			return nil, fmt.Errorf("specified ID segment #%d (%q) is not a valid UUID: %s", i, p, err)
+		}
+	}
+
+	return &AccessPackageResourceCatalogAssociationId{
+		CatalogId: parts[0],
+		OriginId:  parts[1],
+	}, nil
+}

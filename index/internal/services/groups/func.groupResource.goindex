@@ -1,0 +1,336 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/groups
+import (
+	"context"
+	"errors"
+	"fmt"
+	"log"
+	"net/http"
+	"regexp"
+	"strings"
+	"time"
+
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/go-uuid"
+	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func groupResource() *pluginsdk.Resource {
+	return &pluginsdk.Resource{
+		CreateContext: groupResourceCreate,
+		ReadContext:   groupResourceRead,
+		UpdateContext: groupResourceUpdate,
+		DeleteContext: groupResourceDelete,
+
+		CustomizeDiff: groupResourceCustomizeDiff,
+
+		Timeouts: &pluginsdk.ResourceTimeout{
+			Create: pluginsdk.DefaultTimeout(20 * time.Minute),
+			Read:   pluginsdk.DefaultTimeout(5 * time.Minute),
+			Update: pluginsdk.DefaultTimeout(20 * time.Minute),
+			Delete: pluginsdk.DefaultTimeout(5 * time.Minute),
+		},
+
+		Importer: pluginsdk.ImporterValidatingResourceId(func(id string) error {
+			if _, err := uuid.ParseUUID(id); err != nil {
+				return fmt.Errorf("specified ID (%q) is not valid: %s", id, err)
+			}
+			return nil
+		}),
+
+		Schema: map[string]*pluginsdk.Schema{
+			"display_name": {
+				Description:      "The display name for the group",
+				Type:             pluginsdk.TypeString,
+				Required:         true,
+				ValidateDiagFunc: validation.ValidateDiag(validation.StringIsNotEmpty),
+			},
+
+			"administrative_unit_ids": {
+				Description: "The administrative unit IDs in which the group should be. If empty, the group will be created at the tenant level.",
+				Type:        pluginsdk.TypeSet,
+				Optional:    true,
+				Elem: &pluginsdk.Schema{
+					Type:         pluginsdk.TypeString,
+					ValidateFunc: validation.IsUUID,
+				},
+			},
+
+			"assignable_to_role": {
+				Description: "Indicates whether this group can be assigned to an Azure Active Directory role. This property can only be `true` for security-enabled groups.",
+				Type:        pluginsdk.TypeBool,
+				Optional:    true,
+				ForceNew:    true,
+			},
+
+			"auto_subscribe_new_members": {
+				Description: "Indicates whether new members added to the group will be auto-subscribed to receive email notifications.",
+				Type:        pluginsdk.TypeBool,
+				Optional:    true,
+				Computed:    true,
+			},
+
+			"behaviors": {
+				Description: "The group behaviours for a Microsoft 365 group",
+				Type:        pluginsdk.TypeSet,
+				Optional:    true,
+				ForceNew:    true,
+				Elem: &pluginsdk.Schema{
+					Type: pluginsdk.TypeString,
+					ValidateFunc: validation.StringInSlice([]string{
+						msgraph.GroupResourceBehaviorOptionAllowOnlyMembersToPost,
+						msgraph.GroupResourceBehaviorOptionCalendarMemberReadOnly,
+						msgraph.GroupResourceBehaviorOptionConnectorsDisabled,
+						msgraph.GroupResourceBehaviorOptionHideGroupInOutlook,
+						msgraph.GroupResourceBehaviorOptionSkipExchangeInstantOn,
+						msgraph.GroupResourceBehaviorOptionSubscribeMembersToCalendarEventsDisabled,
+						msgraph.GroupResourceBehaviorOptionSubscribeNewGroupMembers,
+						msgraph.GroupResourceBehaviorOptionWelcomeEmailDisabled,
+					}, false),
+				},
+			},
+
+			"description": {
+				Description: "The description for the group",
+				Type:        pluginsdk.TypeString,
+				Optional:    true,
+			},
+
+			"dynamic_membership": {
+				Description:   "An optional block to configure dynamic membership for the group. Cannot be used with `members`",
+				Type:          pluginsdk.TypeList,
+				Optional:      true,
+				MaxItems:      1,
+				ConflictsWith: []string{"members"},
+				Elem: &pluginsdk.Resource{
+					Schema: map[string]*pluginsdk.Schema{
+						"enabled": {
+							Type:     pluginsdk.TypeBool,
+							Required: true,
+						},
+
+						"rule": {
+							Description:      "Rule to determine members for a dynamic group. Required when `group_types` contains 'DynamicMembership'",
+							Type:             pluginsdk.TypeString,
+							Required:         true,
+							ValidateDiagFunc: validation.ValidateDiag(validation.StringLenBetween(0, 3072)),
+						},
+					},
+				},
+			},
+
+			"external_senders_allowed": {
+				Description: "Indicates whether people external to the organization can send messages to the group.",
+				Type:        pluginsdk.TypeBool,
+				Optional:    true,
+				Computed:    true,
+			},
+
+			"hide_from_address_lists": {
+				Description: "Indicates whether the group is displayed in certain parts of the Outlook user interface: in the Address Book, in address lists for selecting message recipients, and in the Browse Groups dialog for searching groups.",
+				Type:        pluginsdk.TypeBool,
+				Optional:    true,
+				Computed:    true,
+			},
+
+			"hide_from_outlook_clients": {
+				Description: "Indicates whether the group is displayed in Outlook clients, such as Outlook for Windows and Outlook on the web.",
+				Type:        pluginsdk.TypeBool,
+				Optional:    true,
+				Computed:    true,
+			},
+
+			"mail_enabled": {
+				Description:  "Whether the group is a mail enabled, with a shared group mailbox. At least one of `mail_enabled` or `security_enabled` must be specified. A group can be mail enabled _and_ security enabled",
+				Type:         pluginsdk.TypeBool,
+				Optional:     true,
+				AtLeastOneOf: []string{"mail_enabled", "security_enabled"},
+			},
+
+			"mail_nickname": {
+				Description:      "The mail alias for the group, unique in the organisation",
+				Type:             pluginsdk.TypeString,
+				Optional:         true,
+				Computed:         true,
+				ForceNew:         true,
+				ValidateDiagFunc: validation.MailNickname,
+			},
+
+			"members": {
+				Description:   "A set of members who should be present in this group. Supported object types are Users, Groups or Service Principals",
+				Type:          pluginsdk.TypeSet,
+				Optional:      true,
+				Computed:      true,
+				ConflictsWith: []string{"dynamic_membership"},
+				Set:           pluginsdk.HashString,
+				Elem: &pluginsdk.Schema{
+					Type:             pluginsdk.TypeString,
+					ValidateDiagFunc: validation.ValidateDiag(validation.IsUUID),
+				},
+			},
+
+			"onpremises_group_type": {
+				Description: "Indicates the target on-premise group type the group will be written back as",
+				Type:        pluginsdk.TypeString,
+				Optional:    true,
+				Computed:    true,
+				ValidateFunc: validation.StringInSlice([]string{
+					msgraph.UniversalDistributionGroup,
+					msgraph.UniversalSecurityGroup,
+					msgraph.UniversalMailEnabledSecurityGroup,
+				}, false),
+			},
+
+			"owners": {
+				Description: "A set of owners who own this group. Supported object types are Users or Service Principals",
+				Type:        pluginsdk.TypeSet,
+				Optional:    true,
+				Computed:    true,
+				MinItems:    1,
+				MaxItems:    100,
+				Set:         pluginsdk.HashString,
+				Elem: &pluginsdk.Schema{
+					Type:             pluginsdk.TypeString,
+					ValidateDiagFunc: validation.ValidateDiag(validation.IsUUID),
+				},
+			},
+
+			"prevent_duplicate_names": {
+				Description: "If `true`, will return an error if an existing group is found with the same name",
+				Type:        pluginsdk.TypeBool,
+				Optional:    true,
+				Default:     false,
+			},
+
+			"provisioning_options": {
+				Description: "The group provisioning options for a Microsoft 365 group",
+				Type:        pluginsdk.TypeSet,
+				Optional:    true,
+				ForceNew:    true,
+				Elem: &pluginsdk.Schema{
+					Type: pluginsdk.TypeString,
+					ValidateFunc: validation.StringInSlice([]string{
+						msgraph.GroupResourceProvisioningOptionTeam,
+					}, false),
+				},
+			},
+
+			"security_enabled": {
+				Description:  "Whether the group is a security group for controlling access to in-app resources. At least one of `security_enabled` or `mail_enabled` must be specified. A group can be security enabled _and_ mail enabled",
+				Type:         pluginsdk.TypeBool,
+				Optional:     true,
+				AtLeastOneOf: []string{"mail_enabled", "security_enabled"},
+			},
+
+			"theme": {
+				Description: "The colour theme for a Microsoft 365 group",
+				Type:        pluginsdk.TypeString,
+				Optional:    true,
+				ValidateFunc: validation.StringInSlice([]string{
+					string(msgraph.GroupThemeNone),
+					string(msgraph.GroupThemeBlue),
+					string(msgraph.GroupThemeGreen),
+					string(msgraph.GroupThemeOrange),
+					string(msgraph.GroupThemePink),
+					string(msgraph.GroupThemePurple),
+					string(msgraph.GroupThemeRed),
+					string(msgraph.GroupThemeTeal),
+				}, false),
+			},
+
+			"types": {
+				Description: "A set of group types to configure for the group. `Unified` specifies a Microsoft 365 group. Required when `mail_enabled` is true",
+				Type:        pluginsdk.TypeSet,
+				Optional:    true,
+				ForceNew:    true,
+				Elem: &pluginsdk.Schema{
+					Type: pluginsdk.TypeString,
+					ValidateFunc: validation.StringInSlice([]string{
+						"DynamicMembership",
+						msgraph.GroupTypeUnified,
+					}, false),
+				},
+			},
+
+			"visibility": {
+				Description: "Specifies the group join policy and group content visibility",
+				Type:        pluginsdk.TypeString,
+				Optional:    true,
+				Computed:    true,
+				ValidateFunc: validation.StringInSlice([]string{
+					msgraph.GroupVisibilityHiddenMembership,
+					msgraph.GroupVisibilityPrivate,
+					msgraph.GroupVisibilityPublic,
+				}, false),
+			},
+
+			"writeback_enabled": {
+				Description: "Whether this group should be synced from Azure AD to the on-premises directory when Azure AD Connect is used",
+				Type:        pluginsdk.TypeBool,
+				Optional:    true,
+				Default:     false,
+			},
+
+			"mail": {
+				Description: "The SMTP address for the group",
+				Type:        pluginsdk.TypeString,
+				Computed:    true,
+			},
+
+			"object_id": {
+				Description: "The object ID of the group",
+				Type:        pluginsdk.TypeString,
+				Computed:    true,
+			},
+
+			"onpremises_domain_name": {
+				Description: "The on-premises FQDN, also called dnsDomainName, synchronized from the on-premises directory when Azure AD Connect is used",
+				Type:        pluginsdk.TypeString,
+				Computed:    true,
+			},
+
+			"onpremises_netbios_name": {
+				Description: "The on-premises NetBIOS name, synchronized from the on-premises directory when Azure AD Connect is used",
+				Type:        pluginsdk.TypeString,
+				Computed:    true,
+			},
+
+			"onpremises_sam_account_name": {
+				Description: "The on-premises SAM account name, synchronized from the on-premises directory when Azure AD Connect is used",
+				Type:        pluginsdk.TypeString,
+				Computed:    true,
+			},
+
+			"onpremises_security_identifier": {
+				Description: "The on-premises security identifier (SID), synchronized from the on-premises directory when Azure AD Connect is used",
+				Type:        pluginsdk.TypeString,
+				Computed:    true,
+			},
+
+			"onpremises_sync_enabled": {
+				Description: "Whether this group is synchronized from an on-premises directory (true), no longer synchronized (false), or has never been synchronized (null)",
+				Type:        pluginsdk.TypeBool,
+				Computed:    true,
+			},
+
+			"preferred_language": {
+				Description: "The preferred language for a Microsoft 365 group, in ISO 639-1 notation",
+				Type:        pluginsdk.TypeString,
+				Computed:    true, // API always returns "preferredLanguage should not be set"
+			},
+
+			"proxy_addresses": {
+				Description: "Email addresses for the group that direct to the same group mailbox",
+				Type:        pluginsdk.TypeList,
+				Computed:    true,
+				Elem: &pluginsdk.Schema{
+					Type: pluginsdk.TypeString,
+				},
+			},
+		},
+	}
+}

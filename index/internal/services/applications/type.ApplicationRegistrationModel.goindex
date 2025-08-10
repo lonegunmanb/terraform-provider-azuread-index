@@ -1,0 +1,38 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/applications
+import (
+	"context"
+	"fmt"
+	"net/http"
+	"time"
+
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers"
+	"github.com/hashicorp/terraform-provider-azuread/internal/sdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/services/applications/parse"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
+	"github.com/manicminer/hamilton/msgraph"
+)
+type ApplicationRegistrationModel struct {
+	ClientId                           string   `tfschema:"client_id"`
+	Description                        string   `tfschema:"description"`
+	DisabledByMicrosoft                string   `tfschema:"disabled_by_microsoft"`
+	DisplayName                        string   `tfschema:"display_name"`
+	GroupMembershipClaims              []string `tfschema:"group_membership_claims"`
+	HomepageUrl                        string   `tfschema:"homepage_url"`
+	ImplicitAccessTokenIssuanceEnabled bool     `tfschema:"implicit_access_token_issuance_enabled"`
+	ImplicitIdTokenIssuanceEnabled     bool     `tfschema:"implicit_id_token_issuance_enabled"`
+	LogoutUrl                          string   `tfschema:"logout_url"`
+	MarketingUrl                       string   `tfschema:"marketing_url"`
+	Notes                              string   `tfschema:"notes"`
+	ObjectId                           string   `tfschema:"object_id"`
+	PrivacyStatementUrl                string   `tfschema:"privacy_statement_url"`
+	PublisherDomain                    string   `tfschema:"publisher_domain"`
+	RequestedAccessTokenVersion        int      `tfschema:"requested_access_token_version"`
+	ServiceManagementReference         string   `tfschema:"service_management_reference"`
+	SignInAudience                     string   `tfschema:"sign_in_audience"`
+	SupportUrl                         string   `tfschema:"support_url"`
+	TermsOfServiceUrl                  string   `tfschema:"terms_of_service_url"`
+}

@@ -1,0 +1,22 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/domains
+import (
+	"context"
+	"crypto/sha1"
+	"encoding/base64"
+	"fmt"
+	"strings"
+	"time"
+
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/terraform-provider-azuread/internal/sdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+)
+type DomainsDataSourceModel struct {
+	AdminManaged      bool     `tfschema:"admin_managed"`
+	Domains           []Domain `tfschema:"domains"`
+	IncludeUnverified bool     `tfschema:"include_unverified"`
+	OnlyDefault       bool     `tfschema:"only_default"`
+	OnlyInitial       bool     `tfschema:"only_initial"`
+	OnlyRoot          bool     `tfschema:"only_root"`
+	SupportsServices  []string `tfschema:"supports_services"`
+}

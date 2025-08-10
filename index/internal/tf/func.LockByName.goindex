@@ -1,0 +1,8 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/tf
+import (
+	"log"
+	"sync"
+)
+func LockByName(resourceType string, name string) {
+	mutex.Lock(resourceType + "." + name)
+}

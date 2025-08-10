@@ -1,0 +1,60 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/conditionalaccess
+import (
+	"context"
+	"errors"
+	"fmt"
+	"log"
+	"net/http"
+	"time"
+
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/go-uuid"
+	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func conditionalAccessPolicyDiffSuppress(k, old, new string, d *pluginsdk.ResourceData) bool {
+	suppress := false
+
+	// When ineffectual `session_controls` are specified, you must send `sessionControls: null`, and when policy has ineffectual
+	// `sessionControls`, the API condenses it to `sessionControls: null` in the response.
+	if k == "session_controls.#" && old == "0" && new == "1" {
+		sessionControlsRaw := d.Get("session_controls").([]interface{})
+		if len(sessionControlsRaw) == 1 && sessionControlsRaw[0] != nil {
+			sessionControls := sessionControlsRaw[0].(map[string]interface{})
+
+			// Suppress by default, but only if all the block properties have a non-default value
+			suppress = true
+			if v, ok := sessionControls["application_enforced_restrictions_enabled"]; ok && v.(bool) {
+				suppress = false
+			}
+			if v, ok := sessionControls["cloud_app_security_policy"]; ok && v.(string) != "" {
+				suppress = false
+			}
+			if v, ok := sessionControls["disable_resilience_defaults"]; ok && v.(bool) {
+				suppress = false
+			}
+			if v, ok := sessionControls["persistent_browser_mode"]; ok && v.(string) != "" {
+				suppress = false
+			}
+			if v, ok := sessionControls["sign_in_frequency"]; ok && v.(int) > 0 {
+				suppress = false
+			}
+			if v, ok := sessionControls["sign_in_frequency_authentication_type"]; ok && v.(string) != "" {
+				suppress = false
+			}
+			if v, ok := sessionControls["sign_in_frequency_interval"]; ok && v.(string) != "" {
+				suppress = false
+			}
+			if v, ok := sessionControls["sign_in_frequency_period"]; ok && v.(string) != "" {
+				suppress = false
+			}
+		}
+	}
+
+	return suppress
+}

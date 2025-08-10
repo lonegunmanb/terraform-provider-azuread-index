@@ -1,0 +1,45 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/identitygovernance
+import (
+	"context"
+	"fmt"
+	"log"
+	"net/http"
+	"time"
+
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/go-uuid"
+	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func assignmentPolicyDiffSuppress(k, old, new string, d *pluginsdk.ResourceData) bool {
+	if k == "approval_settings.#" && old == "1" && new == "0" {
+		return true
+	}
+
+	if k == "requestor_settings.#" && old == "1" && new == "0" {
+		return true
+	}
+
+	if k == "requestor_settings.0.scope_type" && old == msgraph.RequestorSettingsScopeTypeNoSubjects && len(new) == 0 {
+		return true
+	}
+
+	if k == "assignment_review_settings.0.starting_on" && len(new) == 0 {
+		return true
+	}
+
+	if k == "assignment_review_settings.#" && old == "1" && new == "0" {
+		return true
+	}
+
+	if k == "question.#" && old == "1" && new == "0" {
+		return true
+	}
+
+	return false
+}

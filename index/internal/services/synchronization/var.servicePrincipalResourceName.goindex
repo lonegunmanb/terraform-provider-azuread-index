@@ -1,0 +1,8 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/synchronization
+import (
+	"time"
+
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/manicminer/hamilton/msgraph"
+)
+const servicePrincipalResourceName = "azuread_service_principal"

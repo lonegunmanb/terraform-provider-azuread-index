@@ -1,0 +1,7 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/groups/parse
+import "fmt"
+type GroupMemberId struct {
+	ObjectSubResourceId
+	GroupId  string
+	MemberId string
+}

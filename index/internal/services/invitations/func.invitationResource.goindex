@@ -1,0 +1,119 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/invitations
+import (
+	"context"
+	"errors"
+	"fmt"
+	"log"
+	"net/http"
+	"time"
+
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func invitationResource() *pluginsdk.Resource {
+	return &pluginsdk.Resource{
+		CreateContext: invitationResourceCreate,
+		ReadContext:   invitationResourceRead,
+		DeleteContext: invitationResourceDelete,
+
+		Timeouts: &pluginsdk.ResourceTimeout{
+			Create: pluginsdk.DefaultTimeout(5 * time.Minute),
+			Read:   pluginsdk.DefaultTimeout(5 * time.Minute),
+			Delete: pluginsdk.DefaultTimeout(5 * time.Minute),
+		},
+
+		Schema: map[string]*pluginsdk.Schema{
+			"redirect_url": {
+				Description:  "The URL that the user should be redirected to once the invitation is redeemed",
+				Type:         pluginsdk.TypeString,
+				Required:     true,
+				ForceNew:     true,
+				ValidateFunc: validation.IsHttpOrHttpsUrl,
+			},
+
+			"user_email_address": {
+				Description:      "The email address of the user being invited",
+				Type:             pluginsdk.TypeString,
+				Required:         true,
+				ForceNew:         true,
+				ValidateDiagFunc: validation.StringIsEmailAddress,
+			},
+
+			"user_display_name": {
+				Description:      "The display name of the user being invited",
+				Type:             pluginsdk.TypeString,
+				Optional:         true,
+				ForceNew:         true,
+				ValidateDiagFunc: validation.ValidateDiag(validation.StringIsNotEmpty),
+			},
+
+			"message": {
+				Description: "Customize the message sent to the invited user",
+				Type:        pluginsdk.TypeList,
+				Optional:    true,
+				ForceNew:    true,
+				MaxItems:    1,
+				Elem: &pluginsdk.Resource{
+					Schema: map[string]*pluginsdk.Schema{
+						"additional_recipients": {
+							Description: "Email addresses of additional recipients the invitation message should be sent to",
+							Type:        pluginsdk.TypeList,
+							Optional:    true,
+							MaxItems:    1,
+							Elem: &pluginsdk.Schema{
+								Type:             pluginsdk.TypeString,
+								ValidateDiagFunc: validation.StringIsEmailAddress,
+							},
+						},
+
+						"body": {
+							Description:      "Customized message body you want to send if you don't want to send the default message",
+							Type:             pluginsdk.TypeString,
+							Optional:         true,
+							ConflictsWith:    []string{"message.0.language"},
+							ValidateDiagFunc: validation.ValidateDiag(validation.StringIsNotEmpty),
+						},
+
+						"language": {
+							Description:      "The language you want to send the default message in",
+							Type:             pluginsdk.TypeString,
+							Optional:         true,
+							ConflictsWith:    []string{"message.0.body"},
+							ValidateDiagFunc: validation.ISO639Language,
+						},
+					},
+				},
+			},
+
+			"user_type": {
+				Description: "The user type of the user being invited",
+				Type:        pluginsdk.TypeString,
+				Optional:    true,
+				ForceNew:    true,
+				Default:     "Guest",
+				ValidateFunc: validation.StringInSlice([]string{
+					msgraph.InvitedUserTypeGuest,
+					msgraph.InvitedUserTypeMember,
+				}, false),
+			},
+
+			"redeem_url": {
+				Description: "The URL the user can use to redeem their invitation",
+				Type:        pluginsdk.TypeString,
+				Computed:    true,
+			},
+
+			"user_id": {
+				Description: "Object ID of the invited user",
+				Type:        pluginsdk.TypeString,
+				Computed:    true,
+			},
+		},
+	}
+}

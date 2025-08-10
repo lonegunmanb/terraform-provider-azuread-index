@@ -1,0 +1,24 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/identitygovernance
+import (
+	"fmt"
+	"time"
+
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/terraform-provider-azuread/internal/sdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
+	"github.com/manicminer/hamilton/msgraph"
+)
+type PrivilegedAccessGroupScheduleModel struct {
+	AssignmentType      string `tfschema:"assignment_type"`
+	Duration            string `tfschema:"duration"`
+	ExpirationDate      string `tfschema:"expiration_date"`
+	GroupId             string `tfschema:"group_id"`
+	Justification       string `tfschema:"justification"`
+	PermanentAssignment bool   `tfschema:"permanent_assignment"`
+	PrincipalId         string `tfschema:"principal_id"`
+	StartDate           string `tfschema:"start_date"`
+	Status              string `tfschema:"status"`
+	TicketNumber        string `tfschema:"ticket_number"`
+	TicketSystem        string `tfschema:"ticket_system"`
+}

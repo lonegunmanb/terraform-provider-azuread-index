@@ -1,0 +1,22 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/applications/parse
+import (
+	"fmt"
+
+	"github.com/hashicorp/go-azure-helpers/resourcemanager/resourceids"
+)
+func ParseOptionalClaimsID(input string) (*OptionalClaimsId, error) {
+	parser := resourceids.NewParserFromResourceIdType(&OptionalClaimsId{})
+	parsed, err := parser.Parse(input, false)
+	if err != nil {
+		return nil, fmt.Errorf("parsing %q: %+v", input, err)
+	}
+
+	var ok bool
+	id := &OptionalClaimsId{}
+
+	if id.ApplicationId, ok = parsed.Parsed["applicationId"]; !ok {
+		return nil, resourceids.NewSegmentNotSpecifiedError(id, "applicationId", *parsed)
+	}
+
+	return id, nil
+}

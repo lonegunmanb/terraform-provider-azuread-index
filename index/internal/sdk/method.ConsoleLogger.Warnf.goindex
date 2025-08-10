@@ -1,0 +1,8 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/sdk
+import (
+	"fmt"
+	"log"
+)
+func (l ConsoleLogger) Warnf(format string, args ...interface{}) {
+	l.Warn(fmt.Sprintf(format, args...))
+}

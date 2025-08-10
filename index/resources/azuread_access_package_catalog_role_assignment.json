@@ -1,0 +1,13 @@
+{
+  "terraform_type": "azuread_access_package_catalog_role_assignment",
+  "struct_type": "",
+  "namespace": "github.com/hashicorp/terraform-provider-azuread/internal/services/identitygovernance",
+  "registration_method": "accessPackageCatalogRoleAssignmentResource",
+  "sdk_type": "legacy_pluginsdk",
+  "schema_index": "func.accessPackageCatalogRoleAssignmentResource.goindex",
+  "create_index": "func.accessPackageCatalogRoleAssignmentResourceCreate.goindex",
+  "read_index": "func.accessPackageCatalogRoleAssignmentResourceRead.goindex",
+  "update_index": "func..goindex",
+  "delete_index": "func.accessPackageCatalogRoleAssignmentResourceDelete.goindex",
+  "attribute_index": "func.accessPackageCatalogRoleAssignmentResource.goindex"
+}

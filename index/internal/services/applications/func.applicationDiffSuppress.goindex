@@ -1,0 +1,120 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/applications
+import (
+	"context"
+	"errors"
+	"fmt"
+	"log"
+	"net/http"
+	"net/url"
+	"strings"
+	"time"
+
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/go-cty/cty"
+	"github.com/hashicorp/go-uuid"
+	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers"
+	"github.com/hashicorp/terraform-provider-azuread/internal/services/applications/migrations"
+	"github.com/hashicorp/terraform-provider-azuread/internal/services/applications/parse"
+	applicationsValidate "github.com/hashicorp/terraform-provider-azuread/internal/services/applications/validate"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func applicationDiffSuppress(k, old, new string, d *pluginsdk.ResourceData) bool {
+	suppress := false
+	switch {
+	case k == "api.#" && old == "1" && new == "0":
+		apiRaw := d.Get("api").([]interface{})
+		if len(apiRaw) == 1 {
+			suppress = true
+			api := apiRaw[0].(map[string]interface{})
+			if v, ok := api["known_client_applications"]; ok && len(v.(*pluginsdk.Set).List()) > 0 {
+				suppress = false
+			}
+			if v, ok := api["mapped_claims_enabled"]; ok && v.(bool) {
+				suppress = false
+			}
+			if v, ok := api["oauth2_permission_scope"]; ok && len(v.(*pluginsdk.Set).List()) > 0 {
+				suppress = false
+			}
+			if v, ok := api["requested_access_token_version"]; ok && v.(int) > 1 {
+				suppress = false
+			}
+		}
+
+	case k == "optional_claims.#" && old == "1" && new == "0":
+		optionalClaimsRaw := d.Get("optional_claims").([]interface{})
+		if len(optionalClaimsRaw) == 1 {
+			suppress = true
+			optionalClaims := optionalClaimsRaw[0].(map[string]interface{})
+			if v, ok := optionalClaims["access_token"]; ok && len(v.([]interface{})) > 0 {
+				suppress = false
+			}
+			if v, ok := optionalClaims["id_token"]; ok && len(v.([]interface{})) > 0 {
+				suppress = false
+			}
+			if v, ok := optionalClaims["saml2_token"]; ok && len(v.([]interface{})) > 0 {
+				suppress = false
+			}
+		}
+
+	case k == "public_client.#" && old == "1" && new == "0":
+		publicClientRaw := d.Get("public_client").([]interface{})
+		if len(publicClientRaw) == 1 {
+			suppress = true
+			publicClient := publicClientRaw[0].(map[string]interface{})
+			if v, ok := publicClient["redirect_uris"]; ok && len(v.(*pluginsdk.Set).List()) > 0 {
+				suppress = false
+			}
+		}
+
+	case k == "single_page_application.#" && old == "1" && new == "0":
+		spaRaw := d.Get("single_page_application").([]interface{})
+		if len(spaRaw) == 1 {
+			suppress = true
+			spa := spaRaw[0].(map[string]interface{})
+			if v, ok := spa["redirect_uris"]; ok && len(v.(*pluginsdk.Set).List()) > 0 {
+				suppress = false
+			}
+		}
+
+	case k == "web.#" && old == "1" && new == "0":
+		webRaw := d.Get("web").([]interface{})
+		if len(webRaw) == 1 {
+			suppress = true
+			web := webRaw[0].(map[string]interface{})
+			if v, ok := web["redirect_uris"]; ok && len(v.(*pluginsdk.Set).List()) > 0 {
+				suppress = false
+			}
+			if b, ok := web["implicit_grant"]; ok {
+				if implicitGrantRaw := b.([]interface{}); len(implicitGrantRaw) > 0 {
+					implicitGrant := implicitGrantRaw[0].(map[string]interface{})
+					if v, ok := implicitGrant["access_token_issuance_enabled"]; ok && v.(bool) {
+						suppress = false
+					}
+					if v, ok := implicitGrant["id_token_issuance_enabled"]; ok && v.(bool) {
+						suppress = false
+					}
+				}
+			}
+		}
+
+	case k == "web.0.implicit_grant.#" && old == "1" && new == "0":
+		implicitGrantRaw := d.Get("web.0.implicit_grant").([]interface{})
+		if len(implicitGrantRaw) == 1 {
+			suppress = true
+			implicitGrant := implicitGrantRaw[0].(map[string]interface{})
+			if v, ok := implicitGrant["access_token_issuance_enabled"]; ok && v.(bool) {
+				suppress = false
+			}
+			if v, ok := implicitGrant["id_token_issuance_enabled"]; ok && v.(bool) {
+				suppress = false
+			}
+		}
+	}
+
+	return suppress
+}

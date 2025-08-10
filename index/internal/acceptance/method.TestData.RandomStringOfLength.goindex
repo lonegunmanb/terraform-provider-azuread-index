@@ -1,0 +1,18 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/acceptance
+import (
+	"fmt"
+	"math"
+	"strconv"
+	"testing"
+
+	"github.com/hashicorp/go-uuid"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/acctest"
+)
+func (td TestData) RandomStringOfLength(len int) string {
+	// len should not be less then 1 or greater than 1024
+	if 1 > len || len > 1024 {
+		panic("Invalid Test: RandomStringOfLength: length argument must be between 1 and 1024 characters")
+	}
+
+	return acctest.RandString(len)
+}

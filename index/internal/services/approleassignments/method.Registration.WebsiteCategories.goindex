@@ -1,0 +1,7 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/approleassignments
+import "github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+func (r Registration) WebsiteCategories() []string {
+	return []string{
+		"App Role Assignments",
+	}
+}

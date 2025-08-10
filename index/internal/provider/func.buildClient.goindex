@@ -1,0 +1,32 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/provider
+import (
+	"context"
+	"fmt"
+
+	"github.com/hashicorp/go-azure-sdk/sdk/auth"
+	"github.com/hashicorp/go-azure-sdk/sdk/environments"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
+	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
+	"github.com/hashicorp/terraform-provider-azuread/internal/sdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
+)
+func buildClient(ctx context.Context, p *schema.Provider, authConfig *auth.Credentials, partnerId string) (*clients.Client, pluginsdk.Diagnostics) {
+	clientBuilder := clients.ClientBuilder{
+		AuthConfig:       authConfig,
+		PartnerID:        partnerId,
+		TerraformVersion: p.TerraformVersion,
+	}
+
+	stopCtx, ok := schema.StopContext(ctx) //nolint:staticcheck
+	if !ok {
+		stopCtx = ctx
+	}
+
+	client, err := clientBuilder.Build(stopCtx)
+	if err != nil {
+		return nil, pluginsdk.DiagFromErr(err)
+	}
+
+	return client, nil
+}

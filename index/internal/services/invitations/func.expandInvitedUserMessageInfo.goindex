@@ -1,0 +1,20 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/invitations
+import "github.com/manicminer/hamilton/msgraph"
+func expandInvitedUserMessageInfo(in []interface{}) *msgraph.InvitedUserMessageInfo {
+	if len(in) == 0 || in[0] == nil {
+		return nil
+	}
+
+	result := msgraph.InvitedUserMessageInfo{}
+	config := in[0].(map[string]interface{})
+
+	additionalRecipients := config["additional_recipients"].([]interface{})
+	messageBody := config["body"].(string)
+	messageLanguage := config["language"].(string)
+
+	result.CCRecipients = expandRecipients(additionalRecipients)
+	result.CustomizedMessageBody = &messageBody
+	result.MessageLanguage = &messageLanguage
+
+	return &result
+}

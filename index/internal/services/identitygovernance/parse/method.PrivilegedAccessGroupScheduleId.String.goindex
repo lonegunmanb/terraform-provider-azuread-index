@@ -1,0 +1,11 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/identitygovernance/parse
+import (
+	"fmt"
+	"strings"
+
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func (id *PrivilegedAccessGroupScheduleId) String() string {
+	return fmt.Sprintf("Privileged Access Group Assigment Schedule ID: %q", id.ID())
+}

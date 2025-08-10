@@ -1,0 +1,10 @@
+{
+  "terraform_type": "azuread_administrative_unit",
+  "struct_type": "",
+  "namespace": "github.com/hashicorp/terraform-provider-azuread/internal/services/administrativeunits",
+  "registration_method": "administrativeUnitDataSource",
+  "sdk_type": "legacy_pluginsdk",
+  "schema_index": "func.administrativeUnitDataSource.goindex",
+  "read_index": "func.administrativeUnitDataSourceRead.goindex",
+  "attribute_index": "func.administrativeUnitDataSource.goindex"
+}

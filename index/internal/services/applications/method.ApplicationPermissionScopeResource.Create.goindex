@@ -1,0 +1,92 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/applications
+import (
+	"context"
+	"fmt"
+	"net/http"
+	"strings"
+	"time"
+
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/terraform-provider-azuread/internal/sdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/services/applications/parse"
+	applicationsValidate "github.com/hashicorp/terraform-provider-azuread/internal/services/applications/validate"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func (r ApplicationPermissionScopeResource) Create() sdk.ResourceFunc {
+	return sdk.ResourceFunc{
+		Timeout: 10 * time.Minute,
+		Func: func(ctx context.Context, metadata sdk.ResourceMetaData) error {
+			client := metadata.Client.Applications.ApplicationsClient
+			client.BaseClient.DisableRetries = true
+			defer func() { client.BaseClient.DisableRetries = false }()
+
+			var model ApplicationPermissionScopeModel
+			if err := metadata.Decode(&model); err != nil {
+				return fmt.Errorf("decoding: %+v", err)
+			}
+
+			applicationId, err := parse.ParseApplicationID(model.ApplicationId)
+			if err != nil {
+				return err
+			}
+
+			id := parse.NewPermissionScopeID(applicationId.ApplicationId, model.ScopeId)
+
+			tf.LockByName(applicationResourceName, id.ApplicationId)
+			defer tf.UnlockByName(applicationResourceName, id.ApplicationId)
+
+			result, _, err := client.Get(ctx, applicationId.ApplicationId, odata.Query{})
+			if err != nil {
+				return fmt.Errorf("retrieving %s: %+v", applicationId, err)
+			}
+			if result == nil {
+				return fmt.Errorf("retrieving %s: result was nil", applicationId)
+			}
+
+			newScopes := make([]msgraph.PermissionScope, 0)
+
+			// Don't forget any existing scopes, since all scopes must be updated together
+			if result.Api != nil && result.Api.OAuth2PermissionScopes != nil {
+				newScopes = *result.Api.OAuth2PermissionScopes
+			}
+
+			// Check for existing scope ID
+			for _, scope := range newScopes {
+				if strings.EqualFold(*scope.ID, id.ScopeID) {
+					return metadata.ResourceRequiresImport(r.ResourceType(), id)
+				}
+			}
+
+			newScopes = append(newScopes, msgraph.PermissionScope{
+				ID:                      &model.ScopeId,
+				IsEnabled:               pointer.To(true),
+				AdminConsentDescription: &model.AdminConsentDescription,
+				AdminConsentDisplayName: &model.AdminConsentDisplayName,
+				Type:                    model.Type,
+				UserConsentDescription:  &model.UserConsentDescription,
+				UserConsentDisplayName:  &model.UserConsentDisplayName,
+				Value:                   &model.Value,
+			})
+
+			properties := msgraph.Application{
+				DirectoryObject: msgraph.DirectoryObject{
+					Id: &id.ApplicationId,
+				},
+				Api: &msgraph.ApplicationApi{
+					OAuth2PermissionScopes: &newScopes,
+				},
+			}
+
+			if _, err = client.Update(ctx, properties); err != nil {
+				return fmt.Errorf("creating %s: %+v", id, err)
+			}
+
+			metadata.SetID(id)
+			return nil
+		},
+	}
+}

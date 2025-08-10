@@ -1,0 +1,83 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/applications
+import (
+	"context"
+	"fmt"
+	"net/http"
+	"time"
+
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers"
+	"github.com/hashicorp/terraform-provider-azuread/internal/sdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/services/applications/parse"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func (r ApplicationRegistrationResource) Read() sdk.ResourceFunc {
+	return sdk.ResourceFunc{
+		Timeout: 5 * time.Minute,
+		Func: func(ctx context.Context, metadata sdk.ResourceMetaData) error {
+			client := metadata.Client.Applications.ApplicationsClient
+			client.BaseClient.DisableRetries = true
+			defer func() { client.BaseClient.DisableRetries = false }()
+
+			id, err := parse.ParseApplicationID(metadata.ResourceData.Id())
+			if err != nil {
+				return err
+			}
+
+			result, status, err := client.Get(ctx, id.ApplicationId, odata.Query{})
+			if err != nil {
+				if status == http.StatusNotFound {
+					return metadata.MarkAsGone(id)
+				}
+				return fmt.Errorf("retrieving %s: %+v", id, err)
+			}
+
+			if result == nil {
+				return fmt.Errorf("retrieving %s: result was nil", id)
+			}
+
+			state := ApplicationRegistrationModel{
+				ClientId:                   pointer.From(result.AppId),
+				Description:                string(pointer.From(result.Description)),
+				DisplayName:                pointer.From(result.DisplayName),
+				GroupMembershipClaims:      pointer.From(result.GroupMembershipClaims),
+				Notes:                      string(pointer.From(result.Notes)),
+				ObjectId:                   pointer.From(result.ID()),
+				PublisherDomain:            pointer.From(result.PublisherDomain),
+				ServiceManagementReference: string(pointer.From(result.ServiceManagementReference)),
+				SignInAudience:             pointer.From(result.SignInAudience),
+			}
+
+			if api := result.Api; api != nil {
+				state.RequestedAccessTokenVersion = int(pointer.From(api.RequestedAccessTokenVersion))
+			}
+
+			if info := result.Info; info != nil {
+				state.MarketingUrl = string(pointer.From(info.MarketingUrl))
+				state.PrivacyStatementUrl = string(pointer.From(info.PrivacyStatementUrl))
+				state.SupportUrl = string(pointer.From(info.SupportUrl))
+				state.TermsOfServiceUrl = string(pointer.From(info.TermsOfServiceUrl))
+			}
+
+			if web := result.Web; web != nil {
+				state.HomepageUrl = string(pointer.From(web.HomePageUrl))
+				state.LogoutUrl = string(pointer.From(web.LogoutUrl))
+
+				if implicitGrant := web.ImplicitGrantSettings; implicitGrant != nil {
+					state.ImplicitAccessTokenIssuanceEnabled = pointer.From(implicitGrant.EnableAccessTokenIssuance)
+					state.ImplicitIdTokenIssuanceEnabled = pointer.From(implicitGrant.EnableIdTokenIssuance)
+				}
+			}
+
+			if result.DisabledByMicrosoftStatus != nil {
+				state.DisabledByMicrosoft = fmt.Sprintf("%v", result.DisabledByMicrosoftStatus)
+			}
+
+			return metadata.Encode(&state)
+		},
+	}
+}

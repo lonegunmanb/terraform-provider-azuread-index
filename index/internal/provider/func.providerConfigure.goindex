@@ -1,0 +1,110 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/provider
+import (
+	"context"
+	"fmt"
+
+	"github.com/hashicorp/go-azure-sdk/sdk/auth"
+	"github.com/hashicorp/go-azure-sdk/sdk/environments"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
+	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
+	"github.com/hashicorp/terraform-provider-azuread/internal/sdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
+)
+func providerConfigure(p *schema.Provider) schema.ConfigureContextFunc {
+	return func(ctx context.Context, d *pluginsdk.ResourceData) (interface{}, pluginsdk.Diagnostics) {
+		var certData []byte
+		if encodedCert := d.Get("client_certificate").(string); encodedCert != "" {
+			var err error
+			certData, err = decodeCertificate(encodedCert)
+			if err != nil {
+				return nil, pluginsdk.DiagFromErr(err)
+			}
+		}
+
+		idToken, err := getOidcToken(d)
+		if err != nil {
+			return nil, pluginsdk.DiagFromErr(err)
+		}
+
+		clientSecret, err := getClientSecret(d)
+		if err != nil {
+			return nil, pluginsdk.DiagFromErr(err)
+		}
+
+		clientId, err := getClientId(d)
+		if err != nil {
+			return nil, pluginsdk.DiagFromErr(err)
+		}
+
+		tenantId, err := getTenantId(d)
+		if err != nil {
+			return nil, pluginsdk.DiagFromErr(err)
+		}
+
+		var (
+			env *environments.Environment
+
+			envName      = d.Get("environment").(string)
+			metadataHost = d.Get("metadata_host").(string)
+		)
+
+		if metadataHost != "" {
+			logEntry("[DEBUG] Configuring cloud environment from Metadata Service at %q", metadataHost)
+			if env, err = environments.FromEndpoint(ctx, fmt.Sprintf("https://%s", metadataHost)); err != nil {
+				return nil, pluginsdk.DiagFromErr(err)
+			}
+		} else {
+			logEntry("[DEBUG] Configuring built-in cloud environment by name: %q", envName)
+			if env, err = environments.FromName(envName); err != nil {
+				return nil, pluginsdk.DiagFromErr(err)
+			}
+		}
+
+		if env.MicrosoftGraph == nil {
+			return nil, pluginsdk.DiagErrorf("Microsoft Graph was not configured for the specified environment")
+		} else if endpoint, ok := env.MicrosoftGraph.Endpoint(); !ok || *endpoint == "" {
+			return nil, pluginsdk.DiagErrorf("Microsoft Graph endpoint could not be determined for the specified environment")
+		}
+
+		var (
+			enableAzureCli        = d.Get("use_cli").(bool)
+			enableManagedIdentity = d.Get("use_msi").(bool)
+			enableOidc            = d.Get("use_oidc").(bool) || d.Get("use_aks_workload_identity").(bool)
+		)
+
+		authConfig := &auth.Credentials{
+			Environment: *env,
+			ClientID:    *clientId,
+			TenantID:    *tenantId,
+
+			ClientCertificateData:     certData,
+			ClientCertificatePassword: d.Get("client_certificate_password").(string),
+			ClientCertificatePath:     d.Get("client_certificate_path").(string),
+			ClientSecret:              *clientSecret,
+
+			OIDCAssertionToken:          *idToken,
+			GitHubOIDCTokenRequestURL:   d.Get("oidc_request_url").(string),
+			GitHubOIDCTokenRequestToken: d.Get("oidc_request_token").(string),
+
+			CustomManagedIdentityEndpoint: d.Get("msi_endpoint").(string),
+
+			EnableAuthenticatingUsingAzureCLI:          enableAzureCli,
+			EnableAuthenticatingUsingClientCertificate: true,
+			EnableAuthenticatingUsingClientSecret:      true,
+			EnableAuthenticatingUsingManagedIdentity:   enableManagedIdentity,
+			EnableAuthenticationUsingGitHubOIDC:        enableOidc,
+			EnableAuthenticationUsingOIDC:              enableOidc,
+		}
+
+		// only one pid can be interpreted currently
+		// hence, send partner ID if present, otherwise send Terraform GUID
+		// unless users have opted out
+		partnerId := d.Get("partner_id").(string)
+		if partnerId == "" && !d.Get("disable_terraform_partner_id").(bool) {
+			partnerId = terraformPartnerId
+		}
+
+		return buildClient(ctx, p, authConfig, partnerId)
+	}
+}

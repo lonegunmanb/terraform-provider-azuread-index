@@ -1,0 +1,20 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/conditionalaccess
+import (
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func expandIPNamedLocationIPRange(in []interface{}) *[]msgraph.IPNamedLocationIPRange {
+	if len(in) == 0 {
+		return nil
+	}
+
+	result := make([]msgraph.IPNamedLocationIPRange, 0)
+	for _, cidr := range in {
+		result = append(result, msgraph.IPNamedLocationIPRange{
+			CIDRAddress: pointer.To(cidr.(string)),
+		})
+	}
+
+	return &result
+}

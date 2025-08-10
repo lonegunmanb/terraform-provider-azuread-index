@@ -1,0 +1,39 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/identitygovernance
+import (
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
+)
+func schemaLocalizedContent() *pluginsdk.Resource {
+	return &pluginsdk.Resource{
+		Schema: map[string]*pluginsdk.Schema{
+			"default_text": {
+				Description: "The default text of this question",
+				Type:        pluginsdk.TypeString,
+				Required:    true,
+			},
+
+			"localized_text": {
+				Description: "The localized text of this question",
+				Type:        pluginsdk.TypeList,
+				Optional:    true,
+				Elem: &pluginsdk.Resource{
+					Schema: map[string]*pluginsdk.Schema{
+						"language_code": {
+							Description:      "The language code of this question content",
+							Type:             pluginsdk.TypeString,
+							Required:         true,
+							ValidateDiagFunc: validation.ISO639Language,
+						},
+
+						"content": {
+							Description: "The localized content of this question",
+							Type:        pluginsdk.TypeString,
+							Required:    true,
+						},
+					},
+				},
+			},
+		},
+	}
+}

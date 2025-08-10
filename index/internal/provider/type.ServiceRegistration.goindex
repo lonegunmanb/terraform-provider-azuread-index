@@ -1,0 +1,26 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/provider
+import (
+	"context"
+	"fmt"
+
+	"github.com/hashicorp/go-azure-sdk/sdk/auth"
+	"github.com/hashicorp/go-azure-sdk/sdk/environments"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
+	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
+	"github.com/hashicorp/terraform-provider-azuread/internal/sdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
+)
+type ServiceRegistration interface {
+	// Name is the name of this Service
+	Name() string
+
+	// WebsiteCategories returns a list of categories which can be used for the sidebar
+	WebsiteCategories() []string
+
+	// SupportedDataSources returns the supported Data Sources supported by this Service
+	SupportedDataSources() map[string]*pluginsdk.Resource
+
+	// SupportedResources returns the supported Resources supported by this Service
+	SupportedResources() map[string]*pluginsdk.Resource
+}

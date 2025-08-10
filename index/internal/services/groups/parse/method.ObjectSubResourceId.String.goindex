@@ -1,0 +1,10 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/groups/parse
+import (
+	"fmt"
+	"strings"
+
+	"github.com/hashicorp/go-uuid"
+)
+func (id ObjectSubResourceId) String() string {
+	return fmt.Sprintf("%s/%s/%s", id.objectId, id.Type, id.subId)
+}

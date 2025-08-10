@@ -1,0 +1,52 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/administrativeunits
+import (
+	"context"
+	"errors"
+	"fmt"
+	"log"
+	"net/http"
+	"time"
+
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/go-uuid"
+	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func administrativeUnitResourceDelete(ctx context.Context, d *pluginsdk.ResourceData, meta interface{}) pluginsdk.Diagnostics {
+	client := meta.(*clients.Client).AdministrativeUnits.AdministrativeUnitsClient
+	administrativeUnitId := d.Id()
+
+	_, status, err := client.Get(ctx, administrativeUnitId, odata.Query{})
+	if err != nil {
+		if status == http.StatusNotFound {
+			return tf.ErrorDiagPathF(fmt.Errorf("Administrative unit was not found"), "id", "Retrieving administrative unit with object ID %q", administrativeUnitId)
+		}
+		return tf.ErrorDiagPathF(err, "id", "Retrieving administrative unit with object ID: %q", administrativeUnitId)
+	}
+
+	if _, err := client.Delete(ctx, administrativeUnitId); err != nil {
+		return tf.ErrorDiagF(err, "Deleting administrative unit with object ID: %q", administrativeUnitId)
+	}
+
+	// Wait for administrative unit object to be deleted
+	if err := helpers.WaitForDeletion(ctx, func(ctx context.Context) (*bool, error) {
+		defer func() { client.BaseClient.DisableRetries = false }()
+		client.BaseClient.DisableRetries = true
+		if _, status, err := client.Get(ctx, administrativeUnitId, odata.Query{}); err != nil {
+			if status == http.StatusNotFound {
+				return pointer.To(false), nil
+			}
+			return nil, err
+		}
+		return pointer.To(true), nil
+	}); err != nil {
+		return tf.ErrorDiagF(err, "Waiting for deletion of administrative unit with object ID %q", administrativeUnitId)
+	}
+
+	return nil
+}

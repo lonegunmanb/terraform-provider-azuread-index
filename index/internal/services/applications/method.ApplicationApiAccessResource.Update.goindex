@@ -1,0 +1,96 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/applications
+import (
+	"context"
+	"fmt"
+	"net/http"
+	"strings"
+	"time"
+
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/terraform-provider-azuread/internal/sdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/services/applications/parse"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func (r ApplicationApiAccessResource) Update() sdk.ResourceFunc {
+	return sdk.ResourceFunc{
+		Timeout: 10 * time.Minute,
+		Func: func(ctx context.Context, metadata sdk.ResourceMetaData) error {
+			client := metadata.Client.Applications.ApplicationsClient
+
+			id, err := parse.ParseApiAccessID(metadata.ResourceData.Id())
+			if err != nil {
+				return err
+			}
+
+			var model ApplicationApiAccessModel
+			if err := metadata.Decode(&model); err != nil {
+				return fmt.Errorf("decoding: %+v", err)
+			}
+
+			// Prepare a new API to replace the existing one
+			permissions := make([]msgraph.ResourceAccess, 0)
+			for _, roleId := range model.RoleIds {
+				permissions = append(permissions, msgraph.ResourceAccess{
+					ID:   pointer.To(roleId),
+					Type: msgraph.ResourceAccessTypeRole,
+				})
+			}
+			for _, scopeId := range model.ScopeIds {
+				permissions = append(permissions, msgraph.ResourceAccess{
+					ID:   pointer.To(scopeId),
+					Type: msgraph.ResourceAccessTypeScope,
+				})
+			}
+			api := msgraph.RequiredResourceAccess{
+				ResourceAppId:  &model.ApiClientId,
+				ResourceAccess: &permissions,
+			}
+
+			tf.LockByName(applicationResourceName, id.ApplicationId)
+			defer tf.UnlockByName(applicationResourceName, id.ApplicationId)
+
+			applicationId := parse.NewApplicationID(id.ApplicationId)
+			result, _, err := client.Get(ctx, applicationId.ApplicationId, odata.Query{})
+			if err != nil {
+				return fmt.Errorf("retrieving %s: %+v", applicationId, err)
+			}
+			if result == nil || result.RequiredResourceAccess == nil {
+				return fmt.Errorf("retrieving %s: requiredResourceAccess was nil", applicationId)
+			}
+
+			// Look for an API to replace
+			newApis := make([]msgraph.RequiredResourceAccess, 0)
+			found := false
+			for _, existingApi := range *result.RequiredResourceAccess {
+				if strings.EqualFold(*existingApi.ResourceAppId, id.ApiClientId) {
+					newApis = append(newApis, api)
+					found = true
+				} else {
+					newApis = append(newApis, existingApi)
+				}
+			}
+			if !found {
+				return fmt.Errorf("updating %s: could not identify existing API", id)
+			}
+
+			properties := msgraph.Application{
+				DirectoryObject: msgraph.DirectoryObject{
+					Id: &applicationId.ApplicationId,
+				},
+				RequiredResourceAccess: &newApis,
+			}
+
+			// Patch the application with the new set of APIs
+			_, err = client.Update(ctx, properties)
+			if err != nil {
+				return fmt.Errorf("updating %s: %+v", id, err)
+			}
+
+			return nil
+		},
+	}
+}

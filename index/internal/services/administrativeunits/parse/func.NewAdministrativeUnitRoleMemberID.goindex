@@ -1,0 +1,14 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/administrativeunits/parse
+import (
+	"fmt"
+	"strings"
+
+	"github.com/hashicorp/go-uuid"
+)
+func NewAdministrativeUnitRoleMemberID(adminUnitID, roleMemberId string) AdministrativeUnitRoleMemberId {
+	return AdministrativeUnitRoleMemberId{
+		ObjectSubResourceId:    NewObjectSubResourceID(adminUnitID, "roleMember", roleMemberId),
+		AdministrativeUnitId:   adminUnitID,
+		ScopedRoleMembershipId: roleMemberId,
+	}
+}

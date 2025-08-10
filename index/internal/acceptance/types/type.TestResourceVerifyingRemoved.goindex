@@ -1,0 +1,11 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/acceptance/types
+import (
+	"context"
+
+	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+)
+type TestResourceVerifyingRemoved interface {
+	TestResource
+	Destroy(ctx context.Context, client *clients.Client, state *pluginsdk.InstanceState) (*bool, error)
+}

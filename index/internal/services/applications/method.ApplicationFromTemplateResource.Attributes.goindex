@@ -1,0 +1,44 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/applications
+import (
+	"context"
+	"fmt"
+	"net/http"
+	"time"
+
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers"
+	"github.com/hashicorp/terraform-provider-azuread/internal/sdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/services/applications/parse"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func (r ApplicationFromTemplateResource) Attributes() map[string]*pluginsdk.Schema {
+	return map[string]*pluginsdk.Schema{
+		"application_id": {
+			Description: "The resource ID for this application",
+			Type:        pluginsdk.TypeString,
+			Computed:    true,
+		},
+
+		"application_object_id": {
+			Description: "The object ID for this application",
+			Type:        pluginsdk.TypeString,
+			Computed:    true,
+		},
+
+		"service_principal_id": {
+			Description: "The resource ID for this service principal",
+			Type:        pluginsdk.TypeString,
+			Computed:    true,
+		},
+
+		"service_principal_object_id": {
+			Description: "The object ID for this service principal",
+			Type:        pluginsdk.TypeString,
+			Computed:    true,
+		},
+	}
+}

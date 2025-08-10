@@ -1,0 +1,7 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/directoryroles/parse
+import "fmt"
+type DirectoryRoleMemberId struct {
+	ObjectSubResourceId
+	DirectoryRoleId string
+	MemberId        string
+}

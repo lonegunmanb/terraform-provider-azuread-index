@@ -1,0 +1,37 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/applications
+import (
+	"context"
+	"encoding/base64"
+	"fmt"
+	"net/http"
+	"time"
+
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/terraform-provider-azuread/internal/sdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/services/applications/parse"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func (r ApplicationIdentifierUriResource) Arguments() map[string]*pluginsdk.Schema {
+	return map[string]*pluginsdk.Schema{
+		"application_id": {
+			Description:  "The resource ID of the application to which the identifier URI should be added",
+			Type:         pluginsdk.TypeString,
+			Required:     true,
+			ForceNew:     true,
+			ValidateFunc: parse.ValidateApplicationID,
+		},
+
+		"identifier_uri": {
+			Description: "The user-defined URI or URI-like string that uniquely identifies an application within its Azure AD tenant, or within a verified custom domain if the application is multi-tenant",
+			Type:        pluginsdk.TypeString,
+			Required:    true,
+			ForceNew:    true,
+			// Extensive validation is intentionally avoided here, as the accepted values are undocumented, vary wildly and are
+			// different for each user depending on the tenant domain configuration, whether the application is used for SSO etc
+			ValidateFunc: validation.StringIsNotEmpty,
+		},
+	}
+}

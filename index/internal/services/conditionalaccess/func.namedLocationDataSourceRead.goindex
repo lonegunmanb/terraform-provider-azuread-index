@@ -1,0 +1,58 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/conditionalaccess
+import (
+	"context"
+	"errors"
+	"fmt"
+	"net/http"
+	"time"
+
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func namedLocationDataSourceRead(ctx context.Context, d *pluginsdk.ResourceData, meta interface{}) pluginsdk.Diagnostics {
+	client := meta.(*clients.Client).ConditionalAccess.NamedLocationsClient
+
+	displayName := d.Get("display_name").(string)
+	query := odata.Query{Filter: fmt.Sprintf("displayName eq '%s'", displayName)}
+	result, status, err := client.List(ctx, query)
+	if err != nil {
+		if status == http.StatusNotFound {
+			return tf.ErrorDiagPathF(nil, "display_name", "Named Location with display name %q was not found", displayName)
+		}
+	}
+	if result == nil {
+		return tf.ErrorDiagF(errors.New("Bad API response"), "Result is nil")
+	}
+	if len(*result) == 0 {
+		return tf.ErrorDiagPathF(nil, "display_name", "No Named Location was found with display name %q", displayName)
+	}
+	if len(*result) > 1 {
+		return tf.ErrorDiagPathF(nil, "display_name", "More than one Named Location was found with display name %q", displayName)
+	}
+
+	location := (*result)[0]
+
+	if ipnl, ok := location.(msgraph.IPNamedLocation); ok {
+		if ipnl.ID == nil {
+			return tf.ErrorDiagF(errors.New("Bad API response"), "ID is nil for returned IP Named Location")
+		}
+		d.SetId(*ipnl.ID)
+		tf.Set(d, "display_name", ipnl.DisplayName)
+		tf.Set(d, "ip", flattenIPNamedLocation(&ipnl))
+	}
+
+	if cnl, ok := location.(msgraph.CountryNamedLocation); ok {
+		if cnl.ID == nil {
+			return tf.ErrorDiagF(errors.New("Bad API response"), "ID is nil for returned Country Named Location")
+		}
+		d.SetId(*cnl.ID)
+		tf.Set(d, "display_name", cnl.DisplayName)
+		tf.Set(d, "country", flattenCountryNamedLocation(&cnl))
+	}
+
+	return nil
+}

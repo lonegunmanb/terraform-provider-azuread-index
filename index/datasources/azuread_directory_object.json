@@ -1,0 +1,10 @@
+{
+  "terraform_type": "azuread_directory_object",
+  "struct_type": "",
+  "namespace": "github.com/hashicorp/terraform-provider-azuread/internal/services/directoryobjects",
+  "registration_method": "directoryObjectDataSource",
+  "sdk_type": "legacy_pluginsdk",
+  "schema_index": "func.directoryObjectDataSource.goindex",
+  "read_index": "func.directoryObjectDataSourceRead.goindex",
+  "attribute_index": "func.directoryObjectDataSource.goindex"
+}

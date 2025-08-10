@@ -1,0 +1,9 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/directoryroles/parse
+import "fmt"
+func NewDirectoryRoleMemberID(groupId, memberId string) DirectoryRoleMemberId {
+	return DirectoryRoleMemberId{
+		ObjectSubResourceId: NewObjectSubResourceID(groupId, "member", memberId),
+		DirectoryRoleId:     groupId,
+		MemberId:            memberId,
+	}
+}

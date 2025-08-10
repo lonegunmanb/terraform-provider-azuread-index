@@ -1,0 +1,16 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/tf/validation
+import (
+	"fmt"
+	"net/netip"
+)
+func StringIsIpPrefix(i interface{}, k string) (warnings []string, errors []error) {
+	if warnings, errors = StringIsNotEmpty(i, k); len(errors) > 0 {
+		return warnings, errors
+	}
+
+	if _, err := netip.ParsePrefix(i.(string)); err != nil {
+		return nil, []error{fmt.Errorf("expected %q to be a valid IPv4 or IPv6 prefix", k)}
+	}
+
+	return
+}

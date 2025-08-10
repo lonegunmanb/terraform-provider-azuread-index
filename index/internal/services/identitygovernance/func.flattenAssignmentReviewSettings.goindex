@@ -1,0 +1,26 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/identitygovernance
+import (
+	"fmt"
+	"time"
+
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func flattenAssignmentReviewSettings(input *msgraph.AssignmentReviewSettings) []map[string]interface{} {
+	if input == nil {
+		return nil
+	}
+
+	return []map[string]interface{}{{
+		"access_recommendation_enabled":   input.IsAccessRecommendationEnabled,
+		"access_review_timeout_behavior":  input.AccessReviewTimeoutBehavior,
+		"approver_justification_required": input.IsApprovalJustificationRequired,
+		"duration_in_days":                input.DurationInDays,
+		"enabled":                         input.IsEnabled,
+		"review_frequency":                input.RecurrenceType,
+		"review_type":                     input.ReviewerType,
+		"reviewer":                        flattenUserSets(input.Reviewers),
+		"starting_on":                     input.StartDateTime.Format(time.RFC3339),
+	}}
+}

@@ -1,0 +1,13 @@
+{
+  "terraform_type": "azuread_group_member",
+  "struct_type": "",
+  "namespace": "github.com/hashicorp/terraform-provider-azuread/internal/services/groups",
+  "registration_method": "groupMemberResource",
+  "sdk_type": "legacy_pluginsdk",
+  "schema_index": "func.groupMemberResource.goindex",
+  "create_index": "func.groupMemberResourceCreate.goindex",
+  "read_index": "func.groupMemberResourceRead.goindex",
+  "update_index": "func..goindex",
+  "delete_index": "func.groupMemberResourceDelete.goindex",
+  "attribute_index": "func.groupMemberResource.goindex"
+}

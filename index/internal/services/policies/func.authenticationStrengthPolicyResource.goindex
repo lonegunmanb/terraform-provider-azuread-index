@@ -1,0 +1,66 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/policies
+import (
+	"context"
+	"errors"
+	"fmt"
+	"log"
+	"net/http"
+	"time"
+
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/go-uuid"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
+	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func authenticationStrengthPolicyResource() *pluginsdk.Resource {
+	return &pluginsdk.Resource{
+		CreateContext: authenticationStrengthPolicyCreate,
+		ReadContext:   authenticationStrengthPolicyRead,
+		UpdateContext: authenticationStrengthPolicyUpdate,
+		DeleteContext: authenticationStrengthPolicyDelete,
+
+		Timeouts: &pluginsdk.ResourceTimeout{
+			Create: pluginsdk.DefaultTimeout(5 * time.Minute),
+			Read:   pluginsdk.DefaultTimeout(5 * time.Minute),
+			Update: pluginsdk.DefaultTimeout(5 * time.Minute),
+			Delete: pluginsdk.DefaultTimeout(5 * time.Minute),
+		},
+
+		Importer: pluginsdk.ImporterValidatingResourceId(func(id string) error {
+			if _, err := uuid.ParseUUID(id); err != nil {
+				return fmt.Errorf("specified ID (%q) is not valid: %s", id, err)
+			}
+			return nil
+		}),
+
+		Schema: map[string]*pluginsdk.Schema{
+			"display_name": {
+				Description:  "The display name for the authentication strength policy",
+				Type:         pluginsdk.TypeString,
+				Required:     true,
+				ValidateFunc: validation.StringIsNotEmpty,
+			},
+
+			"description": {
+				Description: "The description for the authentication strength policy",
+				Type:        pluginsdk.TypeString,
+				Optional:    true,
+			},
+
+			"allowed_combinations": {
+				Description: "The allowed MFA methods for this policy",
+				Type:        pluginsdk.TypeSet,
+				Required:    true,
+				Elem: &pluginsdk.Schema{
+					Type: pluginsdk.TypeString,
+				},
+			},
+		},
+	}
+}

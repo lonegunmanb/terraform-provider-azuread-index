@@ -1,0 +1,11 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/policies/parse
+import (
+	"fmt"
+	"strings"
+
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func (id *RoleManagementPolicyAssignmentId) String() string {
+	return fmt.Sprintf("Role Management Policy Assignment ID: %s", id.ID())
+}

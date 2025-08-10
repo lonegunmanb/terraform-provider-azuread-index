@@ -1,0 +1,23 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/domains
+import (
+	"context"
+	"crypto/sha1"
+	"encoding/base64"
+	"fmt"
+	"strings"
+	"time"
+
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/terraform-provider-azuread/internal/sdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+)
+type Domain struct {
+	AdminManaged       bool     `tfschema:"admin_managed"`
+	AuthenticationType string   `tfschema:"authentication_type"`
+	Default            bool     `tfschema:"default"`
+	DomainName         string   `tfschema:"domain_name"`
+	Initial            bool     `tfschema:"initial"`
+	Root               bool     `tfschema:"root"`
+	SupportedServices  []string `tfschema:"supported_services"`
+	Verified           bool     `tfschema:"verified"`
+}

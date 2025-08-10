@@ -1,0 +1,10 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/applications/parse
+import (
+	"fmt"
+
+	"github.com/hashicorp/go-azure-helpers/resourcemanager/resourceids"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
+)
+func (id *PermissionScopeId) String() string {
+	return fmt.Sprintf("Permission Scope (Application ID: %q, Scope ID: %q)", id.ApplicationId, id.ScopeID)
+}

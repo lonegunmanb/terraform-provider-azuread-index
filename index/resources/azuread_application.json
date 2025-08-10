@@ -1,0 +1,13 @@
+{
+  "terraform_type": "azuread_application",
+  "struct_type": "",
+  "namespace": "github.com/hashicorp/terraform-provider-azuread/internal/services/applications",
+  "registration_method": "applicationResource",
+  "sdk_type": "legacy_pluginsdk",
+  "schema_index": "func.applicationResource.goindex",
+  "create_index": "func.applicationResourceCreate.goindex",
+  "read_index": "func.applicationResourceRead.goindex",
+  "update_index": "func.applicationResourceUpdate.goindex",
+  "delete_index": "func.applicationResourceDelete.goindex",
+  "attribute_index": "func.applicationResource.goindex"
+}

@@ -1,0 +1,13 @@
+{
+  "terraform_type": "azuread_group_role_management_policy",
+  "struct_type": "GroupRoleManagementPolicyResource",
+  "namespace": "github.com/hashicorp/terraform-provider-azuread/internal/services/policies",
+  "registration_method": "",
+  "sdk_type": "modern_sdk",
+  "schema_index": "method.GroupRoleManagementPolicyResource.Arguments.goindex",
+  "create_index": "method.GroupRoleManagementPolicyResource.Create.goindex",
+  "read_index": "method.GroupRoleManagementPolicyResource.Read.goindex",
+  "update_index": "method.GroupRoleManagementPolicyResource.Update.goindex",
+  "delete_index": "method.GroupRoleManagementPolicyResource.Delete.goindex",
+  "attribute_index": "method.GroupRoleManagementPolicyResource.Attributes.goindex"
+}

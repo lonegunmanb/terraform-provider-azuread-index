@@ -1,0 +1,293 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/policies
+import (
+	"context"
+	"fmt"
+	"time"
+
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/terraform-provider-azuread/internal/sdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/services/policies/parse"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func buildPolicyForUpdate(metadata *sdk.ResourceMetaData, policy *msgraph.UnifiedRoleManagementPolicy) (*msgraph.UnifiedRoleManagementPolicy, error) {
+	var model GroupRoleManagementPolicyModel
+	if err := metadata.Decode(&model); err != nil {
+		return nil, fmt.Errorf("decoding: %+v", err)
+	}
+
+	// Take the slice of rules and convert it to a map with the ID as the key
+	policyRules := make(map[string]msgraph.UnifiedRoleManagementPolicyRule)
+	for _, rule := range *policy.Rules {
+		policyRules[*rule.ID] = rule
+	}
+	updatedRules := make([]msgraph.UnifiedRoleManagementPolicyRule, 0)
+
+	if metadata.ResourceData.HasChange("eligible_assignment_rules") {
+		expirationRequired := policyRules["Expiration_Admin_Eligibility"].IsExpirationRequired
+		maximumDuration := policyRules["Expiration_Admin_Eligibility"].MaximumDuration
+
+		if *expirationRequired != model.EligibleAssignmentRules[0].ExpirationRequired {
+			expirationRequired = pointer.To(model.EligibleAssignmentRules[0].ExpirationRequired)
+		}
+		if *maximumDuration != model.EligibleAssignmentRules[0].ExpireAfter &&
+			model.EligibleAssignmentRules[0].ExpireAfter != "" {
+			maximumDuration = pointer.To(model.EligibleAssignmentRules[0].ExpireAfter)
+		}
+
+		rule := msgraph.UnifiedRoleManagementPolicyRule{
+			ID:                   policyRules["Expiration_Admin_Eligibility"].ID,
+			ODataType:            policyRules["Expiration_Admin_Eligibility"].ODataType,
+			Target:               policyRules["Expiration_Admin_Eligibility"].Target,
+			IsExpirationRequired: expirationRequired,
+			MaximumDuration:      maximumDuration,
+		}
+		updatedRules = append(updatedRules, rule)
+	}
+
+	if metadata.ResourceData.HasChange("active_assignment_rules.0.require_multifactor_authentication") ||
+		metadata.ResourceData.HasChange("active_assignment_rules.0.require_justification") {
+		enabledRules := make([]string, 0)
+		if model.ActiveAssignmentRules[0].RequireMultiFactorAuth {
+			enabledRules = append(enabledRules, "MultiFactorAuthentication")
+		}
+		if model.ActiveAssignmentRules[0].RequireJustification {
+			enabledRules = append(enabledRules, "Justification")
+		}
+		if model.ActiveAssignmentRules[0].RequireTicketInfo {
+			enabledRules = append(enabledRules, "Ticketing")
+		}
+
+		rule := msgraph.UnifiedRoleManagementPolicyRule{
+			ID:           policyRules["Enablement_Admin_Assignment"].ID,
+			ODataType:    policyRules["Enablement_Admin_Assignment"].ODataType,
+			Target:       policyRules["Enablement_Admin_Assignment"].Target,
+			EnabledRules: pointer.To(enabledRules),
+		}
+		updatedRules = append(updatedRules, rule)
+	}
+
+	if metadata.ResourceData.HasChange("active_assignment_rules.0.expiration_required") ||
+		metadata.ResourceData.HasChange("active_assignment_rules.0.expire_after") {
+		expirationRequired := policyRules["Expiration_Admin_Assignment"].IsExpirationRequired
+		maximumDuration := policyRules["Expiration_Admin_Assignment"].MaximumDuration
+
+		if *expirationRequired != model.ActiveAssignmentRules[0].ExpirationRequired {
+			expirationRequired = pointer.To(model.ActiveAssignmentRules[0].ExpirationRequired)
+		}
+		if *maximumDuration != model.ActiveAssignmentRules[0].ExpireAfter &&
+			model.ActiveAssignmentRules[0].ExpireAfter != "" {
+			maximumDuration = pointer.To(model.ActiveAssignmentRules[0].ExpireAfter)
+		}
+
+		rule := msgraph.UnifiedRoleManagementPolicyRule{
+			ID:                   policyRules["Expiration_Admin_Assignment"].ID,
+			ODataType:            policyRules["Expiration_Admin_Assignment"].ODataType,
+			Target:               policyRules["Expiration_Admin_Assignment"].Target,
+			IsExpirationRequired: expirationRequired,
+			MaximumDuration:      maximumDuration,
+		}
+		updatedRules = append(updatedRules, rule)
+	}
+
+	if metadata.ResourceData.HasChange("activation_rules.0.maximum_duration") {
+		rule := msgraph.UnifiedRoleManagementPolicyRule{
+			ID:              policyRules["Expiration_EndUser_Assignment"].ID,
+			ODataType:       policyRules["Expiration_EndUser_Assignment"].ODataType,
+			Target:          policyRules["Expiration_EndUser_Assignment"].Target,
+			MaximumDuration: pointer.To(model.ActivationRules[0].MaximumDuration),
+		}
+		updatedRules = append(updatedRules, rule)
+	}
+
+	if metadata.ResourceData.HasChange("activation_rules.0.require_approval") ||
+		metadata.ResourceData.HasChange("activation_rules.0.approval_stage") {
+		if model.ActivationRules[0].RequireApproval && len(model.ActivationRules[0].ApprovalStages) != 1 {
+			return nil, fmt.Errorf("require_approval is true, but no approval_stages are provided")
+		}
+
+		isApprovalRequired := policyRules["Approval_EndUser_Assignment"].Setting.IsApprovalRequired
+		var approvalStages []msgraph.ApprovalStage
+		if *isApprovalRequired != model.ActivationRules[0].RequireApproval {
+			isApprovalRequired = pointer.To(model.ActivationRules[0].RequireApproval)
+		}
+		if metadata.ResourceData.HasChange("activation_rules.0.approval_stage") {
+			approvalStages = make([]msgraph.ApprovalStage, 0)
+			for _, stage := range model.ActivationRules[0].ApprovalStages {
+				primaryApprovers := make([]msgraph.UserSet, 0)
+				for _, approver := range stage.PrimaryApprovers {
+					switch approver.Type {
+					case "singleUser":
+						primaryApprovers = append(primaryApprovers, msgraph.UserSet{
+							ODataType: pointer.To("#microsoft.graph.singleUser"),
+							UserID:    pointer.To(approver.ID),
+						})
+					case "groupMembers":
+						primaryApprovers = append(primaryApprovers, msgraph.UserSet{
+							ODataType: pointer.To("#microsoft.graph.groupMembers"),
+							GroupID:   pointer.To(approver.ID),
+						})
+					}
+				}
+
+				approvalStages = append(approvalStages, msgraph.ApprovalStage{
+					PrimaryApprovers: &primaryApprovers,
+				})
+			}
+		} else {
+			approvalStages = *policyRules["Approval_EndUser_Assignment"].Setting.ApprovalStages
+		}
+
+		rule := msgraph.UnifiedRoleManagementPolicyRule{
+			ID:        policyRules["Approval_EndUser_Assignment"].ID,
+			ODataType: policyRules["Approval_EndUser_Assignment"].ODataType,
+			Target:    policyRules["Approval_EndUser_Assignment"].Target,
+			Setting: pointer.To(msgraph.ApprovalSettings{
+				IsApprovalRequired: isApprovalRequired,
+				ApprovalStages:     &approvalStages,
+			}),
+		}
+		updatedRules = append(updatedRules, rule)
+	}
+
+	if metadata.ResourceData.HasChange("activation_rules.0.required_conditional_access_authentication_context") {
+		var isEnabled *bool
+		claimValue := policyRules["AuthenticationContext_EndUser_Assignment"].ClaimValue
+
+		if _, set := metadata.ResourceData.GetOk("activation_rules.0.required_conditional_access_authentication_context"); set {
+			isEnabled = pointer.To(true)
+			claimValue = pointer.To(model.ActivationRules[0].RequireConditionalAccessContext)
+		} else {
+			isEnabled = pointer.To(false)
+		}
+
+		rule := msgraph.UnifiedRoleManagementPolicyRule{
+			ID:         policyRules["AuthenticationContext_EndUser_Assignment"].ID,
+			ODataType:  policyRules["AuthenticationContext_EndUser_Assignment"].ODataType,
+			Target:     policyRules["AuthenticationContext_EndUser_Assignment"].Target,
+			IsEnabled:  isEnabled,
+			ClaimValue: claimValue,
+		}
+		updatedRules = append(updatedRules, rule)
+	}
+
+	if metadata.ResourceData.HasChange("activation_rules.0.require_multifactor_authentication") ||
+		metadata.ResourceData.HasChange("activation_rules.0.require_justification") ||
+		metadata.ResourceData.HasChange("activation_rules.0.require_ticket_info") {
+		enabledRules := make([]string, 0)
+		if model.ActivationRules[0].RequireMultiFactorAuth {
+			enabledRules = append(enabledRules, "MultiFactorAuthentication")
+		}
+		if model.ActivationRules[0].RequireJustification {
+			enabledRules = append(enabledRules, "Justification")
+		}
+		if model.ActivationRules[0].RequireTicketInfo {
+			enabledRules = append(enabledRules, "Ticketing")
+		}
+
+		rule := msgraph.UnifiedRoleManagementPolicyRule{
+			ID:           policyRules["Enablement_EndUser_Assignment"].ID,
+			ODataType:    policyRules["Enablement_EndUser_Assignment"].ODataType,
+			Target:       policyRules["Enablement_EndUser_Assignment"].Target,
+			EnabledRules: &enabledRules,
+		}
+		updatedRules = append(updatedRules, rule)
+	}
+
+	if metadata.ResourceData.HasChange("notification_rules.0.eligible_assignments.0.admin_notifications") {
+		updatedRules = append(updatedRules,
+			expandNotificationSettings(
+				policyRules["Notification_Admin_Admin_Eligibility"],
+				model.NotificationRules[0].EligibleAssignments[0].AdminNotifications[0],
+				metadata.ResourceData.HasChange("notification_rules.0.eligible_assignments.0.admin_notifications.0.additional_recipients"),
+			),
+		)
+	}
+
+	if metadata.ResourceData.HasChange("notification_rules.0.active_assignments.0.admin_notifications") {
+		updatedRules = append(updatedRules,
+			expandNotificationSettings(
+				policyRules["Notification_Admin_Admin_Assignment"],
+				model.NotificationRules[0].ActiveAssignments[0].AdminNotifications[0],
+				metadata.ResourceData.HasChange("notification_rules.0.active_assignments.0.admin_notifications.0.additional_recipients"),
+			),
+		)
+	}
+
+	if metadata.ResourceData.HasChange("notification_rules.0.eligible_activations.0.admin_notifications") {
+		updatedRules = append(updatedRules,
+			expandNotificationSettings(
+				policyRules["Notification_Admin_EndUser_Assignment"],
+				model.NotificationRules[0].EligibleActivations[0].AdminNotifications[0],
+				metadata.ResourceData.HasChange("notification_rules.0.eligible_activations.0.admin_notifications.0.additional_recipients"),
+			),
+		)
+	}
+
+	if metadata.ResourceData.HasChange("notification_rules.0.eligible_assignments.0.approver_notifications") {
+		updatedRules = append(updatedRules,
+			expandNotificationSettings(
+				policyRules["Notification_Approver_Admin_Eligibility"],
+				model.NotificationRules[0].EligibleAssignments[0].ApproverNotifications[0],
+				metadata.ResourceData.HasChange("notification_rules.0.eligible_assignments.0.approver_notifications.0.additional_recipients"),
+			),
+		)
+	}
+
+	if metadata.ResourceData.HasChange("notification_rules.0.active_assignments.0.approver_notifications") {
+		updatedRules = append(updatedRules,
+			expandNotificationSettings(
+				policyRules["Notification_Approver_Admin_Assignment"],
+				model.NotificationRules[0].ActiveAssignments[0].ApproverNotifications[0],
+				metadata.ResourceData.HasChange("notification_rules.0.active_assignments.0.approver_notifications.0.additional_recipients"),
+			),
+		)
+	}
+
+	if metadata.ResourceData.HasChange("notification_rules.0.eligible_activations.0.approver_notifications") {
+		updatedRules = append(updatedRules,
+			expandNotificationSettings(
+				policyRules["Notification_Approver_EndUser_Assignment"],
+				model.NotificationRules[0].EligibleActivations[0].ApproverNotifications[0],
+				metadata.ResourceData.HasChange("notification_rules.0.eligible_activations.0.approver_notifications.0.additional_recipients"),
+			),
+		)
+	}
+
+	if metadata.ResourceData.HasChange("notification_rules.0.eligible_assignments.0.assignee_notifications") {
+		updatedRules = append(updatedRules,
+			expandNotificationSettings(
+				policyRules["Notification_Requestor_Admin_Eligibility"],
+				model.NotificationRules[0].EligibleAssignments[0].AssigneeNotifications[0],
+				metadata.ResourceData.HasChange("notification_rules.0.eligible_assignments.0.assignee_notifications.0.additional_recipients"),
+			),
+		)
+	}
+
+	if metadata.ResourceData.HasChange("notification_rules.0.active_assignments.0.assignee_notifications") {
+		updatedRules = append(updatedRules,
+			expandNotificationSettings(
+				policyRules["Notification_Requestor_Admin_Assignment"],
+				model.NotificationRules[0].ActiveAssignments[0].AssigneeNotifications[0],
+				metadata.ResourceData.HasChange("notification_rules.0.active_assignments.0.assignee_notifications.0.additional_recipients"),
+			),
+		)
+	}
+
+	if metadata.ResourceData.HasChange("notification_rules.0.eligible_activations.0.assignee_notifications") {
+		updatedRules = append(updatedRules,
+			expandNotificationSettings(
+				policyRules["Notification_Requestor_EndUser_Assignment"],
+				model.NotificationRules[0].EligibleActivations[0].AssigneeNotifications[0],
+				metadata.ResourceData.HasChange("notification_rules.0.eligible_activations.0.assignee_notifications.0.additional_recipients"),
+			),
+		)
+	}
+
+	return &msgraph.UnifiedRoleManagementPolicy{
+		ID:    policy.ID,
+		Rules: pointer.To(updatedRules),
+	}, nil
+}

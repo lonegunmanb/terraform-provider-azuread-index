@@ -1,0 +1,13 @@
+{
+  "terraform_type": "azuread_user",
+  "struct_type": "",
+  "namespace": "github.com/hashicorp/terraform-provider-azuread/internal/services/users",
+  "registration_method": "userResource",
+  "sdk_type": "legacy_pluginsdk",
+  "schema_index": "func.userResource.goindex",
+  "create_index": "func.userResourceCreate.goindex",
+  "read_index": "func.userResourceRead.goindex",
+  "update_index": "func.userResourceUpdate.goindex",
+  "delete_index": "func.userResourceDelete.goindex",
+  "attribute_index": "func.userResource.goindex"
+}

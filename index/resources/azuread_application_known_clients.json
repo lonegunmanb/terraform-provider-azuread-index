@@ -1,0 +1,13 @@
+{
+  "terraform_type": "azuread_application_known_clients",
+  "struct_type": "ApplicationKnownClientsResource",
+  "namespace": "github.com/hashicorp/terraform-provider-azuread/internal/services/applications",
+  "registration_method": "",
+  "sdk_type": "modern_sdk",
+  "schema_index": "method.ApplicationKnownClientsResource.Arguments.goindex",
+  "create_index": "method.ApplicationKnownClientsResource.Create.goindex",
+  "read_index": "method.ApplicationKnownClientsResource.Read.goindex",
+  "update_index": "method.ApplicationKnownClientsResource.Update.goindex",
+  "delete_index": "method.ApplicationKnownClientsResource.Delete.goindex",
+  "attribute_index": "method.ApplicationKnownClientsResource.Attributes.goindex"
+}

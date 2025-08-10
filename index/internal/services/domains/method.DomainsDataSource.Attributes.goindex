@@ -1,0 +1,76 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/domains
+import (
+	"context"
+	"crypto/sha1"
+	"encoding/base64"
+	"fmt"
+	"strings"
+	"time"
+
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/terraform-provider-azuread/internal/sdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+)
+func (r DomainsDataSource) Attributes() map[string]*pluginsdk.Schema {
+	return map[string]*pluginsdk.Schema{
+		"domains": {
+			Description: "A list of tenant domains",
+			Type:        pluginsdk.TypeList,
+			Computed:    true,
+			Elem: &pluginsdk.Resource{
+				Schema: map[string]*pluginsdk.Schema{
+					"admin_managed": {
+						Description: "Whether the DNS for the domain is managed by Microsoft 365",
+						Type:        pluginsdk.TypeBool,
+						Computed:    true,
+					},
+
+					"authentication_type": {
+						Description: "The authentication type of the domain. Possible values include `Managed` or `Federated`",
+						Type:        pluginsdk.TypeString,
+						Computed:    true,
+					},
+
+					"default": {
+						Description: "Whether this is the default domain that is used for user creation",
+						Type:        pluginsdk.TypeBool,
+						Computed:    true,
+					},
+
+					"domain_name": {
+						Description: "The name of the domain",
+						Type:        pluginsdk.TypeString,
+						Computed:    true,
+					},
+
+					"initial": {
+						Description: "Whether this is the initial domain created by Azure Active Directory",
+						Type:        pluginsdk.TypeBool,
+						Computed:    true,
+					},
+
+					"root": {
+						Description: "Whether the domain is a verified root domain (not a subdomain)",
+						Type:        pluginsdk.TypeBool,
+						Computed:    true,
+					},
+
+					"supported_services": {
+						Description: "A list of capabilities / services supported by the domain. Possible values include `Email`, `Sharepoint`, `EmailInternalRelayOnly`, `OfficeCommunicationsOnline`, `SharePointDefaultDomain`, `FullRedelegation`, `SharePointPublic`, `OrgIdAuthentication`, `Yammer` and `Intune`",
+						Type:        pluginsdk.TypeList,
+						Computed:    true,
+						Elem: &pluginsdk.Schema{
+							Type: pluginsdk.TypeString,
+						},
+					},
+
+					"verified": {
+						Description: "Whether the domain has completed domain ownership verification",
+						Type:        pluginsdk.TypeBool,
+						Computed:    true,
+					},
+				},
+			},
+		},
+	}
+}

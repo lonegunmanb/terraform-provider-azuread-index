@@ -1,0 +1,5 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/directoryroles/parse
+import "fmt"
+func (id DirectoryRoleId) String() string {
+	return fmt.Sprintf("Directory Role (Object ID: %q)", id.val)
+}

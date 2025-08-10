@@ -1,0 +1,13 @@
+{
+  "terraform_type": "azuread_service_principal_certificate",
+  "struct_type": "",
+  "namespace": "github.com/hashicorp/terraform-provider-azuread/internal/services/serviceprincipals",
+  "registration_method": "servicePrincipalCertificateResource",
+  "sdk_type": "legacy_pluginsdk",
+  "schema_index": "func.servicePrincipalCertificateResource.goindex",
+  "create_index": "func.servicePrincipalCertificateResourceCreate.goindex",
+  "read_index": "func.servicePrincipalCertificateResourceRead.goindex",
+  "update_index": "func..goindex",
+  "delete_index": "func.servicePrincipalCertificateResourceDelete.goindex",
+  "attribute_index": "func.servicePrincipalCertificateResource.goindex"
+}

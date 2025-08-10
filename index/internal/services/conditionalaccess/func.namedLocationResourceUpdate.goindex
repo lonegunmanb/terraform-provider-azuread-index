@@ -1,0 +1,108 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/conditionalaccess
+import (
+	"context"
+	"errors"
+	"fmt"
+	"log"
+	"net/http"
+	"reflect"
+	"time"
+
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/go-uuid"
+	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func namedLocationResourceUpdate(ctx context.Context, d *pluginsdk.ResourceData, meta interface{}) pluginsdk.Diagnostics {
+	client := meta.(*clients.Client).ConditionalAccess.NamedLocationsClient
+
+	base := msgraph.BaseNamedLocation{
+		ID: pointer.To(d.Id()),
+	}
+
+	if d.HasChange("display_name") {
+		displayName := d.Get("display_name").(string)
+		base.DisplayName = &displayName
+	}
+
+	var updateRefreshFunc pluginsdk.StateRefreshFunc //nolint:staticcheck
+
+	if v, ok := d.GetOk("ip"); ok {
+		properties := expandIPNamedLocation(v.([]interface{}))
+		properties.BaseNamedLocation = &base
+
+		if _, err := client.UpdateIP(ctx, *properties); err != nil {
+			return tf.ErrorDiagF(err, "Could not update named location with ID %q: %+v", d.Id(), err)
+		}
+
+		updateRefreshFunc = func() (interface{}, string, error) {
+			result, _, err := client.GetIP(ctx, d.Id(), odata.Query{})
+			if err != nil {
+				return nil, "Error", err
+			}
+
+			if locationRaw := flattenIPNamedLocation(result); len(locationRaw) > 0 {
+				location := locationRaw[0].(map[string]interface{})
+				ip := v.([]interface{})[0].(map[string]interface{})
+				if !reflect.DeepEqual(location["ip_ranges"], ip["ip_ranges"]) {
+					return "stub", "Pending", nil
+				}
+				if location["trusted"].(bool) != ip["trusted"].(bool) {
+					return "stub", "Pending", nil
+				}
+			}
+
+			return "stub", "Updated", nil
+		}
+	}
+
+	if v, ok := d.GetOk("country"); ok {
+		properties := expandCountryNamedLocation(v.([]interface{}))
+		properties.BaseNamedLocation = &base
+
+		if _, err := client.UpdateCountry(ctx, *properties); err != nil {
+			return tf.ErrorDiagF(err, "Could not update named location with ID %q: %+v", d.Id(), err)
+		}
+
+		updateRefreshFunc = func() (interface{}, string, error) {
+			result, _, err := client.GetCountry(ctx, d.Id(), odata.Query{})
+			if err != nil {
+				return nil, "Error", err
+			}
+
+			if locationRaw := flattenCountryNamedLocation(result); len(locationRaw) > 0 {
+				location := locationRaw[0].(map[string]interface{})
+				ip := v.([]interface{})[0].(map[string]interface{})
+				if !reflect.DeepEqual(location["countries_and_regions"], ip["countries_and_regions"]) {
+					return "stub", "Pending", nil
+				}
+				if location["include_unknown_countries_and_regions"].(bool) != ip["include_unknown_countries_and_regions"].(bool) {
+					return "stub", "Pending", nil
+				}
+			}
+
+			return "stub", "Updated", nil
+		}
+	}
+
+	log.Printf("[DEBUG] Waiting for named location %q to be updated", d.Id())
+	timeout, _ := ctx.Deadline()
+	stateConf := &pluginsdk.StateChangeConf{ //nolint:staticcheck
+		Pending:                   []string{"Pending"},
+		Target:                    []string{"Updated"},
+		Timeout:                   time.Until(timeout),
+		MinTimeout:                5 * time.Second,
+		ContinuousTargetOccurence: 5,
+		Refresh:                   updateRefreshFunc,
+	}
+	if _, err := stateConf.WaitForStateContext(ctx); err != nil {
+		return tf.ErrorDiagF(err, "waiting for update of named location with ID %q", d.Id())
+	}
+
+	return namedLocationResourceRead(ctx, d, meta)
+}

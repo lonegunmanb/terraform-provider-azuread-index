@@ -1,0 +1,5 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/applications/parse
+import "fmt"
+func (id ApplicationPreAuthorizedId) String() string {
+	return id.ObjectId + "/preAuthorizedApplication/" + id.AppId
+}

@@ -1,0 +1,31 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/serviceprincipals
+import (
+	"context"
+	"errors"
+	"fmt"
+	"log"
+	"net/http"
+	"time"
+
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func servicePrincipalDelegatedPermissionGrantResourceUpdate(ctx context.Context, d *pluginsdk.ResourceData, meta interface{}) pluginsdk.Diagnostics {
+	client := meta.(*clients.Client).ServicePrincipals.DelegatedPermissionGrantsClient
+
+	properties := msgraph.DelegatedPermissionGrant{
+		Id:     pointer.To(d.Id()),
+		Scopes: tf.ExpandStringSlicePtr(d.Get("claim_values").(*pluginsdk.Set).List()),
+	}
+
+	if _, err := client.Update(ctx, properties); err != nil {
+		return tf.ErrorDiagF(err, "Could not update delegated permission grant")
+	}
+
+	return servicePrincipalDelegatedPermissionGrantResourceRead(ctx, d, meta)
+}

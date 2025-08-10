@@ -1,0 +1,12 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/applications
+import (
+	"github.com/hashicorp/terraform-provider-azuread/internal/sdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+)
+func (r Registration) SupportedDataSources() map[string]*pluginsdk.Resource {
+	return map[string]*pluginsdk.Resource{
+		"azuread_application":                   applicationDataSource(),
+		"azuread_application_published_app_ids": applicationPublishedAppIdsDataSource(),
+		"azuread_application_template":          applicationTemplateDataSource(),
+	}
+}

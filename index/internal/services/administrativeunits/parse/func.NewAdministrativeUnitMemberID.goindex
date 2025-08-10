@@ -1,0 +1,9 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/administrativeunits/parse
+import "fmt"
+func NewAdministrativeUnitMemberID(groupId, memberId string) AdministrativeUnitMemberId {
+	return AdministrativeUnitMemberId{
+		ObjectSubResourceId:  NewObjectSubResourceID(groupId, "member", memberId),
+		AdministrativeUnitId: groupId,
+		MemberId:             memberId,
+	}
+}

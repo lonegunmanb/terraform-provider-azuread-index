@@ -1,0 +1,13 @@
+{
+  "terraform_type": "azuread_conditional_access_policy",
+  "struct_type": "",
+  "namespace": "github.com/hashicorp/terraform-provider-azuread/internal/services/conditionalaccess",
+  "registration_method": "conditionalAccessPolicyResource",
+  "sdk_type": "legacy_pluginsdk",
+  "schema_index": "func.conditionalAccessPolicyResource.goindex",
+  "create_index": "func.conditionalAccessPolicyResourceCreate.goindex",
+  "read_index": "func.conditionalAccessPolicyResourceRead.goindex",
+  "update_index": "func.conditionalAccessPolicyResourceUpdate.goindex",
+  "delete_index": "func.conditionalAccessPolicyResourceDelete.goindex",
+  "attribute_index": "func.conditionalAccessPolicyResource.goindex"
+}

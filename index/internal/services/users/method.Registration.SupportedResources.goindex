@@ -1,0 +1,7 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/users
+import "github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+func (r Registration) SupportedResources() map[string]*pluginsdk.Resource {
+	return map[string]*pluginsdk.Resource{
+		"azuread_user": userResource(),
+	}
+}

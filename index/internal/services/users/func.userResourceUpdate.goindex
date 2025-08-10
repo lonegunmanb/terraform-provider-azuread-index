@@ -1,0 +1,115 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/users
+import (
+	"context"
+	"errors"
+	"fmt"
+	"log"
+	"net/http"
+	"strings"
+	"time"
+
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/go-uuid"
+	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func userResourceUpdate(ctx context.Context, d *pluginsdk.ResourceData, meta interface{}) pluginsdk.Diagnostics {
+	client := meta.(*clients.Client).Users.UsersClient
+	directoryObjectsClient := meta.(*clients.Client).Users.DirectoryObjectsClient
+	tenantId := meta.(*clients.Client).TenantID
+
+	var passwordPolicies string
+	disableStrongPassword := d.Get("disable_strong_password").(bool)
+	disablePasswordExpiration := d.Get("disable_password_expiration").(bool)
+
+	switch {
+	case disableStrongPassword && (!disablePasswordExpiration):
+		passwordPolicies = "DisableStrongPassword"
+	case (!disableStrongPassword) && disablePasswordExpiration:
+		passwordPolicies = "DisablePasswordExpiration"
+	case disableStrongPassword && disablePasswordExpiration:
+		passwordPolicies = "DisablePasswordExpiration, DisableStrongPassword"
+	}
+
+	properties := msgraph.User{
+		DirectoryObject: msgraph.DirectoryObject{
+			Id: pointer.To(d.Id()),
+		},
+		AccountEnabled:          pointer.To(d.Get("account_enabled").(bool)),
+		AgeGroup:                tf.NullableString(d.Get("age_group").(string)),
+		City:                    tf.NullableString(d.Get("city").(string)),
+		CompanyName:             tf.NullableString(d.Get("company_name").(string)),
+		ConsentProvidedForMinor: tf.NullableString(d.Get("consent_provided_for_minor").(string)),
+		Country:                 tf.NullableString(d.Get("country").(string)),
+		Department:              tf.NullableString(d.Get("department").(string)),
+		DisplayName:             pointer.To(d.Get("display_name").(string)),
+		EmployeeId:              tf.NullableString(d.Get("employee_id").(string)),
+		EmployeeOrgData: &msgraph.EmployeeOrgData{
+			CostCenter: pointer.To(d.Get("cost_center").(string)),
+			Division:   pointer.To(d.Get("division").(string)),
+		},
+		EmployeeType:      tf.NullableString(d.Get("employee_type").(string)),
+		FaxNumber:         tf.NullableString(d.Get("fax_number").(string)),
+		GivenName:         tf.NullableString(d.Get("given_name").(string)),
+		JobTitle:          tf.NullableString(d.Get("job_title").(string)),
+		MailNickname:      pointer.To(d.Get("mail_nickname").(string)),
+		MobilePhone:       tf.NullableString(d.Get("mobile_phone").(string)),
+		OfficeLocation:    tf.NullableString(d.Get("office_location").(string)),
+		OtherMails:        tf.ExpandStringSlicePtr(d.Get("other_mails").(*pluginsdk.Set).List()),
+		PasswordPolicies:  tf.NullableString(passwordPolicies),
+		PostalCode:        tf.NullableString(d.Get("postal_code").(string)),
+		PreferredLanguage: tf.NullableString(d.Get("preferred_language").(string)),
+		State:             tf.NullableString(d.Get("state").(string)),
+		StreetAddress:     tf.NullableString(d.Get("street_address").(string)),
+		Surname:           tf.NullableString(d.Get("surname").(string)),
+		UsageLocation:     tf.NullableString(d.Get("usage_location").(string)),
+		UserPrincipalName: pointer.To(d.Get("user_principal_name").(string)),
+	}
+
+	if password := d.Get("password").(string); d.HasChange("password") && password != "" {
+		properties.PasswordProfile = &msgraph.UserPasswordProfile{
+			ForceChangePasswordNextSignIn: pointer.To(d.Get("force_password_change").(bool)),
+			Password:                      pointer.To(password),
+		}
+	}
+
+	if d.HasChange("business_phones") {
+		properties.BusinessPhones = tf.ExpandStringSlicePtr(d.Get("business_phones").([]interface{}))
+	}
+
+	if d.HasChange("mail") {
+		if mail := d.Get("mail").(string); mail != "" {
+			properties.Mail = tf.NullableString(mail)
+		}
+	}
+
+	if d.HasChange("onpremises_immutable_id") {
+		properties.OnPremisesImmutableId = pointer.To(d.Get("onpremises_immutable_id").(string))
+	}
+
+	if d.HasChange("show_in_address_list") {
+		properties.ShowInAddressList = pointer.To(d.Get("show_in_address_list").(bool))
+	}
+
+	if _, err := client.Update(ctx, properties); err != nil {
+		// Flag the state as 'partial' to avoid setting `password` from the current config. Since the config is the
+		// only source for this property, if the update fails due to a bad password, the current password will be forgotten
+		// and Terraform will not offer a diff in the next plan.
+		d.Partial(true) //lintignore:R007
+
+		return tf.ErrorDiagF(err, "Could not update user with ID: %q", d.Id())
+	}
+
+	if d.HasChange("manager_id") {
+		if err := assignManager(ctx, client, directoryObjectsClient, tenantId, d.Id(), d.Get("manager_id").(string)); err != nil {
+			return tf.ErrorDiagPathF(err, "manager_id", "Could not assign manager for user with object ID %q", d.Id())
+		}
+	}
+
+	return userResourceRead(ctx, d, meta)
+}

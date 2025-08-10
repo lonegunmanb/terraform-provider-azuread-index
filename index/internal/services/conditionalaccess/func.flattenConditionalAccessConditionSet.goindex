@@ -1,0 +1,26 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/conditionalaccess
+import (
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func flattenConditionalAccessConditionSet(in *msgraph.ConditionalAccessConditionSet) []interface{} {
+	if in == nil {
+		return []interface{}{}
+	}
+
+	return []interface{}{
+		map[string]interface{}{
+			"applications":                  flattenConditionalAccessApplications(in.Applications),
+			"client_applications":           flattenConditionalAccessClientApplications(in.ClientApplications),
+			"users":                         flattenConditionalAccessUsers(in.Users),
+			"client_app_types":              tf.FlattenStringSlicePtr(in.ClientAppTypes),
+			"devices":                       flattenConditionalAccessDevices(in.Devices),
+			"locations":                     flattenConditionalAccessLocations(in.Locations),
+			"platforms":                     flattenConditionalAccessPlatforms(in.Platforms),
+			"service_principal_risk_levels": tf.FlattenStringSlicePtr(in.ServicePrincipalRiskLevels),
+			"sign_in_risk_levels":           tf.FlattenStringSlicePtr(in.SignInRiskLevels),
+			"user_risk_levels":              tf.FlattenStringSlicePtr(in.UserRiskLevels),
+		},
+	}
+}

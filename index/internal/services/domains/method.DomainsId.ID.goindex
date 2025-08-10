@@ -1,0 +1,16 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/domains
+import (
+	"context"
+	"crypto/sha1"
+	"encoding/base64"
+	"fmt"
+	"strings"
+	"time"
+
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/terraform-provider-azuread/internal/sdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+)
+func (id DomainsId) ID() string {
+	return string(id)
+}

@@ -1,0 +1,13 @@
+{
+  "terraform_type": "azuread_access_package_resource_catalog_association",
+  "struct_type": "",
+  "namespace": "github.com/hashicorp/terraform-provider-azuread/internal/services/identitygovernance",
+  "registration_method": "accessPackageResourceCatalogAssociationResource",
+  "sdk_type": "legacy_pluginsdk",
+  "schema_index": "func.accessPackageResourceCatalogAssociationResource.goindex",
+  "create_index": "func.accessPackageResourceCatalogAssociationResourceCreate.goindex",
+  "read_index": "func.accessPackageResourceCatalogAssociationResourceRead.goindex",
+  "update_index": "func..goindex",
+  "delete_index": "func.accessPackageResourceCatalogAssociationResourceDelete.goindex",
+  "attribute_index": "func.accessPackageResourceCatalogAssociationResource.goindex"
+}

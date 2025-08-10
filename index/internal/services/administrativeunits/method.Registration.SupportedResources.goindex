@@ -1,0 +1,9 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/administrativeunits
+import "github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+func (r Registration) SupportedResources() map[string]*pluginsdk.Resource {
+	return map[string]*pluginsdk.Resource{
+		"azuread_administrative_unit":             administrativeUnitResource(),
+		"azuread_administrative_unit_member":      administrativeUnitMemberResource(),
+		"azuread_administrative_unit_role_member": administrativeUnitRoleMemberResource(),
+	}
+}

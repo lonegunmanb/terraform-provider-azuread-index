@@ -1,0 +1,15 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/identitygovernance/parse
+import (
+	"fmt"
+	"strings"
+
+	"github.com/hashicorp/go-uuid"
+)
+func NewAccessPackageResourcePackageAssociationID(catalogId, resourcePackageAssociationId, originId, accessType string) AccessPackageResourcePackageAssociationId {
+	return AccessPackageResourcePackageAssociationId{
+		AccessPackageId:              catalogId,
+		ResourcePackageAssociationId: resourcePackageAssociationId,
+		OriginId:                     originId,
+		AccessType:                   accessType,
+	}
+}

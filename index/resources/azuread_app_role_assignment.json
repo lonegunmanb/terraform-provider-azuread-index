@@ -1,0 +1,13 @@
+{
+  "terraform_type": "azuread_app_role_assignment",
+  "struct_type": "",
+  "namespace": "github.com/hashicorp/terraform-provider-azuread/internal/services/approleassignments",
+  "registration_method": "appRoleAssignmentResource",
+  "sdk_type": "legacy_pluginsdk",
+  "schema_index": "func.appRoleAssignmentResource.goindex",
+  "create_index": "func.appRoleAssignmentResourceCreate.goindex",
+  "read_index": "func.appRoleAssignmentResourceRead.goindex",
+  "update_index": "func..goindex",
+  "delete_index": "func.appRoleAssignmentResourceDelete.goindex",
+  "attribute_index": "func.appRoleAssignmentResource.goindex"
+}

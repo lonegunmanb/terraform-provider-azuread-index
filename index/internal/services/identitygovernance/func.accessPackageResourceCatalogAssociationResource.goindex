@@ -1,0 +1,54 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/identitygovernance
+import (
+	"context"
+	"log"
+	"net/http"
+	"time"
+
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
+	"github.com/hashicorp/terraform-provider-azuread/internal/services/identitygovernance/parse"
+	"github.com/hashicorp/terraform-provider-azuread/internal/services/identitygovernance/validate"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func accessPackageResourceCatalogAssociationResource() *pluginsdk.Resource {
+	return &pluginsdk.Resource{
+		CreateContext: accessPackageResourceCatalogAssociationResourceCreate,
+		ReadContext:   accessPackageResourceCatalogAssociationResourceRead,
+		DeleteContext: accessPackageResourceCatalogAssociationResourceDelete,
+
+		Timeouts: &pluginsdk.ResourceTimeout{
+			Create: pluginsdk.DefaultTimeout(5 * time.Minute),
+			Read:   pluginsdk.DefaultTimeout(5 * time.Minute),
+			Delete: pluginsdk.DefaultTimeout(5 * time.Minute),
+		},
+
+		Importer: pluginsdk.ImporterValidatingResourceId(validate.AccessPackageResourceCatalogAssociationID),
+
+		Schema: map[string]*pluginsdk.Schema{
+			"resource_origin_id": {
+				Description: "The unique identifier of the resource in the origin system. In the case of an Azure AD group, this is the identifier of the group",
+				Type:        pluginsdk.TypeString,
+				Required:    true,
+				ForceNew:    true,
+			},
+
+			"resource_origin_system": {
+				Description: "The type of the resource in the origin system, such as SharePointOnline, AadApplication or AadGroup",
+				Type:        pluginsdk.TypeString,
+				Required:    true,
+				ForceNew:    true,
+			},
+
+			"catalog_id": {
+				Description: "The unique ID of the access package catalog",
+				Type:        pluginsdk.TypeString,
+				Required:    true,
+				ForceNew:    true,
+			},
+		},
+	}
+}

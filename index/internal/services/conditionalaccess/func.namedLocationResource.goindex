@@ -1,0 +1,100 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/conditionalaccess
+import (
+	"context"
+	"errors"
+	"fmt"
+	"log"
+	"net/http"
+	"reflect"
+	"time"
+
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/go-uuid"
+	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func namedLocationResource() *pluginsdk.Resource {
+	return &pluginsdk.Resource{
+		CreateContext: namedLocationResourceCreate,
+		ReadContext:   namedLocationResourceRead,
+		UpdateContext: namedLocationResourceUpdate,
+		DeleteContext: namedLocationResourceDelete,
+
+		Timeouts: &pluginsdk.ResourceTimeout{
+			Create: pluginsdk.DefaultTimeout(5 * time.Minute),
+			Read:   pluginsdk.DefaultTimeout(5 * time.Minute),
+			Update: pluginsdk.DefaultTimeout(5 * time.Minute),
+			Delete: pluginsdk.DefaultTimeout(5 * time.Minute),
+		},
+
+		Importer: pluginsdk.ImporterValidatingResourceId(func(id string) error {
+			if _, err := uuid.ParseUUID(id); err != nil {
+				return fmt.Errorf("specified ID (%q) is not valid: %s", id, err)
+			}
+			return nil
+		}),
+
+		Schema: map[string]*pluginsdk.Schema{
+			"display_name": {
+				Type:             pluginsdk.TypeString,
+				Required:         true,
+				ValidateDiagFunc: validation.ValidateDiag(validation.StringIsNotEmpty),
+			},
+
+			"ip": {
+				Type:         pluginsdk.TypeList,
+				Optional:     true,
+				ForceNew:     true,
+				MaxItems:     1,
+				ExactlyOneOf: []string{"ip", "country"},
+				Elem: &pluginsdk.Resource{
+					Schema: map[string]*pluginsdk.Schema{
+						"ip_ranges": {
+							Type:     pluginsdk.TypeList,
+							Required: true,
+							Elem: &pluginsdk.Schema{
+								Type:         pluginsdk.TypeString,
+								ValidateFunc: validation.PrefixLengthAtLeast(8),
+							},
+						},
+
+						"trusted": {
+							Type:     pluginsdk.TypeBool,
+							Optional: true,
+						},
+					},
+				},
+			},
+
+			"country": {
+				Type:         pluginsdk.TypeList,
+				Optional:     true,
+				ForceNew:     true,
+				MaxItems:     1,
+				ExactlyOneOf: []string{"ip", "country"},
+				Elem: &pluginsdk.Resource{
+					Schema: map[string]*pluginsdk.Schema{
+						"countries_and_regions": {
+							Type:     pluginsdk.TypeList,
+							Required: true,
+							Elem: &pluginsdk.Schema{
+								Type:         pluginsdk.TypeString,
+								ValidateFunc: validation.StringIsNotEmpty,
+							},
+						},
+
+						"include_unknown_countries_and_regions": {
+							Type:     pluginsdk.TypeBool,
+							Optional: true,
+						},
+					},
+				},
+			},
+		},
+	}
+}

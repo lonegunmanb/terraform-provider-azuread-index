@@ -1,0 +1,23 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/policies
+import (
+	"context"
+	"fmt"
+	"time"
+
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/terraform-provider-azuread/internal/sdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/services/policies/parse"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
+	"github.com/manicminer/hamilton/msgraph"
+)
+type GroupRoleManagementPolicyActivationRules struct {
+	MaximumDuration                 string                                   `tfschema:"maximum_duration"`
+	RequireApproval                 bool                                     `tfschema:"require_approval"`
+	ApprovalStages                  []GroupRoleManagementPolicyApprovalStage `tfschema:"approval_stage"`
+	RequireConditionalAccessContext string                                   `tfschema:"required_conditional_access_authentication_context"`
+	RequireMultiFactorAuth          bool                                     `tfschema:"require_multifactor_authentication"`
+	RequireJustification            bool                                     `tfschema:"require_justification"`
+	RequireTicketInfo               bool                                     `tfschema:"require_ticket_info"`
+}

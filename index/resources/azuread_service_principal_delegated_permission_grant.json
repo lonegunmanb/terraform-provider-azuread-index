@@ -1,0 +1,13 @@
+{
+  "terraform_type": "azuread_service_principal_delegated_permission_grant",
+  "struct_type": "",
+  "namespace": "github.com/hashicorp/terraform-provider-azuread/internal/services/serviceprincipals",
+  "registration_method": "servicePrincipalDelegatedPermissionGrantResource",
+  "sdk_type": "legacy_pluginsdk",
+  "schema_index": "func.servicePrincipalDelegatedPermissionGrantResource.goindex",
+  "create_index": "func.servicePrincipalDelegatedPermissionGrantResourceCreate.goindex",
+  "read_index": "func.servicePrincipalDelegatedPermissionGrantResourceRead.goindex",
+  "update_index": "func.servicePrincipalDelegatedPermissionGrantResourceUpdate.goindex",
+  "delete_index": "func.servicePrincipalDelegatedPermissionGrantResourceDelete.goindex",
+  "attribute_index": "func.servicePrincipalDelegatedPermissionGrantResource.goindex"
+}

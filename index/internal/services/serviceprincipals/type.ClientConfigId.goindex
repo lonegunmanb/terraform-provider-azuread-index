@@ -1,0 +1,14 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/serviceprincipals
+import (
+	"context"
+	"fmt"
+	"time"
+
+	"github.com/hashicorp/terraform-provider-azuread/internal/sdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+)
+type ClientConfigId struct {
+	TenantId string
+	ClientId string
+	ObjectId string
+}

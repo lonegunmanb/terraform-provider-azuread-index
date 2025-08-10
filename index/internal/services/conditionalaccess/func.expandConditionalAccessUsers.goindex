@@ -1,0 +1,33 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/conditionalaccess
+import (
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func expandConditionalAccessUsers(in []interface{}) *msgraph.ConditionalAccessUsers {
+	if len(in) == 0 || in[0] == nil {
+		return nil
+	}
+
+	result := msgraph.ConditionalAccessUsers{}
+	config := in[0].(map[string]interface{})
+
+	includeUsers := config["included_users"].([]interface{})
+	excludeUsers := config["excluded_users"].([]interface{})
+	includeGroups := config["included_groups"].([]interface{})
+	excludeGroups := config["excluded_groups"].([]interface{})
+	includeRoles := config["included_roles"].([]interface{})
+	excludeRoles := config["excluded_roles"].([]interface{})
+
+	result.IncludeUsers = tf.ExpandStringSlicePtr(includeUsers)
+	result.ExcludeUsers = tf.ExpandStringSlicePtr(excludeUsers)
+	result.IncludeGroups = tf.ExpandStringSlicePtr(includeGroups)
+	result.ExcludeGroups = tf.ExpandStringSlicePtr(excludeGroups)
+	result.IncludeRoles = tf.ExpandStringSlicePtr(includeRoles)
+	result.ExcludeRoles = tf.ExpandStringSlicePtr(excludeRoles)
+
+	result.IncludeGuestsOrExternalUsers = expandGuestsOrExternalUsers(config["included_guests_or_external_users"].([]interface{}))
+	result.ExcludeGuestsOrExternalUsers = expandGuestsOrExternalUsers(config["excluded_guests_or_external_users"].([]interface{}))
+
+	return &result
+}

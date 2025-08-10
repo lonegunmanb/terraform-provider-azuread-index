@@ -1,0 +1,20 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/conditionalaccess
+import (
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func expandConditionalAccessFilter(in []interface{}) *msgraph.ConditionalAccessFilter {
+	result := msgraph.ConditionalAccessFilter{}
+
+	if len(in) == 0 || in[0] == nil {
+		return &result
+	}
+
+	config := in[0].(map[string]interface{})
+
+	result.Mode = pointer.To(config["mode"].(string))
+	result.Rule = pointer.To(config["rule"].(string))
+
+	return &result
+}

@@ -1,0 +1,55 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/policies
+import (
+	"context"
+	"fmt"
+	"log"
+	"net/http"
+	"time"
+
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/go-uuid"
+	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func claimsMappingPolicyResource() *pluginsdk.Resource {
+	return &pluginsdk.Resource{
+		CreateContext: claimsMappingPolicyResourceCreate,
+		ReadContext:   claimsMappingPolicyResourceRead,
+		UpdateContext: claimsMappingPolicyResourceUpdate,
+		DeleteContext: claimsMappingPolicyResourceDelete,
+
+		Timeouts: &pluginsdk.ResourceTimeout{
+			Create: pluginsdk.DefaultTimeout(5 * time.Minute),
+			Read:   pluginsdk.DefaultTimeout(5 * time.Minute),
+			Update: pluginsdk.DefaultTimeout(5 * time.Minute),
+			Delete: pluginsdk.DefaultTimeout(5 * time.Minute),
+		},
+
+		Importer: pluginsdk.ImporterValidatingResourceId(func(id string) error {
+			if _, err := uuid.ParseUUID(id); err != nil {
+				return fmt.Errorf("specified ID (%q) is not valid: %s", id, err)
+			}
+			return nil
+		}),
+
+		Schema: map[string]*pluginsdk.Schema{
+			"definition": {
+				Description: "A string collection containing a JSON string that defines the rules and settings for this policy",
+				Type:        pluginsdk.TypeList,
+				Required:    true,
+				Elem: &pluginsdk.Schema{
+					Type: pluginsdk.TypeString,
+				},
+			},
+
+			"display_name": {
+				Description: "Display name for this policy",
+				Type:        pluginsdk.TypeString,
+				Required:    true,
+			},
+		},
+	}
+}

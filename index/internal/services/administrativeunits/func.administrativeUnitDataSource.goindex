@@ -1,0 +1,65 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/administrativeunits
+import (
+	"context"
+	"fmt"
+	"net/http"
+	"time"
+
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func administrativeUnitDataSource() *pluginsdk.Resource {
+	return &pluginsdk.Resource{
+		ReadContext: administrativeUnitDataSourceRead,
+
+		Timeouts: &pluginsdk.ResourceTimeout{
+			Create: pluginsdk.DefaultTimeout(5 * time.Minute),
+			Read:   pluginsdk.DefaultTimeout(5 * time.Minute),
+			Update: pluginsdk.DefaultTimeout(5 * time.Minute),
+			Delete: pluginsdk.DefaultTimeout(5 * time.Minute),
+		},
+
+		Schema: map[string]*pluginsdk.Schema{
+			"object_id": {
+				Description:      "The object ID of the administrative unit",
+				Type:             pluginsdk.TypeString,
+				Optional:         true,
+				Computed:         true,
+				ValidateDiagFunc: validation.ValidateDiag(validation.StringIsNotEmpty),
+			},
+
+			"display_name": {
+				Description:      "The display name for the administrative unit",
+				Type:             pluginsdk.TypeString,
+				Optional:         true,
+				Computed:         true,
+				ValidateDiagFunc: validation.ValidateDiag(validation.StringIsNotEmpty),
+			},
+
+			"description": {
+				Description: "The description for the administrative unit",
+				Type:        pluginsdk.TypeString,
+				Computed:    true,
+			},
+
+			"members": {
+				Description: "A list of object IDs of members who are be present in this administrative unit.",
+				Type:        pluginsdk.TypeList,
+				Computed:    true,
+				Elem: &pluginsdk.Schema{
+					Type: pluginsdk.TypeString,
+				},
+			},
+
+			"visibility": {
+				Description: "Whether the administrative unit and its members are hidden or publicly viewable in the directory",
+				Type:        pluginsdk.TypeString,
+				Computed:    true,
+			},
+		},
+	}
+}

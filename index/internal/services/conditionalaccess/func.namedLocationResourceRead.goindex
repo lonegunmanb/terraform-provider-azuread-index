@@ -1,0 +1,57 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/conditionalaccess
+import (
+	"context"
+	"errors"
+	"fmt"
+	"log"
+	"net/http"
+	"reflect"
+	"time"
+
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/go-uuid"
+	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func namedLocationResourceRead(ctx context.Context, d *pluginsdk.ResourceData, meta interface{}) pluginsdk.Diagnostics {
+	client := meta.(*clients.Client).ConditionalAccess.NamedLocationsClient
+
+	result, status, err := client.Get(ctx, d.Id(), odata.Query{})
+	if err != nil {
+		if status == http.StatusNotFound {
+			log.Printf("[DEBUG] Named Location with Object ID %q was not found - removing from state", d.Id())
+			d.SetId("")
+			return nil
+		}
+	}
+	if result == nil {
+		return tf.ErrorDiagF(errors.New("Bad API response"), "Result is nil")
+	}
+
+	location := *result
+
+	if ipnl, ok := location.(msgraph.IPNamedLocation); ok {
+		if ipnl.ID == nil {
+			return tf.ErrorDiagF(errors.New("Bad API response"), "ID is nil for returned IP Named Location")
+		}
+		d.SetId(*ipnl.ID)
+		tf.Set(d, "display_name", ipnl.DisplayName)
+		tf.Set(d, "ip", flattenIPNamedLocation(&ipnl))
+	}
+
+	if cnl, ok := location.(msgraph.CountryNamedLocation); ok {
+		if cnl.ID == nil {
+			return tf.ErrorDiagF(errors.New("Bad API response"), "ID is nil for returned Country Named Location")
+		}
+		d.SetId(*cnl.ID)
+		tf.Set(d, "display_name", cnl.DisplayName)
+		tf.Set(d, "country", flattenCountryNamedLocation(&cnl))
+	}
+
+	return nil
+}

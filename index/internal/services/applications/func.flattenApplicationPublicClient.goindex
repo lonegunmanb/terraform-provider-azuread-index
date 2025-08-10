@@ -1,0 +1,26 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/applications
+import (
+	"context"
+	"encoding/base64"
+	"fmt"
+	"net/http"
+	"reflect"
+	"strings"
+	"time"
+
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func flattenApplicationPublicClient(in *msgraph.PublicClient) []map[string]interface{} {
+	if in == nil {
+		return []map[string]interface{}{}
+	}
+
+	return []map[string]interface{}{{
+		"redirect_uris": tf.FlattenStringSlicePtr(in.RedirectUris),
+	}}
+}

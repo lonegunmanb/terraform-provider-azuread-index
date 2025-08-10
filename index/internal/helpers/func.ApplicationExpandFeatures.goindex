@@ -1,0 +1,41 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/helpers
+import (
+	"strings"
+
+	"github.com/manicminer/hamilton/msgraph"
+)
+func ApplicationExpandFeatures(in []interface{}) []string {
+	out := make([]string, 0)
+
+	if len(in) == 0 || in[0] == nil {
+		return out
+	}
+
+	features := in[0].(map[string]interface{})
+
+	if v, ok := features["custom_single_sign_on"]; ok && v.(bool) {
+		out = append(out, "WindowsAzureActiveDirectoryCustomSingleSignOnApplication")
+	} else if v, ok := features["custom_single_sign_on_app"]; ok && v.(bool) {
+		out = append(out, "WindowsAzureActiveDirectoryCustomSingleSignOnApplication")
+	}
+
+	if v, ok := features["enterprise"]; ok && v.(bool) {
+		out = append(out, "WindowsAzureActiveDirectoryIntegratedApp")
+	} else if v, ok := features["enterprise_application"]; ok && v.(bool) { // TODO: remove in v3.0
+		out = append(out, "WindowsAzureActiveDirectoryIntegratedApp")
+	}
+
+	if v, ok := features["gallery"]; ok && v.(bool) {
+		out = append(out, "WindowsAzureActiveDirectoryGalleryApplicationNonPrimaryV1")
+	} else if v, ok := features["gallery_application"]; ok && v.(bool) { // TODO: remove in v3.0
+		out = append(out, "WindowsAzureActiveDirectoryGalleryApplicationNonPrimaryV1")
+	}
+
+	if v, ok := features["hide"]; ok && v.(bool) {
+		out = append(out, "HideApp")
+	} else if v, ok := features["visible_to_users"]; ok && !v.(bool) { // TODO: remove in v3.0
+		out = append(out, "HideApp")
+	}
+
+	return out
+}

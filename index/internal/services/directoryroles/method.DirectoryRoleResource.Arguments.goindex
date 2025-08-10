@@ -1,0 +1,40 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/directoryroles
+import (
+	"context"
+	"fmt"
+	"net/http"
+	"strings"
+	"time"
+
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/terraform-provider-azuread/internal/sdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/services/directoryroles/parse"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/suppress"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func (r DirectoryRoleResource) Arguments() map[string]*pluginsdk.Schema {
+	return map[string]*pluginsdk.Schema{
+		"display_name": {
+			Description:      "The display name of the directory role",
+			Type:             pluginsdk.TypeString,
+			Optional:         true,
+			Computed:         true,
+			ForceNew:         true,
+			ExactlyOneOf:     []string{"display_name", "template_id"},
+			DiffSuppressFunc: suppress.CaseDifference,
+			ValidateDiagFunc: validation.ValidateDiag(validation.StringIsNotEmpty),
+		},
+
+		"template_id": {
+			Description:      "The object ID of the template associated with the directory role",
+			Type:             pluginsdk.TypeString,
+			Optional:         true,
+			Computed:         true,
+			ForceNew:         true,
+			ExactlyOneOf:     []string{"display_name", "template_id"},
+			ValidateDiagFunc: validation.ValidateDiag(validation.IsUUID),
+		},
+	}
+}

@@ -1,0 +1,9 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/groups/parse
+import "fmt"
+func NewGroupMemberID(groupId, memberId string) GroupMemberId {
+	return GroupMemberId{
+		ObjectSubResourceId: NewObjectSubResourceID(groupId, "member", memberId),
+		GroupId:             groupId,
+		MemberId:            memberId,
+	}
+}

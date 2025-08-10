@@ -1,0 +1,26 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/conditionalaccess
+import (
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func flattenConditionalAccessGrantControls(in *msgraph.ConditionalAccessGrantControls) []interface{} {
+	if in == nil {
+		return []interface{}{}
+	}
+
+	var authenticationStrengthPolicyId string
+	if in.AuthenticationStrength != nil {
+		authenticationStrengthPolicyId = pointer.From(in.AuthenticationStrength.ID)
+	}
+
+	return []interface{}{
+		map[string]interface{}{
+			"operator":                          in.Operator,
+			"built_in_controls":                 tf.FlattenStringSlicePtr(in.BuiltInControls),
+			"authentication_strength_policy_id": authenticationStrengthPolicyId,
+			"custom_authentication_factors":     tf.FlattenStringSlicePtr(in.CustomAuthenticationFactors),
+			"terms_of_use":                      tf.FlattenStringSlicePtr(in.TermsOfUse),
+		},
+	}
+}

@@ -1,0 +1,56 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/serviceprincipals
+import (
+	"context"
+	"fmt"
+	"log"
+	"net/http"
+	"time"
+
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
+	"github.com/hashicorp/terraform-provider-azuread/internal/services/serviceprincipals/parse"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func servicePrincipalClaimsMappingPolicyAssignmentResourceCreate(ctx context.Context, d *pluginsdk.ResourceData, meta interface{}) pluginsdk.Diagnostics {
+	client := meta.(*clients.Client).ServicePrincipals.ServicePrincipalsClient
+	tenantId := meta.(*clients.Client).TenantID
+
+	policyId := d.Get("claims_mapping_policy_id").(string)
+
+	properties := msgraph.ServicePrincipal{
+		DirectoryObject: msgraph.DirectoryObject{
+			Id: pointer.To(d.Get("service_principal_id").(string)),
+		},
+		ClaimsMappingPolicies: &[]msgraph.ClaimsMappingPolicy{
+			{
+				DirectoryObject: msgraph.DirectoryObject{
+					ODataId: (*odata.Id)(pointer.To(fmt.Sprintf("%s/v1.0/%s/directoryObjects/%s",
+						client.BaseClient.Endpoint, tenantId, policyId))),
+					Id: &policyId,
+				},
+			},
+		},
+	}
+
+	_, err := client.AssignClaimsMappingPolicy(ctx, &properties)
+	if err != nil {
+		return tf.ErrorDiagF(
+			err,
+			"Could not create ClaimsMappingPolicyAssignment, service_principal_id: %q, claims_mapping_policy_id: %q",
+			*properties.DirectoryObject.ID(),
+			*(*properties.ClaimsMappingPolicies)[0].DirectoryObject.ID(),
+		)
+	}
+
+	id := parse.NewClaimsMappingPolicyAssignmentID(
+		*properties.DirectoryObject.ID(),
+		*(*properties.ClaimsMappingPolicies)[0].DirectoryObject.ID(),
+	)
+
+	d.SetId(id.String())
+
+	return servicePrincipalClaimsMappingPolicyAssignmentResourceRead(ctx, d, meta)
+}

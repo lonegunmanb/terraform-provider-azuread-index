@@ -1,0 +1,13 @@
+{
+  "terraform_type": "azuread_application_redirect_uris",
+  "struct_type": "ApplicationRedirectUrisResource",
+  "namespace": "github.com/hashicorp/terraform-provider-azuread/internal/services/applications",
+  "registration_method": "",
+  "sdk_type": "modern_sdk",
+  "schema_index": "method.ApplicationRedirectUrisResource.Arguments.goindex",
+  "create_index": "method.ApplicationRedirectUrisResource.Create.goindex",
+  "read_index": "method.ApplicationRedirectUrisResource.Read.goindex",
+  "update_index": "method.ApplicationRedirectUrisResource.Update.goindex",
+  "delete_index": "method.ApplicationRedirectUrisResource.Delete.goindex",
+  "attribute_index": "method.ApplicationRedirectUrisResource.Attributes.goindex"
+}

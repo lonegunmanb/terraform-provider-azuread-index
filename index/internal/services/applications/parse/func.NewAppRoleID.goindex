@@ -1,0 +1,13 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/applications/parse
+import (
+	"fmt"
+
+	"github.com/hashicorp/go-azure-helpers/resourcemanager/resourceids"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
+)
+func NewAppRoleID(applicationId, roleId string) *AppRoleId {
+	return &AppRoleId{
+		ApplicationId: applicationId,
+		RoleID:        roleId,
+	}
+}

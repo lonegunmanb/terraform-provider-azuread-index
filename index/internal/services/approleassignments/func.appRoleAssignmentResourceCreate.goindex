@@ -1,0 +1,55 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/approleassignments
+import (
+	"context"
+	"errors"
+	"fmt"
+	"log"
+	"net/http"
+	"time"
+
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
+	"github.com/hashicorp/terraform-provider-azuread/internal/services/approleassignments/parse"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func appRoleAssignmentResourceCreate(ctx context.Context, d *pluginsdk.ResourceData, meta interface{}) pluginsdk.Diagnostics {
+	client := meta.(*clients.Client).AppRoleAssignments.AppRoleAssignedToClient
+	servicePrincipalsClient := meta.(*clients.Client).AppRoleAssignments.ServicePrincipalsClient
+
+	appRoleId := d.Get("app_role_id").(string)
+	principalId := d.Get("principal_object_id").(string)
+	resourceId := d.Get("resource_object_id").(string)
+	if _, status, err := servicePrincipalsClient.Get(ctx, resourceId, odata.Query{}); err != nil {
+		if status == http.StatusNotFound {
+			return tf.ErrorDiagPathF(err, "principal_object_id", "Service principal not found for resource (Object ID: %q)", resourceId)
+		}
+		return tf.ErrorDiagF(err, "Could not retrieve service principal for resource (Object ID: %q)", resourceId)
+	}
+	properties := msgraph.AppRoleAssignment{
+		AppRoleId:   pointer.To(appRoleId),
+		PrincipalId: pointer.To(principalId),
+		ResourceId:  pointer.To(resourceId),
+	}
+
+	appRoleAssignment, _, err := client.Assign(ctx, properties)
+	if err != nil {
+		return tf.ErrorDiagF(err, "Could not create app role assignment")
+	}
+
+	if appRoleAssignment.Id == nil || *appRoleAssignment.Id == "" {
+		return tf.ErrorDiagF(errors.New("ID returned for app role assignment is nil"), "Bad API response")
+	}
+
+	if appRoleAssignment.ResourceId == nil || *appRoleAssignment.ResourceId == "" {
+		return tf.ErrorDiagF(errors.New("Resource ID returned for app role assignment is nil"), "Bad API response")
+	}
+
+	id := parse.NewAppRoleAssignmentID(*appRoleAssignment.ResourceId, *appRoleAssignment.Id)
+	d.SetId(id.String())
+
+	return appRoleAssignmentResourceRead(ctx, d, meta)
+}

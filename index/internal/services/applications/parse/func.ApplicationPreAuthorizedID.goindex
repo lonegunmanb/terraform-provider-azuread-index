@@ -1,0 +1,13 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/applications/parse
+import "fmt"
+func ApplicationPreAuthorizedID(idString string) (*ApplicationPreAuthorizedId, error) {
+	id, err := ObjectSubResourceID(idString, "preAuthorizedApplication")
+	if err != nil {
+		return nil, fmt.Errorf("unable to parse Pre-Authorized Application ID: %v", err)
+	}
+
+	return &ApplicationPreAuthorizedId{
+		ObjectId: id.objectId,
+		AppId:    id.subId,
+	}, nil
+}

@@ -1,0 +1,43 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/identitygovernance
+import (
+	"fmt"
+	"time"
+
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func expandApprovalSettings(input []interface{}) *msgraph.ApprovalSettings {
+	if len(input) == 0 {
+		return nil
+	}
+
+	in := input[0].(map[string]interface{})
+
+	result := msgraph.ApprovalSettings{
+		IsApprovalRequired:               pointer.To(in["approval_required"].(bool)),
+		IsApprovalRequiredForExtension:   pointer.To(in["approval_required_for_extension"].(bool)),
+		IsRequestorJustificationRequired: pointer.To(in["requestor_justification_required"].(bool)),
+	}
+
+	approvalStages := make([]msgraph.ApprovalStage, 0)
+	for _, v := range in["approval_stage"].([]interface{}) {
+		v_map := v.(map[string]interface{})
+
+		stage := msgraph.ApprovalStage{
+			ApprovalStageTimeOutInDays:      pointer.To(int32(v_map["approval_timeout_in_days"].(int))),
+			EscalationTimeInMinutes:         pointer.To(int32(v_map["enable_alternative_approval_in_days"].(int) * 24 * 60)),
+			IsApproverJustificationRequired: pointer.To(v_map["approver_justification_required"].(bool)),
+			IsEscalationEnabled:             pointer.To(v_map["alternative_approval_enabled"].(bool)),
+		}
+
+		stage.PrimaryApprovers = expandUserSets(v_map["primary_approver"].([]interface{}))
+		stage.EscalationApprovers = expandUserSets(v_map["alternative_approver"].([]interface{}))
+
+		approvalStages = append(approvalStages, stage)
+	}
+
+	result.ApprovalStages = &approvalStages
+
+	return &result
+}

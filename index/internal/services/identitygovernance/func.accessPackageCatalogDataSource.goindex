@@ -1,0 +1,60 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/identitygovernance
+import (
+	"context"
+	"fmt"
+	"strings"
+	"time"
+
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func accessPackageCatalogDataSource() *pluginsdk.Resource {
+	return &pluginsdk.Resource{
+		ReadContext: accessPackageCatalogDataRead,
+
+		Timeouts: &pluginsdk.ResourceTimeout{
+			Read: pluginsdk.DefaultTimeout(5 * time.Minute),
+		},
+
+		Schema: map[string]*pluginsdk.Schema{
+			"object_id": {
+				Description:  "The ID of this access package catalog",
+				Type:         pluginsdk.TypeString,
+				Optional:     true,
+				Computed:     true,
+				ValidateFunc: validation.IsUUID,
+				ExactlyOneOf: []string{"object_id", "display_name"},
+			},
+
+			"display_name": {
+				Description:  "The display name of the access package catalog",
+				Type:         pluginsdk.TypeString,
+				Optional:     true,
+				Computed:     true,
+				ExactlyOneOf: []string{"object_id", "display_name"},
+			},
+
+			"description": {
+				Description: "The description of the access package catalog",
+				Type:        pluginsdk.TypeString,
+				Computed:    true,
+			},
+
+			"externally_visible": {
+				Description: "Whether the access packages in this catalog can be requested by users outside the tenant",
+				Type:        pluginsdk.TypeBool,
+				Computed:    true,
+			},
+
+			"published": {
+				Description: "Whether the access packages in this catalog are available for management",
+				Type:        pluginsdk.TypeBool,
+				Computed:    true,
+			},
+		},
+	}
+}

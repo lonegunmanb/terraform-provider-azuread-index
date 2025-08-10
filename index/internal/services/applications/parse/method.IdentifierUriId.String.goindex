@@ -1,0 +1,9 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/applications/parse
+import (
+	"fmt"
+
+	"github.com/hashicorp/go-azure-helpers/resourcemanager/resourceids"
+)
+func (id *IdentifierUriId) String() string {
+	return fmt.Sprintf("Application IdentifierUri (Application ID: %q, IdentifierUri ID: %q)", id.ApplicationId, id.IdentifierUri)
+}

@@ -1,0 +1,32 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/applications
+import (
+	"context"
+	"fmt"
+	"net/http"
+	"time"
+
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/terraform-provider-azuread/internal/sdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/services/applications/parse"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func (r ApplicationRedirectUrisResource) setRedirectUrisByType(application *msgraph.Application, model ApplicationRedirectUrisModel) {
+	switch model.UriType {
+	case RedirectUriTypePublicClient:
+		application.PublicClient = &msgraph.PublicClient{
+			RedirectUris: pointer.To(model.RedirectUris),
+		}
+	case RedirectUriTypeSPA:
+		application.Spa = &msgraph.ApplicationSpa{
+			RedirectUris: pointer.To(model.RedirectUris),
+		}
+	case RedirectUriTypeWeb:
+		application.Web = &msgraph.ApplicationWeb{
+			RedirectUris: pointer.To(model.RedirectUris),
+		}
+	}
+}

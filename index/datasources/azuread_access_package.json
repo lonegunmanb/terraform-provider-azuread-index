@@ -1,0 +1,10 @@
+{
+  "terraform_type": "azuread_access_package",
+  "struct_type": "",
+  "namespace": "github.com/hashicorp/terraform-provider-azuread/internal/services/identitygovernance",
+  "registration_method": "accessPackageDataSource",
+  "sdk_type": "legacy_pluginsdk",
+  "schema_index": "func.accessPackageDataSource.goindex",
+  "read_index": "func.accessPackageDataRead.goindex",
+  "attribute_index": "func.accessPackageDataSource.goindex"
+}

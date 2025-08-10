@@ -1,0 +1,45 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/directoryroles
+import (
+	"context"
+	"errors"
+	"fmt"
+	"log"
+	"net/http"
+	"time"
+
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/go-uuid"
+	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func customDirectoryRoleResourceRead(ctx context.Context, d *pluginsdk.ResourceData, meta interface{}) pluginsdk.Diagnostics {
+	client := meta.(*clients.Client).DirectoryRoles.RoleDefinitionsClient
+	roleId := d.Id()
+
+	role, status, err := client.Get(ctx, roleId, odata.Query{})
+	if err != nil {
+		if status == http.StatusNotFound {
+			log.Printf("[DEBUG] Custom Directory Role with ID %q was not found - removing from state", roleId)
+			d.SetId("")
+			return nil
+		}
+		return tf.ErrorDiagPathF(err, "template_id", "Retrieving custom directory role with ID %q: %+v", roleId, err)
+	}
+	if role == nil {
+		return tf.ErrorDiagF(errors.New("API error: nil unifiedDirectoryRole was returned"), "Retrieving custom directory role with ID %q", roleId)
+	}
+
+	tf.Set(d, "description", role.Description)
+	tf.Set(d, "display_name", role.DisplayName)
+	tf.Set(d, "enabled", role.IsEnabled)
+	tf.Set(d, "object_id", role.ID())
+	tf.Set(d, "permissions", flattenCustomRolePermissions(role.RolePermissions))
+	tf.Set(d, "template_id", role.TemplateId)
+	tf.Set(d, "version", role.Version)
+
+	return nil
+}

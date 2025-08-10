@@ -1,0 +1,9 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/serviceprincipals/parse
+import "fmt"
+func NewClaimsMappingPolicyAssignmentID(servicePolicyId, claimsMappingPolicyId string) claimsMappingPolicyAssignmentId {
+	return claimsMappingPolicyAssignmentId{
+		ObjectSubResourceId:   NewObjectSubResourceID(servicePolicyId, "claimsMappingPolicy", claimsMappingPolicyId),
+		ServicePrincipalId:    servicePolicyId,
+		ClaimsMappingPolicyId: claimsMappingPolicyId,
+	}
+}

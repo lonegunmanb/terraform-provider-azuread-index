@@ -1,0 +1,20 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/identitygovernance
+import (
+	"fmt"
+	"time"
+
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func flattenRequestorSettings(input *msgraph.RequestorSettings) []map[string]interface{} {
+	if input == nil {
+		return nil
+	}
+
+	return []map[string]interface{}{{
+		"requests_accepted": input.AcceptRequests,
+		"scope_type":        input.ScopeType,
+		"requestor":         flattenUserSets(input.AllowedRequestors),
+	}}
+}

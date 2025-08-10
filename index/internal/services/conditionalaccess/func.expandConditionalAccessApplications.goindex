@@ -1,0 +1,24 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/conditionalaccess
+import (
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func expandConditionalAccessApplications(in []interface{}) *msgraph.ConditionalAccessApplications {
+	if len(in) == 0 || in[0] == nil {
+		return nil
+	}
+
+	result := msgraph.ConditionalAccessApplications{}
+	config := in[0].(map[string]interface{})
+
+	includeApplications := config["included_applications"].([]interface{})
+	excludeApplications := config["excluded_applications"].([]interface{})
+	includeUserActions := config["included_user_actions"].([]interface{})
+
+	result.IncludeApplications = tf.ExpandStringSlicePtr(includeApplications)
+	result.ExcludeApplications = tf.ExpandStringSlicePtr(excludeApplications)
+	result.IncludeUserActions = tf.ExpandStringSlicePtr(includeUserActions)
+
+	return &result
+}

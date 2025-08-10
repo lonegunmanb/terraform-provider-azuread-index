@@ -1,0 +1,23 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/conditionalaccess
+import (
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func flattenIPNamedLocation(in *msgraph.IPNamedLocation) []interface{} {
+	if in == nil {
+		return []interface{}{}
+	}
+
+	trusted := false
+	if in.IsTrusted != nil {
+		trusted = *in.IsTrusted
+	}
+
+	return []interface{}{
+		map[string]interface{}{
+			"ip_ranges": flattenIPNamedLocationIPRange(in.IPRanges),
+			"trusted":   trusted,
+		},
+	}
+}

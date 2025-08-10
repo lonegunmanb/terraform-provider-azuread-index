@@ -1,0 +1,76 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/applications
+import (
+	"context"
+	"fmt"
+	"net/http"
+	"time"
+
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers"
+	"github.com/hashicorp/terraform-provider-azuread/internal/sdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/services/applications/parse"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func (r ApplicationRegistrationResource) Create() sdk.ResourceFunc {
+	return sdk.ResourceFunc{
+		Timeout: 10 * time.Minute,
+		Func: func(ctx context.Context, metadata sdk.ResourceMetaData) error {
+			client := metadata.Client.Applications.ApplicationsClient
+			client.BaseClient.DisableRetries = true
+			defer func() { client.BaseClient.DisableRetries = false }()
+
+			var model ApplicationRegistrationModel
+			if err := metadata.Decode(&model); err != nil {
+				return fmt.Errorf("decoding: %+v", err)
+			}
+
+			properties := msgraph.Application{
+				DisplayName:                &model.DisplayName,
+				Description:                tf.NullableString(model.Description),
+				GroupMembershipClaims:      pointer.To(model.GroupMembershipClaims),
+				Notes:                      tf.NullableString(model.Notes),
+				ServiceManagementReference: tf.NullableString(model.ServiceManagementReference),
+				SignInAudience:             &model.SignInAudience,
+
+				Api: &msgraph.ApplicationApi{
+					RequestedAccessTokenVersion: pointer.To(int32(model.RequestedAccessTokenVersion)),
+				},
+
+				Info: &msgraph.InformationalUrl{
+					MarketingUrl:        tf.NullableString(model.MarketingUrl),
+					PrivacyStatementUrl: tf.NullableString(model.PrivacyStatementUrl),
+					SupportUrl:          tf.NullableString(model.SupportUrl),
+					TermsOfServiceUrl:   tf.NullableString(model.TermsOfServiceUrl),
+				},
+
+				Web: &msgraph.ApplicationWeb{
+					HomePageUrl: tf.NullableString(model.HomepageUrl),
+					LogoutUrl:   tf.NullableString(model.LogoutUrl),
+
+					ImplicitGrantSettings: &msgraph.ImplicitGrantSettings{
+						EnableAccessTokenIssuance: pointer.To(model.ImplicitAccessTokenIssuanceEnabled),
+						EnableIdTokenIssuance:     pointer.To(model.ImplicitIdTokenIssuanceEnabled),
+					},
+				},
+			}
+
+			result, _, err := client.Create(ctx, properties)
+			if err != nil {
+				return fmt.Errorf("creating %s: %+v", parse.ApplicationId{}, err)
+			}
+
+			if pointer.From(result.ID()) == "" {
+				return fmt.Errorf("creating %s: object ID returned for application is nil/empty", parse.ApplicationId{})
+			}
+
+			id := parse.NewApplicationID(*result.ID())
+			metadata.SetID(id)
+
+			return nil
+		},
+	}
+}

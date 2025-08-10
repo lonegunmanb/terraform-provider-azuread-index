@@ -1,0 +1,59 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/identitygovernance
+import (
+	"context"
+	"log"
+	"net/http"
+	"time"
+
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
+	"github.com/hashicorp/terraform-provider-azuread/internal/services/identitygovernance/parse"
+	"github.com/hashicorp/terraform-provider-azuread/internal/services/identitygovernance/validate"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func accessPackageResourceCatalogAssociationResourceCreate(ctx context.Context, d *pluginsdk.ResourceData, meta interface{}) pluginsdk.Diagnostics {
+	client := meta.(*clients.Client).IdentityGovernance.AccessPackageResourceRequestClient
+	accessPackageCatalogClient := meta.(*clients.Client).IdentityGovernance.AccessPackageCatalogClient
+	resourceClient := meta.(*clients.Client).IdentityGovernance.AccessPackageResourceClient
+
+	catalogId := d.Get("catalog_id").(string)
+	resourceOriginId := d.Get("resource_origin_id").(string)
+	resourceOriginSystem := d.Get("resource_origin_system").(string)
+
+	_, status, err := accessPackageCatalogClient.Get(ctx, catalogId, odata.Query{})
+	if err != nil {
+		if status == http.StatusNotFound {
+			log.Printf("[DEBUG] Access package catalog with Object ID %q was not found - removing from state!", catalogId)
+			return nil
+		}
+
+		return tf.ErrorDiagF(err, "Retrieving access package catalog with object ID: %q", catalogId)
+	}
+
+	if existing, _, err := resourceClient.Get(ctx, catalogId, resourceOriginId); err == nil && existing != nil {
+		id := parse.NewAccessPackageResourceCatalogAssociationID(catalogId, resourceOriginId)
+		return tf.ImportAsExistsDiag("azuread_access_package_resource_catalog_association", id.ID())
+	}
+
+	properties := msgraph.AccessPackageResourceRequest{
+		CatalogId:   &catalogId,
+		RequestType: pointer.To("AdminAdd"),
+		AccessPackageResource: &msgraph.AccessPackageResource{
+			OriginId:     &resourceOriginId,
+			OriginSystem: resourceOriginSystem,
+		},
+	}
+
+	resourceCatalogAssociation, _, err := client.Create(ctx, properties, true)
+	if err != nil {
+		return tf.ErrorDiagF(err, "Failed to link resource %q@%q with access catalog %q.", resourceOriginId, resourceOriginSystem, catalogId)
+	}
+
+	id := parse.NewAccessPackageResourceCatalogAssociationID(*resourceCatalogAssociation.CatalogId, *resourceCatalogAssociation.AccessPackageResource.OriginId)
+	d.SetId(id.ID())
+
+	return accessPackageResourceCatalogAssociationResourceRead(ctx, d, meta)
+}

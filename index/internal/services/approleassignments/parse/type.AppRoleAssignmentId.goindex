@@ -1,0 +1,8 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/approleassignments/parse
+import (
+	"fmt"
+)
+type AppRoleAssignmentId struct {
+	ResourceId   string
+	AssignmentId string
+}

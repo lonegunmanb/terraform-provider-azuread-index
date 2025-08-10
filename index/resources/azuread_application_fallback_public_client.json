@@ -1,0 +1,13 @@
+{
+  "terraform_type": "azuread_application_fallback_public_client",
+  "struct_type": "ApplicationFallbackPublicClientResource",
+  "namespace": "github.com/hashicorp/terraform-provider-azuread/internal/services/applications",
+  "registration_method": "",
+  "sdk_type": "modern_sdk",
+  "schema_index": "method.ApplicationFallbackPublicClientResource.Arguments.goindex",
+  "create_index": "method.ApplicationFallbackPublicClientResource.Create.goindex",
+  "read_index": "method.ApplicationFallbackPublicClientResource.Read.goindex",
+  "update_index": "method.ApplicationFallbackPublicClientResource.Update.goindex",
+  "delete_index": "method.ApplicationFallbackPublicClientResource.Delete.goindex",
+  "attribute_index": "method.ApplicationFallbackPublicClientResource.Attributes.goindex"
+}

@@ -1,0 +1,13 @@
+{
+  "terraform_type": "azuread_application_app_role",
+  "struct_type": "ApplicationAppRoleResource",
+  "namespace": "github.com/hashicorp/terraform-provider-azuread/internal/services/applications",
+  "registration_method": "",
+  "sdk_type": "modern_sdk",
+  "schema_index": "method.ApplicationAppRoleResource.Arguments.goindex",
+  "create_index": "method.ApplicationAppRoleResource.Create.goindex",
+  "read_index": "method.ApplicationAppRoleResource.Read.goindex",
+  "update_index": "method.ApplicationAppRoleResource.Update.goindex",
+  "delete_index": "method.ApplicationAppRoleResource.Delete.goindex",
+  "attribute_index": "method.ApplicationAppRoleResource.Attributes.goindex"
+}

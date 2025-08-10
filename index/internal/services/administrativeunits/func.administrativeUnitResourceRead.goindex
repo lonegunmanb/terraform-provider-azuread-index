@@ -1,0 +1,53 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/administrativeunits
+import (
+	"context"
+	"errors"
+	"fmt"
+	"log"
+	"net/http"
+	"time"
+
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/go-uuid"
+	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func administrativeUnitResourceRead(ctx context.Context, d *pluginsdk.ResourceData, meta interface{}) pluginsdk.Diagnostics {
+	client := meta.(*clients.Client).AdministrativeUnits.AdministrativeUnitsClient
+
+	administrativeUnit, status, err := client.Get(ctx, d.Id(), odata.Query{})
+	if err != nil {
+		if status == http.StatusNotFound {
+			log.Printf("[DEBUG] Administrative Unit with ID %q was not found - removing from state", d.Id())
+			d.SetId("")
+			return nil
+		}
+		return tf.ErrorDiagF(err, "Retrieving administrative unit with object ID: %q", d.Id())
+	}
+
+	tf.Set(d, "description", administrativeUnit.Description)
+	tf.Set(d, "display_name", administrativeUnit.DisplayName)
+	tf.Set(d, "object_id", administrativeUnit.ID)
+
+	hiddenMembershipEnabled := administrativeUnit.Visibility != nil && *administrativeUnit.Visibility == msgraph.AdministrativeUnitVisibilityHiddenMembership
+	tf.Set(d, "hidden_membership_enabled", hiddenMembershipEnabled)
+
+	members, _, err := client.ListMembers(ctx, *administrativeUnit.ID)
+	if err != nil {
+		return tf.ErrorDiagPathF(err, "members", "Could not retrieve members for administrative unit with object ID %q", d.Id())
+	}
+	tf.Set(d, "members", members)
+
+	preventDuplicates := false
+	if v := d.Get("prevent_duplicate_names").(bool); v {
+		preventDuplicates = v
+	}
+	tf.Set(d, "prevent_duplicate_names", preventDuplicates)
+
+	return nil
+}

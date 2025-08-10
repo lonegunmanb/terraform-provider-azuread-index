@@ -1,0 +1,113 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/domains
+import (
+	"context"
+	"crypto/sha1"
+	"encoding/base64"
+	"fmt"
+	"strings"
+	"time"
+
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/terraform-provider-azuread/internal/sdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+)
+func (r DomainsDataSource) Read() sdk.ResourceFunc {
+	return sdk.ResourceFunc{
+		Timeout: 5 * time.Minute,
+		Func: func(ctx context.Context, metadata sdk.ResourceMetaData) error {
+			client := metadata.Client.Domains.DomainsClient
+			client.BaseClient.DisableRetries = true
+			defer func() { client.BaseClient.DisableRetries = false }()
+
+			tenantId := metadata.Client.TenantID
+
+			var state DomainsDataSourceModel
+			if err := metadata.Decode(&state); err != nil {
+				return fmt.Errorf("decoding: %+v", err)
+			}
+
+			// OData filters are not supported for domains
+			result, _, err := client.List(ctx, odata.Query{})
+			if err != nil {
+				return fmt.Errorf("listing domains: %+v", err)
+			}
+
+			if result == nil {
+				return fmt.Errorf("retrieving domains: result was nil")
+			}
+
+			var domainNames []string
+
+			for _, v := range *result {
+				if state.AdminManaged && v.IsAdminManaged != nil && !*v.IsAdminManaged {
+					continue
+				}
+				if state.OnlyDefault && v.IsDefault != nil && !*v.IsDefault {
+					continue
+				}
+				if state.OnlyInitial && v.IsInitial != nil && !*v.IsInitial {
+					continue
+				}
+				if state.OnlyRoot && v.IsRoot != nil && !*v.IsRoot {
+					continue
+				}
+				if !state.IncludeUnverified && v.IsVerified != nil && !*v.IsVerified {
+					continue
+				}
+				if len(state.SupportsServices) > 0 && v.SupportedServices != nil {
+					supported := 0
+					for _, serviceNeeded := range state.SupportsServices {
+						for _, serviceSupported := range *v.SupportedServices {
+							if serviceNeeded == serviceSupported {
+								supported++
+								break
+							}
+						}
+					}
+					if supported < len(state.SupportsServices) {
+						continue
+					}
+				}
+
+				if v.ID != nil {
+					domainNames = append(domainNames, *v.ID)
+
+					var authenticationType string
+					if v.AuthenticationType != nil {
+						authenticationType = *v.AuthenticationType
+					}
+
+					supportedServices := make([]string, 0)
+					if v.SupportedServices != nil {
+						supportedServices = *v.SupportedServices
+					}
+
+					state.Domains = append(state.Domains, Domain{
+						AdminManaged:       v.IsAdminManaged != nil && *v.IsAdminManaged,
+						AuthenticationType: authenticationType,
+						Default:            v.IsDefault != nil && *v.IsDefault,
+						DomainName:         *v.ID,
+						Initial:            v.IsInitial != nil && *v.IsInitial,
+						Root:               v.IsRoot != nil && *v.IsRoot,
+						SupportedServices:  supportedServices,
+						Verified:           v.IsVerified != nil && *v.IsVerified,
+					})
+				}
+			}
+
+			if len(state.Domains) == 0 {
+				return fmt.Errorf("no domains found for the provided filters")
+			}
+
+			// Generate a unique ID based on result
+			h := sha1.New()
+			if _, err := h.Write([]byte(strings.Join(domainNames, "/"))); err != nil {
+				return fmt.Errorf("unable to compute hash for domain names: %+v", err)
+			}
+
+			metadata.SetID(DomainsId(fmt.Sprintf("domains#%s#%s", tenantId, base64.URLEncoding.EncodeToString(h.Sum(nil)))))
+
+			return metadata.Encode(&state)
+		},
+	}
+}

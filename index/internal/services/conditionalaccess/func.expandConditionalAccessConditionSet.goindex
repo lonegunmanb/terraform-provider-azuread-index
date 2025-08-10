@@ -1,0 +1,38 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/conditionalaccess
+import (
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func expandConditionalAccessConditionSet(in []interface{}) *msgraph.ConditionalAccessConditionSet {
+	if len(in) == 0 || in[0] == nil {
+		return nil
+	}
+
+	result := msgraph.ConditionalAccessConditionSet{}
+	config := in[0].(map[string]interface{})
+
+	applications := config["applications"].([]interface{})
+	users := config["users"].([]interface{})
+	clientAppTypes := config["client_app_types"].([]interface{})
+	devices := config["devices"].([]interface{})
+	locations := config["locations"].([]interface{})
+	platforms := config["platforms"].([]interface{})
+	servicePrincipalRiskLevels := config["service_principal_risk_levels"].([]interface{})
+	signInRiskLevels := config["sign_in_risk_levels"].([]interface{})
+	userRiskLevels := config["user_risk_levels"].([]interface{})
+	clientApplications := config["client_applications"].([]interface{})
+
+	result.Applications = expandConditionalAccessApplications(applications)
+	result.Users = expandConditionalAccessUsers(users)
+	result.ClientAppTypes = tf.ExpandStringSlicePtr(clientAppTypes)
+	result.Devices = expandConditionalAccessDevices(devices)
+	result.Locations = expandConditionalAccessLocations(locations)
+	result.Platforms = expandConditionalAccessPlatforms(platforms)
+	result.ServicePrincipalRiskLevels = tf.ExpandStringSlicePtr(servicePrincipalRiskLevels)
+	result.SignInRiskLevels = tf.ExpandStringSlicePtr(signInRiskLevels)
+	result.UserRiskLevels = tf.ExpandStringSlicePtr(userRiskLevels)
+	result.ClientApplications = expandConditionalAccessClientApplications(clientApplications)
+
+	return &result
+}

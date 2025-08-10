@@ -1,0 +1,10 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/applications/parse
+import (
+	"fmt"
+
+	"github.com/hashicorp/go-azure-helpers/resourcemanager/resourceids"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
+)
+func (id *FallbackPublicClientId) String() string {
+	return fmt.Sprintf("Fallback Public Client (Application ID: %q)", id.ApplicationId)
+}

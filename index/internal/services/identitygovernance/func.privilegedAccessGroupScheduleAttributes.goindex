@@ -1,0 +1,20 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/identitygovernance
+import (
+	"fmt"
+	"time"
+
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/terraform-provider-azuread/internal/sdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func privilegedAccessGroupScheduleAttributes() map[string]*pluginsdk.Schema {
+	return map[string]*pluginsdk.Schema{
+		"status": {
+			Description: "The status of the schedule",
+			Type:        pluginsdk.TypeString,
+			Computed:    true,
+		},
+	}
+}

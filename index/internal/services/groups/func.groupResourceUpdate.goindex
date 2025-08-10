@@ -1,0 +1,335 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/groups
+import (
+	"context"
+	"errors"
+	"fmt"
+	"log"
+	"net/http"
+	"regexp"
+	"strings"
+	"time"
+
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/go-uuid"
+	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func groupResourceUpdate(ctx context.Context, d *pluginsdk.ResourceData, meta interface{}) pluginsdk.Diagnostics {
+	client := meta.(*clients.Client).Groups.GroupsClient
+	directoryObjectsClient := meta.(*clients.Client).Groups.DirectoryObjectsClient
+	administrativeUnitClient := meta.(*clients.Client).Groups.AdministrativeUnitsClient
+	callerId := meta.(*clients.Client).ObjectID
+	tenantId := meta.(*clients.Client).TenantID
+
+	groupId := d.Id()
+	displayName := d.Get("display_name").(string)
+
+	tf.LockByName(groupResourceName, groupId)
+	defer tf.UnlockByName(groupResourceName, groupId)
+
+	// Perform this check at apply time to catch any duplicate names created during the same apply
+	if d.Get("prevent_duplicate_names").(bool) {
+		result, err := groupFindByName(ctx, client, displayName)
+		if err != nil {
+			return tf.ErrorDiagPathF(err, "display_name", "Could not check for existing group(s)")
+		}
+		if result != nil && len(*result) > 0 {
+			for _, existingGroup := range *result {
+				if existingGroup.ID() == nil {
+					return tf.ErrorDiagF(errors.New("API returned group with nil object ID during duplicate name check"), "Bad API response")
+				}
+
+				if *existingGroup.ID() != groupId {
+					return tf.ImportAsDuplicateDiag("azuread_group", *existingGroup.ID(), displayName)
+				}
+			}
+		}
+	}
+
+	group := msgraph.Group{
+		DirectoryObject: msgraph.DirectoryObject{
+			Id: pointer.To(groupId),
+		},
+		Description:     tf.NullableString(d.Get("description").(string)),
+		DisplayName:     pointer.To(displayName),
+		MailEnabled:     pointer.To(d.Get("mail_enabled").(bool)),
+		MembershipRule:  tf.NullableString(""),
+		SecurityEnabled: pointer.To(d.Get("security_enabled").(bool)),
+	}
+
+	if d.HasChange("writeback_enabled") || d.HasChange("onpremises_group_type") {
+		group.WritebackConfiguration = &msgraph.GroupWritebackConfiguration{
+			IsEnabled: pointer.To(d.Get("writeback_enabled").(bool)),
+		}
+		if onPremisesGroupType := d.Get("onpremises_group_type").(string); onPremisesGroupType != "" {
+			group.WritebackConfiguration.OnPremisesGroupType = pointer.To(onPremisesGroupType)
+		}
+	}
+
+	if v, ok := d.GetOk("dynamic_membership"); ok && len(v.([]interface{})) > 0 {
+		if d.Get("dynamic_membership.0.enabled").(bool) {
+			group.MembershipRuleProcessingState = pointer.To("On")
+		} else {
+			group.MembershipRuleProcessingState = pointer.To("Paused")
+		}
+
+		group.MembershipRule = tf.NullableString(d.Get("dynamic_membership.0.rule").(string))
+	}
+
+	if theme := d.Get("theme").(string); theme != "" {
+		group.Theme = tf.NullableString(theme)
+	}
+
+	if d.HasChange("visibility") {
+		group.Visibility = pointer.To(d.Get("visibility").(string))
+	}
+
+	if _, err := client.Update(ctx, group); err != nil {
+		return tf.ErrorDiagF(err, "Updating group with ID: %q", d.Id())
+	}
+
+	groupTypes := make([]msgraph.GroupType, 0)
+	for _, v := range d.Get("types").(*pluginsdk.Set).List() {
+		groupTypes = append(groupTypes, v.(string))
+	}
+
+	// The following properties can only be set or unset for Unified groups, other group types will return a 4xx error.
+	if hasGroupType(groupTypes, msgraph.GroupTypeUnified) {
+		// The unified group properties in this block only support delegated auth
+		// Application-authenticated requests will return a 4xx error, so we only
+		// set these when explicitly configured, and when the value differs.
+		// See https://docs.microsoft.com/en-us/graph/known-issues#groups
+		extra, err := groupGetAdditional(ctx, client, *group.ID())
+		if err != nil {
+			return tf.ErrorDiagF(err, "Retrieving extra fields for group with ID: %q", *group.ID())
+		}
+
+		// AllowExternalSenders can only be set in its own PATCH request; including other properties returns a 400
+		if v, ok := d.GetOkExists("external_senders_allowed"); ok && (extra == nil || extra.AllowExternalSenders == nil || *extra.AllowExternalSenders != v.(bool)) { //nolint:staticcheck
+			if _, err := client.Update(ctx, msgraph.Group{
+				DirectoryObject: msgraph.DirectoryObject{
+					Id: group.ID(),
+				},
+				AllowExternalSenders: pointer.To(v.(bool)),
+			}); err != nil {
+				return tf.ErrorDiagF(err, "Failed to set `external_senders_allowed` for group with object ID %q", *group.ID())
+			}
+
+			// Wait for AllowExternalSenders to be updated
+			if err := helpers.WaitForUpdate(ctx, func(ctx context.Context) (*bool, error) {
+				defer func() { client.BaseClient.DisableRetries = false }()
+				client.BaseClient.DisableRetries = true
+				groupExtra, err := groupGetAdditional(ctx, client, *group.ID())
+				if err != nil {
+					return nil, err
+				}
+				return pointer.To(groupExtra != nil && groupExtra.AllowExternalSenders != nil && *groupExtra.AllowExternalSenders == v.(bool)), nil
+			}); err != nil {
+				return tf.ErrorDiagF(err, "Waiting for update of `external_senders_allowed` for group with object ID %q", *group.ID())
+			}
+		}
+
+		// AutoSubscribeNewMembers can only be set in its own PATCH request; including other properties returns a 400
+		if v, ok := d.GetOkExists("auto_subscribe_new_members"); ok && (extra == nil || extra.AutoSubscribeNewMembers == nil || *extra.AutoSubscribeNewMembers != v.(bool)) { //nolint:staticcheck
+			if _, err := client.Update(ctx, msgraph.Group{
+				DirectoryObject: msgraph.DirectoryObject{
+					Id: group.ID(),
+				},
+				AutoSubscribeNewMembers: pointer.To(v.(bool)),
+			}); err != nil {
+				return tf.ErrorDiagF(err, "Failed to set `auto_subscribe_new_members` for group with object ID %q", *group.ID())
+			}
+
+			// Wait for AutoSubscribeNewMembers to be updated
+			if err := helpers.WaitForUpdate(ctx, func(ctx context.Context) (*bool, error) {
+				defer func() { client.BaseClient.DisableRetries = false }()
+				client.BaseClient.DisableRetries = true
+				groupExtra, err := groupGetAdditional(ctx, client, *group.ID())
+				if err != nil {
+					return nil, err
+				}
+				return pointer.To(groupExtra != nil && groupExtra.AutoSubscribeNewMembers != nil && *groupExtra.AutoSubscribeNewMembers == v.(bool)), nil
+			}); err != nil {
+				return tf.ErrorDiagF(err, "Waiting for update of `auto_subscribe_new_members` for group with object ID %q", *group.ID())
+			}
+		}
+
+		// HideFromAddressLists can only be set in its own PATCH request; including other properties returns a 400
+		if v, ok := d.GetOkExists("hide_from_address_lists"); ok && (extra == nil || extra.HideFromAddressLists == nil || *extra.HideFromAddressLists != v.(bool)) { //nolint:staticcheck
+			if _, err := client.Update(ctx, msgraph.Group{
+				DirectoryObject: msgraph.DirectoryObject{
+					Id: group.ID(),
+				},
+				HideFromAddressLists: pointer.To(v.(bool)),
+			}); err != nil {
+				return tf.ErrorDiagF(err, "Failed to set `hide_from_address_lists` for group with object ID %q", *group.ID())
+			}
+
+			// Wait for HideFromAddressLists to be updated
+			if err := helpers.WaitForUpdate(ctx, func(ctx context.Context) (*bool, error) {
+				defer func() { client.BaseClient.DisableRetries = false }()
+				client.BaseClient.DisableRetries = true
+				groupExtra, err := groupGetAdditional(ctx, client, *group.ID())
+				if err != nil {
+					return nil, err
+				}
+				return pointer.To(groupExtra != nil && groupExtra.HideFromAddressLists != nil && *groupExtra.HideFromAddressLists == v.(bool)), nil
+			}); err != nil {
+				return tf.ErrorDiagF(err, "Waiting for update of `hide_from_address_lists` for group with object ID %q", *group.ID())
+			}
+		}
+
+		// HideFromOutlookClients can only be set in its own PATCH request; including other properties returns a 400
+		if v, ok := d.GetOkExists("hide_from_outlook_clients"); ok && (extra == nil || extra.HideFromOutlookClients == nil || *extra.HideFromOutlookClients != v.(bool)) { //nolint:staticcheck
+			if _, err := client.Update(ctx, msgraph.Group{
+				DirectoryObject: msgraph.DirectoryObject{
+					Id: group.ID(),
+				},
+				HideFromOutlookClients: pointer.To(v.(bool)),
+			}); err != nil {
+				return tf.ErrorDiagF(err, "Failed to set `hide_from_outlook_clients` for group with object ID %q", *group.ID())
+			}
+
+			// Wait for HideFromOutlookClients to be updated
+			if err := helpers.WaitForUpdate(ctx, func(ctx context.Context) (*bool, error) {
+				defer func() { client.BaseClient.DisableRetries = false }()
+				client.BaseClient.DisableRetries = true
+				groupExtra, err := groupGetAdditional(ctx, client, *group.ID())
+				if err != nil {
+					return nil, err
+				}
+				return pointer.To(groupExtra != nil && groupExtra.HideFromOutlookClients != nil && *groupExtra.HideFromOutlookClients == v.(bool)), nil
+			}); err != nil {
+				return tf.ErrorDiagF(err, "Waiting for update of `hide_from_outlook_clients` for group with object ID %q", *group.ID())
+			}
+		}
+	}
+
+	if d.HasChange("members") {
+		members, _, err := client.ListMembers(ctx, *group.ID())
+		if err != nil {
+			return tf.ErrorDiagF(err, "Could not retrieve members for group with object ID: %q", d.Id())
+		}
+
+		existingMembers := *members
+		desiredMembers := *tf.ExpandStringSlicePtr(d.Get("members").(*pluginsdk.Set).List())
+		membersForRemoval := tf.Difference(existingMembers, desiredMembers)
+		membersToAdd := tf.Difference(desiredMembers, existingMembers)
+
+		if len(membersForRemoval) > 0 {
+			if _, err = client.RemoveMembers(ctx, d.Id(), &membersForRemoval); err != nil {
+				return tf.ErrorDiagF(err, "Could not remove members from group with object ID: %q", d.Id())
+			}
+		}
+
+		if len(membersToAdd) > 0 {
+			newMembers := make(msgraph.Members, 0)
+			for _, memberId := range membersToAdd {
+				memberObject, _, err := directoryObjectsClient.Get(ctx, memberId, odata.Query{})
+				if err != nil {
+					return tf.ErrorDiagF(err, "Could not retrieve principal object %q", memberId)
+				}
+				if memberObject == nil {
+					return tf.ErrorDiagF(errors.New("returned memberObject was nil"), "Could not retrieve member principal object %q", memberId)
+				}
+				memberObject.ODataId = (*odata.Id)(pointer.To(fmt.Sprintf("%s/v1.0/%s/directoryObjects/%s",
+					client.BaseClient.Endpoint, tenantId, memberId)))
+
+				newMembers = append(newMembers, *memberObject)
+			}
+
+			group.Members = &newMembers
+			if _, err := client.AddMembers(ctx, &group); err != nil {
+				return tf.ErrorDiagF(err, "Could not add members to group with object ID: %q", d.Id())
+			}
+		}
+	}
+
+	if v, ok := d.GetOk("owners"); ok && d.HasChange("owners") {
+		owners, _, err := client.ListOwners(ctx, *group.ID())
+		if err != nil {
+			return tf.ErrorDiagF(err, "Could not retrieve owners for group with object ID: %q", d.Id())
+		}
+
+		// If all owners are removed, restore the calling principal as the sole owner, in order to meet API
+		// restrictions about removing all owners, and maintain consistency with the Create behaviour.
+		// In theory this path should never be reached, since the property is Computed and has MinItems: 1, but we handle it anyway.
+		desiredOwners := tf.ExpandStringSlice(v.(*pluginsdk.Set).List())
+		if len(desiredOwners) == 0 {
+			desiredOwners = []string{callerId}
+		}
+
+		existingOwners := *owners
+		ownersForRemoval := tf.Difference(existingOwners, desiredOwners)
+		ownersToAdd := tf.Difference(desiredOwners, existingOwners)
+
+		if len(ownersToAdd) > 0 {
+			newOwners := make(msgraph.Owners, 0)
+			for _, ownerId := range ownersToAdd {
+				ownerObject, _, err := directoryObjectsClient.Get(ctx, ownerId, odata.Query{})
+				if err != nil {
+					return tf.ErrorDiagF(err, "Could not retrieve owner principal object %q", ownerId)
+				}
+				if ownerObject == nil {
+					return tf.ErrorDiagF(errors.New("returned ownerObject was nil"), "Could not retrieve owner principal object %q", ownerId)
+				}
+				ownerObject.ODataId = (*odata.Id)(pointer.To(fmt.Sprintf("%s/v1.0/%s/directoryObjects/%s",
+					client.BaseClient.Endpoint, tenantId, ownerId)))
+
+				newOwners = append(newOwners, *ownerObject)
+			}
+
+			group.Owners = &newOwners
+			if _, err := client.AddOwners(ctx, &group); err != nil {
+				return tf.ErrorDiagF(err, "Could not add owners to group with object ID: %q", d.Id())
+			}
+		}
+
+		if len(ownersForRemoval) > 0 {
+			if _, err = client.RemoveOwners(ctx, d.Id(), &ownersForRemoval); err != nil {
+				return tf.ErrorDiagF(err, "Could not remove owners from group with object ID: %q", d.Id())
+			}
+		}
+	}
+
+	if v := d.Get("administrative_unit_ids"); d.HasChange("administrative_unit_ids") {
+		administrativeUnits, _, err := client.ListAdministrativeUnitMemberships(ctx, *group.ID())
+		if err != nil {
+			return tf.ErrorDiagPathF(err, "administrative_units", "Could not retrieve administrative units for group with object ID %q", d.Id())
+		}
+
+		var existingAdministrativeUnits []string
+		for _, administrativeUnit := range *administrativeUnits {
+			existingAdministrativeUnits = append(existingAdministrativeUnits, *administrativeUnit.ID)
+		}
+
+		desiredAdministrativeUnits := tf.ExpandStringSlice(v.(*pluginsdk.Set).List())
+		administrativeUnitsToLeave := tf.Difference(existingAdministrativeUnits, desiredAdministrativeUnits)
+		administrativeUnitsToJoin := tf.Difference(desiredAdministrativeUnits, existingAdministrativeUnits)
+
+		if len(administrativeUnitsToJoin) > 0 {
+			for _, newAdministrativeUnitId := range administrativeUnitsToJoin {
+				err := addGroupToAdministrativeUnit(ctx, administrativeUnitClient, tenantId, newAdministrativeUnitId, &group)
+				if err != nil {
+					return tf.ErrorDiagF(err, "Could not add group %q to administrative unit with object ID: %q", *group.ID(), newAdministrativeUnitId)
+				}
+			}
+		}
+
+		if len(administrativeUnitsToLeave) > 0 {
+			for _, oldAdministrativeUnitId := range administrativeUnitsToLeave {
+				memberIds := []string{d.Id()}
+				if _, err := administrativeUnitClient.RemoveMembers(ctx, oldAdministrativeUnitId, &memberIds); err != nil {
+					return tf.ErrorDiagF(err, "Could not remove group from administrative unit with object ID: %q", oldAdministrativeUnitId)
+				}
+			}
+		}
+	}
+
+	return groupResourceRead(ctx, d, meta)
+}

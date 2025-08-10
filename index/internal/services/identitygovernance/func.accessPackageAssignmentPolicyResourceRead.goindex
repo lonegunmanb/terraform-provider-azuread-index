@@ -1,0 +1,51 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/identitygovernance
+import (
+	"context"
+	"fmt"
+	"log"
+	"net/http"
+	"time"
+
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/go-uuid"
+	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func accessPackageAssignmentPolicyResourceRead(ctx context.Context, d *pluginsdk.ResourceData, meta interface{}) pluginsdk.Diagnostics {
+	client := meta.(*clients.Client).IdentityGovernance.AccessPackageAssignmentPolicyClient
+
+	objectId := d.Id()
+	accessPackageAssignmentPolicy, status, err := client.Get(ctx, objectId, odata.Query{})
+	if err != nil {
+		if status == http.StatusNotFound {
+			log.Printf("[DEBUG] Access package assignment policy with Object ID %q was not found - removing from state!", objectId)
+			d.SetId("")
+			return nil
+		}
+
+		return tf.ErrorDiagF(err, "Retrieving access package assignment policy with object ID: %q", objectId)
+	}
+
+	tf.Set(d, "display_name", accessPackageAssignmentPolicy.DisplayName)
+	tf.Set(d, "access_package_id", accessPackageAssignmentPolicy.AccessPackageId)
+	tf.Set(d, "description", accessPackageAssignmentPolicy.Description)
+	tf.Set(d, "extension_enabled", accessPackageAssignmentPolicy.CanExtend)
+	tf.Set(d, "duration_in_days", accessPackageAssignmentPolicy.DurationInDays)
+	if expirationDate := accessPackageAssignmentPolicy.ExpirationDateTime; expirationDate != nil && !expirationDate.IsZero() {
+		tf.Set(d, "expiration_date", expirationDate.UTC().Format(time.RFC3339))
+	} else {
+		tf.Set(d, "expiration_date", "")
+	}
+
+	tf.Set(d, "requestor_settings", flattenRequestorSettings(accessPackageAssignmentPolicy.RequestorSettings))
+	tf.Set(d, "approval_settings", flattenApprovalSettings(accessPackageAssignmentPolicy.RequestApprovalSettings))
+	tf.Set(d, "assignment_review_settings", flattenAssignmentReviewSettings(accessPackageAssignmentPolicy.AccessReviewSettings))
+	tf.Set(d, "question", flattenAccessPackageQuestions(accessPackageAssignmentPolicy.Questions))
+
+	return nil
+}

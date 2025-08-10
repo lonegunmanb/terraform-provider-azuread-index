@@ -1,0 +1,20 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/conditionalaccess
+import (
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func flattenIPNamedLocationIPRange(in *[]msgraph.IPNamedLocationIPRange) []interface{} {
+	if in == nil || len(*in) == 0 {
+		return []interface{}{}
+	}
+
+	result := make([]string, 0)
+	for _, cidr := range *in {
+		if cidr.CIDRAddress != nil {
+			result = append(result, *cidr.CIDRAddress)
+		}
+	}
+
+	return tf.FlattenStringSlice(result)
+}

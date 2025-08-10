@@ -1,0 +1,43 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/identitygovernance
+import (
+	"fmt"
+	"time"
+
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func flattenAccessPackageQuestions(input *[]msgraph.AccessPackageQuestion) []map[string]interface{} {
+	if input == nil || len(*input) == 0 {
+		return nil
+	}
+
+	questions := make([]map[string]interface{}, 0)
+
+	for _, v := range *input {
+		question := map[string]interface{}{
+			"required": v.IsRequired,
+			"sequence": v.Sequence,
+			"text":     flattenAccessPackageLocalizedContent(v.Text),
+		}
+
+		if c_array := v.Choices; c_array != nil && len(*c_array) > 0 {
+			choices := make([]map[string]interface{}, 0)
+
+			for _, c := range *c_array {
+				choice := map[string]interface{}{
+					"actual_value":  c.ActualValue,
+					"display_value": flattenAccessPackageLocalizedContent(c.DisplayValue),
+				}
+
+				choices = append(choices, choice)
+			}
+
+			question["choice"] = choices
+		}
+
+		questions = append(questions, question)
+	}
+
+	return questions
+}

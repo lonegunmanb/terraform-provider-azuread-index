@@ -1,0 +1,11 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/tf/validation
+import (
+	"fmt"
+	"net/url"
+	"strings"
+
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+)
+func IsHttpsUrl(i interface{}, k string) (warnings []string, errors []error) {
+	return IsUriFunc([]string{"https"}, false, true, false)(i, k)
+}

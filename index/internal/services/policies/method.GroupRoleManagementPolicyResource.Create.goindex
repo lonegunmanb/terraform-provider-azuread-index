@@ -1,0 +1,56 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/policies
+import (
+	"context"
+	"fmt"
+	"time"
+
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/terraform-provider-azuread/internal/sdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/services/policies/parse"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func (r GroupRoleManagementPolicyResource) Create() sdk.ResourceFunc {
+	return sdk.ResourceFunc{
+		Timeout: 5 * time.Minute,
+		Func: func(ctx context.Context, metadata sdk.ResourceMetaData) error {
+			client := metadata.Client.Policies.RoleManagementPolicyClient
+
+			// Fetch the existing policy, as they already exist
+			id, err := getPolicyId(ctx, metadata, metadata.ResourceData.Get("group_id").(string), metadata.ResourceData.Get("role_id").(string))
+			if err != nil {
+				return fmt.Errorf("Could not parse policy assignment ID, %+v", err)
+			}
+			metadata.SetID(id)
+
+			policy, _, err := client.Get(ctx, id.ID())
+			if err != nil {
+				return fmt.Errorf("Could not retrieve existing policy, %+v", err)
+			}
+			if policy == nil {
+				return fmt.Errorf("retrieving %s: API error, result was nil", id)
+			}
+
+			policyUpdate, err := buildPolicyForUpdate(pointer.To(metadata), policy)
+			if err != nil {
+				return fmt.Errorf("Could not build update request, %+v", err)
+			}
+
+			_, err = client.Update(ctx, *policyUpdate)
+			if err != nil {
+				return fmt.Errorf("Could not create assignment schedule request, %+v", err)
+			}
+
+			// Update the ID as it changes on modification
+			id, err = getPolicyId(ctx, metadata, metadata.ResourceData.Get("group_id").(string), metadata.ResourceData.Get("role_id").(string))
+			if err != nil {
+				return fmt.Errorf("Could not parse policy assignment ID, %+v", err)
+			}
+			metadata.SetID(id)
+
+			return nil
+		},
+	}
+}

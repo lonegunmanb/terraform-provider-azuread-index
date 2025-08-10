@@ -1,0 +1,27 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/identitygovernance
+import (
+	"fmt"
+	"time"
+
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func expandUserSets(input []interface{}) *[]msgraph.UserSet {
+	userSets := make([]msgraph.UserSet, 0)
+	for _, v := range input {
+		v_map := v.(map[string]interface{})
+		oDataType, needId := userSetODataType(v_map["subject_type"].(string))
+		userSet := msgraph.UserSet{
+			ODataType: oDataType,
+			IsBackup:  pointer.To(v_map["backup"].(bool)),
+		}
+		if needId {
+			userSet.ID = pointer.To(v_map["object_id"].(string))
+		}
+
+		userSets = append(userSets, userSet)
+	}
+
+	return &userSets
+}

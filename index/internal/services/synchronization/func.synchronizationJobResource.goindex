@@ -1,0 +1,86 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/synchronization
+import (
+	"context"
+	"errors"
+	"fmt"
+	"log"
+	"net/http"
+	"time"
+
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers"
+	"github.com/hashicorp/terraform-provider-azuread/internal/services/synchronization/parse"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func synchronizationJobResource() *pluginsdk.Resource {
+	return &pluginsdk.Resource{
+		CreateContext: synchronizationJobResourceCreate,
+		ReadContext:   synchronizationJobResourceRead,
+		UpdateContext: synchronizationJobResourceUpdate,
+		DeleteContext: synchronizationJobResourceDelete,
+
+		Timeouts: &pluginsdk.ResourceTimeout{
+			Create: pluginsdk.DefaultTimeout(15 * time.Minute),
+			Read:   pluginsdk.DefaultTimeout(5 * time.Minute),
+			Update: pluginsdk.DefaultTimeout(5 * time.Minute),
+			Delete: pluginsdk.DefaultTimeout(5 * time.Minute),
+		},
+
+		Importer: pluginsdk.ImporterValidatingResourceId(func(id string) error {
+			_, err := parse.SynchronizationJobID(id)
+			return err
+		}),
+
+		SchemaVersion: 0,
+
+		Schema: map[string]*pluginsdk.Schema{
+			"service_principal_id": {
+				Description:      "The object ID of the service principal for which this synchronization job should be created",
+				Type:             pluginsdk.TypeString,
+				Required:         true,
+				ForceNew:         true,
+				ValidateDiagFunc: validation.ValidateDiag(validation.IsUUID),
+			},
+			"template_id": {
+				Description: "Identifier of the synchronization template this job is based on.",
+				Type:        pluginsdk.TypeString,
+				Required:    true,
+				ForceNew:    true,
+			},
+			"enabled": {
+				Description: "Whether or not the synchronization job is enabled",
+				Type:        pluginsdk.TypeBool,
+				Default:     true,
+				Optional:    true,
+			},
+			"schedule": {
+				Type:     pluginsdk.TypeList,
+				Computed: true,
+				Elem: &pluginsdk.Resource{
+					Schema: map[string]*pluginsdk.Schema{
+						"expiration": {
+							Description: "Date and time when this job will expire, formatted as an RFC3339 date string (e.g. `2018-01-01T01:02:03Z`).",
+							Type:        pluginsdk.TypeString,
+							Computed:    true,
+						},
+						"interval": {
+							Description: "The interval between synchronization iterations ISO8601. E.g. PT40M run every 40 minutes.",
+							Type:        pluginsdk.TypeString,
+							Computed:    true,
+						},
+						"state": {
+							Description: "State.",
+							Type:        pluginsdk.TypeString,
+							Computed:    true,
+						},
+					},
+				},
+			},
+		},
+	}
+}

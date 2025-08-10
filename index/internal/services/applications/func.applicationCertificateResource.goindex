@@ -1,0 +1,146 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/applications
+import (
+	"context"
+	"errors"
+	"fmt"
+	"log"
+	"net/http"
+	"strings"
+	"time"
+
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/go-uuid"
+	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers"
+	"github.com/hashicorp/terraform-provider-azuread/internal/services/applications/parse"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func applicationCertificateResource() *pluginsdk.Resource {
+	return &pluginsdk.Resource{
+		CreateContext: applicationCertificateResourceCreate,
+		ReadContext:   applicationCertificateResourceRead,
+		DeleteContext: applicationCertificateResourceDelete,
+
+		Timeouts: &pluginsdk.ResourceTimeout{
+			Create: pluginsdk.DefaultTimeout(10 * time.Minute),
+			Read:   pluginsdk.DefaultTimeout(5 * time.Minute),
+			Update: pluginsdk.DefaultTimeout(10 * time.Minute),
+			Delete: pluginsdk.DefaultTimeout(5 * time.Minute),
+		},
+
+		Importer: pluginsdk.ImporterValidatingResourceId(func(id string) error {
+			_, err := parse.CertificateID(id)
+			return err
+		}),
+
+		Schema: map[string]*pluginsdk.Schema{
+			"application_id": {
+				Description:  "The resource ID of the application for which this certificate should be created",
+				Type:         pluginsdk.TypeString,
+				Optional:     true,
+				Computed:     true, // TODO remove Computed in v3.0
+				ForceNew:     true,
+				ExactlyOneOf: []string{"application_id", "application_object_id"},
+				ValidateFunc: parse.ValidateApplicationID,
+			},
+
+			"application_object_id": {
+				Description:  "The object ID of the application for which this certificate should be created",
+				Type:         pluginsdk.TypeString,
+				Optional:     true,
+				Computed:     true,
+				ForceNew:     true,
+				ExactlyOneOf: []string{"application_id", "application_object_id"},
+				Deprecated:   "The `application_object_id` property has been replaced with the `application_id` property and will be removed in version 3.0 of the AzureAD provider",
+				ValidateFunc: validation.Any(validation.IsUUID, parse.ValidateApplicationID),
+				DiffSuppressFunc: func(_, oldValue, newValue string, _ *pluginsdk.ResourceData) bool {
+					// Where oldValue is a UUID (i.e. the bare object ID), and newValue is a properly formed application
+					// resource ID, we'll ignore a diff where these point to the same application resource.
+					// This maintains compatibility with configurations mixing the ID attributes, e.g.
+					//     application_object_id = azuread_application.example.id
+					if _, err := uuid.ParseUUID(oldValue); err == nil {
+						if applicationId, err := parse.ParseApplicationID(newValue); err == nil {
+							if applicationId.ApplicationId == oldValue {
+								return true
+							}
+						}
+					}
+					return false
+				},
+			},
+
+			"encoding": {
+				Description: "Specifies the encoding used for the supplied certificate data",
+				Type:        pluginsdk.TypeString,
+				Optional:    true,
+				ForceNew:    true,
+				Default:     "pem",
+				ValidateFunc: validation.StringInSlice([]string{
+					"base64",
+					"hex",
+					"pem",
+				}, false),
+			},
+
+			"key_id": {
+				Description:  "A UUID used to uniquely identify this certificate. If omitted, a random UUID will be automatically generated",
+				Type:         pluginsdk.TypeString,
+				Optional:     true,
+				Computed:     true,
+				ForceNew:     true,
+				ValidateFunc: validation.IsUUID,
+			},
+
+			"start_date": {
+				Description:  "The start date from which the certificate is valid, formatted as an RFC3339 date string (e.g. `2018-01-01T01:02:03Z`). If this isn't specified, the current date and time are use",
+				Type:         pluginsdk.TypeString,
+				Optional:     true,
+				Computed:     true,
+				ForceNew:     true,
+				ValidateFunc: validation.IsRFC3339Time,
+			},
+
+			"end_date": {
+				Description:   "The end date until which the certificate is valid, formatted as an RFC3339 date string (e.g. `2018-01-01T01:02:03Z`). If omitted, the API will decide a suitable expiry date, which is typically around 2 years from the start date",
+				Type:          pluginsdk.TypeString,
+				Optional:      true,
+				Computed:      true,
+				ForceNew:      true,
+				ConflictsWith: []string{"end_date_relative"},
+				ValidateFunc:  validation.IsRFC3339Time,
+			},
+
+			"end_date_relative": {
+				Description:   "A relative duration for which the certificate is valid until, for example `240h` (10 days) or `2400h30m`",
+				Type:          pluginsdk.TypeString,
+				Optional:      true,
+				ForceNew:      true,
+				ConflictsWith: []string{"end_date"},
+				ValidateFunc:  validation.StringIsNotEmpty,
+			},
+
+			"type": {
+				Description: "The type of key/certificate",
+				Type:        pluginsdk.TypeString,
+				Optional:    true,
+				ForceNew:    true,
+				ValidateFunc: validation.StringInSlice([]string{
+					"AsymmetricX509Cert",
+					"Symmetric",
+				}, false),
+			},
+
+			"value": {
+				Description: "The certificate data, which can be PEM encoded, base64 encoded DER or hexadecimal encoded DER. See also the `encoding` argument",
+				Type:        pluginsdk.TypeString,
+				Required:    true,
+				ForceNew:    true,
+				Sensitive:   true,
+			},
+		},
+	}
+}

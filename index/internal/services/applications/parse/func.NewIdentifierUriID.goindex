@@ -1,0 +1,12 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/applications/parse
+import (
+	"fmt"
+
+	"github.com/hashicorp/go-azure-helpers/resourcemanager/resourceids"
+)
+func NewIdentifierUriID(applicationId, identifierUri string) *IdentifierUriId {
+	return &IdentifierUriId{
+		ApplicationId: applicationId,
+		IdentifierUri: identifierUri,
+	}
+}

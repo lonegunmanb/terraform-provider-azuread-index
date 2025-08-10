@@ -1,0 +1,30 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/users
+import (
+	"context"
+	"errors"
+	"fmt"
+	"log"
+	"net/http"
+	"strings"
+	"time"
+
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/go-uuid"
+	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func userResourceCustomizeDiff(ctx context.Context, diff *pluginsdk.ResourceDiff, meta interface{}) error {
+	ageGroup := diff.Get("age_group").(string)
+	consentRequired := diff.Get("consent_provided_for_minor").(string)
+
+	if ageGroup != string(msgraph.AgeGroupMinor) && consentRequired != string(msgraph.ConsentProvidedForMinorNone) && consentRequired != string(msgraph.ConsentProvidedForMinorNotRequired) {
+		return fmt.Errorf("`consent_provided_for_minor` can only be set to %q or %q when `age_group` is %q or %q",
+			msgraph.ConsentProvidedForMinorGranted, msgraph.ConsentProvidedForMinorDenied, msgraph.AgeGroupAdult, msgraph.AgeGroupNotAdult)
+	}
+	return nil
+}

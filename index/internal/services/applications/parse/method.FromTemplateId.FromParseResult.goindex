@@ -1,0 +1,24 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/applications/parse
+import (
+	"fmt"
+
+	"github.com/hashicorp/go-azure-helpers/resourcemanager/resourceids"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
+)
+func (id *FromTemplateId) FromParseResult(input resourceids.ParseResult) error {
+	var ok bool
+
+	if id.TemplateId, ok = input.Parsed["templateId"]; !ok {
+		return resourceids.NewSegmentNotSpecifiedError(id, "templateId", input)
+	}
+
+	if id.ApplicationId, ok = input.Parsed["applicationId"]; !ok {
+		return resourceids.NewSegmentNotSpecifiedError(id, "applicationId", input)
+	}
+
+	if id.ServicePrincipalId, ok = input.Parsed["servicePrincipalId"]; !ok {
+		return resourceids.NewSegmentNotSpecifiedError(id, "servicePrincipalId", input)
+	}
+
+	return nil
+}

@@ -1,0 +1,41 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/identitygovernance
+import (
+	"context"
+	"fmt"
+	"log"
+	"net/http"
+	"time"
+
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/go-uuid"
+	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func accessPackageResourceRead(ctx context.Context, d *pluginsdk.ResourceData, meta interface{}) pluginsdk.Diagnostics {
+	client := meta.(*clients.Client).IdentityGovernance.AccessPackageClient
+
+	objectId := d.Id()
+	accessPackage, status, err := client.Get(ctx, objectId, odata.Query{})
+	if err != nil {
+		if status == http.StatusNotFound {
+			log.Printf("[DEBUG] Access package with Object ID %q was not found - removing from state!", objectId)
+			d.SetId("")
+			return nil
+		}
+
+		return tf.ErrorDiagF(err, "Retrieving access package with object ID: %q", objectId)
+	}
+
+	tf.Set(d, "display_name", accessPackage.DisplayName)
+	tf.Set(d, "description", accessPackage.Description)
+	tf.Set(d, "hidden", accessPackage.IsHidden)
+	// v1.0 graph API doesn't contain this info however beta contains
+	tf.Set(d, "catalog_id", accessPackage.CatalogId)
+
+	return nil
+}

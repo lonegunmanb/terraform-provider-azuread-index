@@ -1,0 +1,55 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/identitygovernance
+import (
+	"fmt"
+	"time"
+
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func expandAccessPackageQuestions(questions []interface{}) *[]msgraph.AccessPackageQuestion {
+	result := make([]msgraph.AccessPackageQuestion, 0)
+
+	for _, questionRaw := range questions {
+		question := questionRaw.(map[string]interface{})
+		textList := question["text"].([]interface{})
+
+		if len(textList) == 0 {
+			continue
+		}
+
+		text := textList[0].(map[string]interface{})
+
+		resultQuestion := msgraph.AccessPackageQuestion{
+			ODataType:  pointer.To(odata.TypeAccessPackageTextInputQuestion),
+			IsRequired: pointer.To(question["required"].(bool)),
+			Sequence:   pointer.To(int32(question["sequence"].(int))),
+			Text:       expandAccessPackageLocalizedContent(text),
+		}
+
+		if choicesRaw := question["choice"].([]interface{}); len(choicesRaw) > 0 {
+			resultQuestion.ODataType = pointer.To(odata.TypeAccessPackageMultipleChoiceQuestion)
+			choices := make([]msgraph.AccessPackageMultipleChoiceQuestions, 0)
+
+			for _, choiceRaw := range choicesRaw {
+				choice := choiceRaw.(map[string]interface{})
+				displayValue := make(map[string]interface{})
+				if v := choice["display_value"].([]interface{}); len(v) > 0 {
+					displayValue = v[0].(map[string]interface{})
+				}
+				choices = append(choices, msgraph.AccessPackageMultipleChoiceQuestions{
+					ActualValue:  pointer.To(choice["actual_value"].(string)),
+					DisplayValue: expandAccessPackageLocalizedContent(displayValue),
+				})
+			}
+
+			if len(choices) > 0 {
+				resultQuestion.Choices = pointer.To(choices)
+			}
+		}
+
+		result = append(result, resultQuestion)
+	}
+
+	return &result
+}

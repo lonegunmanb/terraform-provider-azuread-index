@@ -1,0 +1,26 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/identitygovernance
+import (
+	"fmt"
+	"time"
+
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func userSetShortType(in string) *string {
+	shortType := odata.ShortTypeSingleUser
+	switch in {
+	case odata.TypeGroupMembers:
+		shortType = odata.ShortTypeGroupMembers
+	case odata.TypeConnectedOrganizationMembers:
+		shortType = odata.ShortTypeConnectedOrganizationMembers
+	case odata.TypeRequestorManager:
+		shortType = odata.ShortTypeRequestorManager
+	case odata.TypeInternalSponsors:
+		shortType = odata.ShortTypeInternalSponsors
+	case odata.TypeExternalSponsors:
+		shortType = odata.ShortTypeExternalSponsors
+	}
+
+	return &shortType
+}

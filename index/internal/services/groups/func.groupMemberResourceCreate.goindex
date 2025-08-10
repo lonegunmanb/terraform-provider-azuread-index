@@ -1,0 +1,71 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/groups
+import (
+	"context"
+	"errors"
+	"fmt"
+	"log"
+	"net/http"
+	"strings"
+	"time"
+
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers"
+	"github.com/hashicorp/terraform-provider-azuread/internal/services/groups/parse"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func groupMemberResourceCreate(ctx context.Context, d *pluginsdk.ResourceData, meta interface{}) pluginsdk.Diagnostics {
+	client := meta.(*clients.Client).Groups.GroupsClient
+	directoryObjectsClient := meta.(*clients.Client).Groups.DirectoryObjectsClient
+	tenantId := meta.(*clients.Client).TenantID
+	groupId := d.Get("group_object_id").(string)
+	memberId := d.Get("member_object_id").(string)
+
+	id := parse.NewGroupMemberID(groupId, memberId)
+
+	tf.LockByName(groupResourceName, id.GroupId)
+	defer tf.UnlockByName(groupResourceName, id.GroupId)
+
+	group, status, err := client.Get(ctx, groupId, odata.Query{})
+	if err != nil {
+		if status == http.StatusNotFound {
+			return tf.ErrorDiagPathF(nil, "object_id", "Group with object ID %q was not found", groupId)
+		}
+		return tf.ErrorDiagPathF(err, "object_id", "Retrieving group with object ID: %q", groupId)
+	}
+
+	existingMembers, _, err := client.ListMembers(ctx, id.GroupId)
+	if err != nil {
+		return tf.ErrorDiagF(err, "Listing existing members for group with object ID: %q", id.GroupId)
+	}
+	if existingMembers != nil {
+		for _, v := range *existingMembers {
+			if strings.EqualFold(v, memberId) {
+				return tf.ImportAsExistsDiag("azuread_group_member", id.String())
+			}
+		}
+	}
+
+	memberObject, _, err := directoryObjectsClient.Get(ctx, memberId, odata.Query{})
+	if err != nil {
+		return tf.ErrorDiagF(err, "Could not retrieve principal object %q", memberId)
+	}
+	if memberObject == nil {
+		return tf.ErrorDiagF(errors.New("returned memberObject was nil"), "Could not retrieve member principal object %q", memberId)
+	}
+	memberObject.ODataId = (*odata.Id)(pointer.To(fmt.Sprintf("%s/v1.0/%s/directoryObjects/%s",
+		client.BaseClient.Endpoint, tenantId, memberId)))
+
+	group.Members = &msgraph.Members{*memberObject}
+
+	if _, err := client.AddMembers(ctx, group); err != nil {
+		return tf.ErrorDiagF(err, "Adding group member %q to group %q", memberId, groupId)
+	}
+
+	d.SetId(id.String())
+	return groupMemberResourceRead(ctx, d, meta)
+}

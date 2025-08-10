@@ -1,0 +1,105 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/directoryroles
+import (
+	"context"
+	"errors"
+	"fmt"
+	"log"
+	"net/http"
+	"time"
+
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/go-uuid"
+	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func customDirectoryRoleResource() *pluginsdk.Resource {
+	return &pluginsdk.Resource{
+		CreateContext: customDirectoryRoleResourceCreate,
+		UpdateContext: customDirectoryRoleResourceUpdate,
+		ReadContext:   customDirectoryRoleResourceRead,
+		DeleteContext: customDirectoryRoleResourceDelete,
+
+		Timeouts: &pluginsdk.ResourceTimeout{
+			Create: pluginsdk.DefaultTimeout(5 * time.Minute),
+			Read:   pluginsdk.DefaultTimeout(5 * time.Minute),
+			Update: pluginsdk.DefaultTimeout(5 * time.Minute),
+			Delete: pluginsdk.DefaultTimeout(5 * time.Minute),
+		},
+
+		Importer: pluginsdk.ImporterValidatingResourceId(func(id string) error {
+			if _, err := uuid.ParseUUID(id); err != nil {
+				return fmt.Errorf("specified ID (%q) is not valid: %s", id, err)
+			}
+			return nil
+		}),
+
+		Schema: map[string]*pluginsdk.Schema{
+			"display_name": {
+				Description:      "The display name of the custom directory role",
+				Type:             pluginsdk.TypeString,
+				Required:         true,
+				ValidateDiagFunc: validation.ValidateDiag(validation.StringIsNotEmpty),
+			},
+
+			"enabled": {
+				Description: "Indicates whether the role is enabled for assignment",
+				Type:        pluginsdk.TypeBool,
+				Required:    true,
+			},
+
+			"permissions": {
+				Description: "List of permissions that are included in the custom directory role",
+				Type:        pluginsdk.TypeSet,
+				Required:    true,
+				Elem: &pluginsdk.Resource{
+					Schema: map[string]*pluginsdk.Schema{
+						"allowed_resource_actions": {
+							Description: "Set of tasks that can be performed on a resource",
+							Type:        pluginsdk.TypeSet,
+							Required:    true,
+							Elem: &pluginsdk.Schema{
+								Type:             pluginsdk.TypeString,
+								ValidateDiagFunc: validation.ValidateDiag(validation.StringIsNotEmpty),
+							},
+						},
+					},
+				},
+			},
+
+			"version": {
+				Description:      "The version of the role definition.",
+				Type:             pluginsdk.TypeString,
+				Required:         true,
+				ValidateDiagFunc: validation.ValidateDiag(validation.StringLenBetween(1, 128)),
+			},
+
+			"description": {
+				Description: "The description of the custom directory role",
+				Type:        pluginsdk.TypeString,
+				Optional:    true,
+			},
+
+			"template_id": {
+				Description:      "Custom template identifier that is typically used if one needs an identifier to be the same across different directories.",
+				Type:             pluginsdk.TypeString,
+				Optional:         true,
+				Computed:         true,
+				ValidateDiagFunc: validation.ValidateDiag(validation.IsUUID),
+
+				// The template ID _can_ technically be changed but doing so mutates the role ID - essentially
+				// causing the equivalent of a ForceNew by the API :/
+				ForceNew: true,
+			},
+
+			"object_id": {
+				Description: "The object ID of the directory role",
+				Type:        pluginsdk.TypeString,
+				Computed:    true,
+			},
+		},
+	}
+}

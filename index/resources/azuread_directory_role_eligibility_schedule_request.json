@@ -1,0 +1,13 @@
+{
+  "terraform_type": "azuread_directory_role_eligibility_schedule_request",
+  "struct_type": "",
+  "namespace": "github.com/hashicorp/terraform-provider-azuread/internal/services/directoryroles",
+  "registration_method": "directoryRoleEligibilityScheduleRequestResource",
+  "sdk_type": "legacy_pluginsdk",
+  "schema_index": "func.directoryRoleEligibilityScheduleRequestResource.goindex",
+  "create_index": "func.directoryRoleEligibilityScheduleRequestResourceCreate.goindex",
+  "read_index": "func.directoryRoleEligibilityScheduleRequestResourceRead.goindex",
+  "update_index": "func..goindex",
+  "delete_index": "func.directoryRoleEligibilityScheduleRequestResourceDelete.goindex",
+  "attribute_index": "func.directoryRoleEligibilityScheduleRequestResource.goindex"
+}

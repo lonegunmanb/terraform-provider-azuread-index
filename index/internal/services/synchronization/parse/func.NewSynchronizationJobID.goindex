@@ -1,0 +1,13 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/synchronization/parse
+import (
+	"fmt"
+	"strings"
+
+	"github.com/hashicorp/go-uuid"
+)
+func NewSynchronizationJobID(servicePrincipalId string, jobId string) SynchronizationJobId {
+	return SynchronizationJobId{
+		ServicePrincipalId: servicePrincipalId,
+		JobId:              jobId,
+	}
+}

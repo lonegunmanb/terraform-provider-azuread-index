@@ -1,0 +1,77 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/applications
+import (
+	"context"
+	"encoding/base64"
+	"fmt"
+	"net/http"
+	"time"
+
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/terraform-provider-azuread/internal/sdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/services/applications/parse"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func (r ApplicationIdentifierUriResource) Delete() sdk.ResourceFunc {
+	return sdk.ResourceFunc{
+		Timeout: 5 * time.Minute,
+		Func: func(ctx context.Context, metadata sdk.ResourceMetaData) error {
+			client := metadata.Client.Applications.ApplicationsClient
+			client.BaseClient.DisableRetries = true
+			defer func() { client.BaseClient.DisableRetries = false }()
+
+			id, err := parse.ParseIdentifierUriID(metadata.ResourceData.Id())
+			if err != nil {
+				return err
+			}
+
+			var model ApplicationIdentifierUriModel
+			if err := metadata.Decode(&model); err != nil {
+				return fmt.Errorf("decoding: %+v", err)
+			}
+
+			tf.LockByName(applicationResourceName, id.ApplicationId)
+			defer tf.UnlockByName(applicationResourceName, id.ApplicationId)
+
+			applicationId := parse.NewApplicationID(id.ApplicationId)
+			result, _, err := client.Get(ctx, applicationId.ApplicationId, odata.Query{})
+			if err != nil {
+				return fmt.Errorf("retrieving %s: %+v", applicationId, err)
+			}
+			if result == nil || result.IdentifierUris == nil {
+				return fmt.Errorf("retrieving %s: identifierUris was nil", applicationId)
+			}
+
+			// Look for the identifier URI to remove
+			newIdentifierUris := make([]string, 0)
+			found := false
+			for _, existingUri := range *result.IdentifierUris {
+				if existingUri == model.IdentifierUri {
+					found = true
+				} else {
+					newIdentifierUris = append(newIdentifierUris, existingUri)
+				}
+			}
+			if !found {
+				return fmt.Errorf("deleting %s: could not identify existing identifier URI", id)
+			}
+
+			properties := msgraph.Application{
+				DirectoryObject: msgraph.DirectoryObject{
+					Id: &applicationId.ApplicationId,
+				},
+				IdentifierUris: &newIdentifierUris,
+			}
+
+			// Patch the application with the new set of identifier URIs
+			_, err = client.Update(ctx, properties)
+			if err != nil {
+				return fmt.Errorf("deleting %s: %+v", id, err)
+			}
+
+			return nil
+		},
+	}
+}

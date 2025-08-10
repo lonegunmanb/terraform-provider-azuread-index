@@ -1,0 +1,71 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/conditionalaccess
+import (
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func expandConditionalAccessSessionControls(in []interface{}) *msgraph.ConditionalAccessSessionControls {
+	result := msgraph.ConditionalAccessSessionControls{}
+
+	if len(in) == 0 || in[0] == nil {
+		return &result
+	}
+
+	config := in[0].(map[string]interface{})
+
+	result.ApplicationEnforcedRestrictions = &msgraph.ApplicationEnforcedRestrictionsSessionControl{
+		IsEnabled: pointer.To(config["application_enforced_restrictions_enabled"].(bool)),
+	}
+
+	if cloudAppSecurity := config["cloud_app_security_policy"].(string); cloudAppSecurity != "" {
+		result.CloudAppSecurity = &msgraph.CloudAppSecurityControl{
+			IsEnabled:            pointer.To(true),
+			CloudAppSecurityType: pointer.To(cloudAppSecurity),
+		}
+	}
+
+	DisableResilienceDefaults := config["disable_resilience_defaults"]
+	result.DisableResilienceDefaults = pointer.To(DisableResilienceDefaults.(bool))
+
+	if persistentBrowserMode := config["persistent_browser_mode"].(string); persistentBrowserMode != "" {
+		result.PersistentBrowser = &msgraph.PersistentBrowserSessionControl{
+			IsEnabled: pointer.To(true),
+			Mode:      pointer.To(persistentBrowserMode),
+		}
+	}
+
+	signInFrequency := msgraph.SignInFrequencySessionControl{}
+	if frequencyValue := config["sign_in_frequency"].(int); frequencyValue > 0 {
+		signInFrequency.IsEnabled = pointer.To(true)
+		signInFrequency.Type = pointer.To(config["sign_in_frequency_period"].(string))
+		signInFrequency.Value = pointer.To(int32(frequencyValue))
+
+		// AuthenticationType and FrequencyInterval must be set to default values here
+		signInFrequency.AuthenticationType = pointer.To(msgraph.ConditionalAccessAuthenticationTypePrimaryAndSecondaryAuthentication)
+		signInFrequency.FrequencyInterval = pointer.To(msgraph.ConditionalAccessFrequencyIntervalTimeBased)
+	}
+
+	if authenticationType, ok := config["sign_in_frequency_authentication_type"]; ok && authenticationType.(string) != "" {
+		signInFrequency.AuthenticationType = pointer.To(authenticationType.(string))
+	}
+
+	if interval, ok := config["sign_in_frequency_interval"]; ok && interval.(string) != "" {
+		signInFrequency.FrequencyInterval = pointer.To(interval.(string))
+	}
+
+	// API returns 400 error if signInFrequency is set with all default/zero values
+	if (signInFrequency.IsEnabled != nil && *signInFrequency.IsEnabled) ||
+		(signInFrequency.FrequencyInterval != nil && *signInFrequency.FrequencyInterval != msgraph.ConditionalAccessFrequencyIntervalTimeBased) ||
+		(signInFrequency.AuthenticationType != nil && *signInFrequency.AuthenticationType != msgraph.ConditionalAccessAuthenticationTypePrimaryAndSecondaryAuthentication) {
+		result.SignInFrequency = &signInFrequency
+	}
+
+	// API does not accept ineffectual and sessionControls object, and it will not remove any existing sessionControls unless the entire object is set to null
+	if (result.ApplicationEnforcedRestrictions == nil || !pointer.From(result.ApplicationEnforcedRestrictions.IsEnabled)) &&
+		result.CloudAppSecurity == nil && !pointer.From(result.DisableResilienceDefaults) &&
+		result.PersistentBrowser == nil && result.SignInFrequency == nil {
+		return nil
+	}
+
+	return &result
+}

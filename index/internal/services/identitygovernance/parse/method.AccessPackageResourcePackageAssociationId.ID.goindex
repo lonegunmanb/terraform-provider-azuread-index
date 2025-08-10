@@ -1,0 +1,10 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/identitygovernance/parse
+import (
+	"fmt"
+	"strings"
+
+	"github.com/hashicorp/go-uuid"
+)
+func (id AccessPackageResourcePackageAssociationId) ID() string {
+	return fmt.Sprintf("%s/%s/%s/%s", id.AccessPackageId, id.ResourcePackageAssociationId, id.OriginId, id.AccessType)
+}

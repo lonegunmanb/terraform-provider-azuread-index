@@ -1,0 +1,36 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/policies
+import (
+	"context"
+	"fmt"
+	"log"
+	"net/http"
+	"time"
+
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/go-uuid"
+	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func claimsMappingPolicyResourceRead(ctx context.Context, d *pluginsdk.ResourceData, meta interface{}) pluginsdk.Diagnostics {
+	client := meta.(*clients.Client).Policies.ClaimsMappingPolicyClient
+	objectId := d.Id()
+
+	policy, status, err := client.Get(ctx, objectId, odata.Query{})
+	if err != nil {
+		if status == http.StatusNotFound {
+			log.Printf("[DEBUG] Claims Mapping Policy with Object ID %q was not found - removing from state!", objectId)
+			d.SetId("")
+			return nil
+		}
+
+		return tf.ErrorDiagF(err, "retrieving Claims Mapping Policy with object ID: %q", d.Id())
+	}
+
+	tf.Set(d, "definition", policy.Definition)
+	tf.Set(d, "display_name", policy.DisplayName)
+
+	return nil
+}

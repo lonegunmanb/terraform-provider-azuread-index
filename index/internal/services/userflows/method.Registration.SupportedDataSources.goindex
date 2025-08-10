@@ -1,0 +1,5 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/userflows
+import "github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+func (r Registration) SupportedDataSources() map[string]*pluginsdk.Resource {
+	return nil
+}

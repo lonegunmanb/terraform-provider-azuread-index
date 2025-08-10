@@ -1,0 +1,42 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/applications
+import (
+	"context"
+	"encoding/base64"
+	"fmt"
+	"net/http"
+	"reflect"
+	"strings"
+	"time"
+
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func expandApplicationOAuth2PermissionScope(in []interface{}) *[]msgraph.PermissionScope {
+	result := make([]msgraph.PermissionScope, 0)
+
+	for _, raw := range in {
+		if raw == nil {
+			continue
+		}
+		oauth2Permissions := raw.(map[string]interface{})
+
+		result = append(result,
+			msgraph.PermissionScope{
+				AdminConsentDescription: pointer.To(oauth2Permissions["admin_consent_description"].(string)),
+				AdminConsentDisplayName: pointer.To(oauth2Permissions["admin_consent_display_name"].(string)),
+				ID:                      pointer.To(oauth2Permissions["id"].(string)),
+				IsEnabled:               pointer.To(oauth2Permissions["enabled"].(bool)),
+				Type:                    oauth2Permissions["type"].(string),
+				UserConsentDescription:  pointer.To(oauth2Permissions["user_consent_description"].(string)),
+				UserConsentDisplayName:  pointer.To(oauth2Permissions["user_consent_display_name"].(string)),
+				Value:                   pointer.To(oauth2Permissions["value"].(string)),
+			},
+		)
+	}
+
+	return &result
+}

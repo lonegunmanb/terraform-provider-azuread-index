@@ -1,0 +1,182 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/applications
+import (
+	"context"
+	"errors"
+	"fmt"
+	"log"
+	"net/http"
+	"net/url"
+	"strings"
+	"time"
+
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/go-cty/cty"
+	"github.com/hashicorp/go-uuid"
+	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers"
+	"github.com/hashicorp/terraform-provider-azuread/internal/services/applications/migrations"
+	"github.com/hashicorp/terraform-provider-azuread/internal/services/applications/parse"
+	applicationsValidate "github.com/hashicorp/terraform-provider-azuread/internal/services/applications/validate"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func applicationResourceCustomizeDiff(ctx context.Context, diff *pluginsdk.ResourceDiff, meta interface{}) error {
+	client := meta.(*clients.Client).Applications.ApplicationsClientBeta
+	oldDisplayName, newDisplayName := diff.GetChange("display_name")
+
+	if diff.Get("prevent_duplicate_names").(bool) && pluginsdk.ValueIsNotEmptyOrUnknown(newDisplayName) &&
+		(oldDisplayName.(string) == "" || oldDisplayName.(string) != newDisplayName.(string)) {
+		result, err := applicationFindByName(ctx, client, newDisplayName.(string))
+		if err != nil {
+			return fmt.Errorf("could not check for existing application(s): %+v", err)
+		}
+		if result != nil && len(*result) > 0 {
+			for _, existingApp := range *result {
+				if existingApp.ID() == nil {
+					return fmt.Errorf("API error: application returned with nil object ID during duplicate name check")
+				}
+				if diff.Id() == "" || diff.Id() == *existingApp.ID() {
+					return tf.ImportAsDuplicateError("azuread_application", *existingApp.ID(), newDisplayName.(string))
+				}
+			}
+		}
+	}
+
+	// Validate roles and scopes to check for duplicate IDs or values
+	if err := applicationValidateRolesScopes(diff.Get("app_role").(*pluginsdk.Set).List(), diff.Get("api.0.oauth2_permission_scope").(*pluginsdk.Set).List()); err != nil {
+		return fmt.Errorf("checking for duplicate app roles / OAuth2.0 permission scopes: %v", err)
+	}
+
+	// If app roles or permission scopes have changed, the corresponding maps indexed by value will also change
+	if diff.HasChange("app_role") {
+		diff.SetNewComputed("app_role_ids")
+	}
+	if diff.HasChange("api.0.oauth2_permission_scope") {
+		diff.SetNewComputed("oauth2_permission_scope_ids")
+	}
+
+	// If the logo image changes, the CDN URL will change
+	if diff.HasChange("logo_image") {
+		diff.SetNewComputed("logo_url")
+	}
+
+	// The following validation is taken from https://docs.microsoft.com/en-gb/azure/active-directory/develop/supported-accounts-validation
+	// These apply only when personal account sign-ins are enabled for an application, and are enforced at plan time to avoid breaking existing
+	// applications that change from AAD (corporate) account sign-ins to personal account sign-ins
+	if s := diff.Get("sign_in_audience").(string); s == msgraph.SignInAudienceAzureADandPersonalMicrosoftAccount || s == msgraph.SignInAudiencePersonalMicrosoftAccount {
+		oauth2PermissionScopes := diff.Get("api.0.oauth2_permission_scope").(*pluginsdk.Set).List()
+		identifierUris := diff.Get("identifier_uris").(*pluginsdk.Set).List()
+		pubRedirectUris := diff.Get("public_client.0.redirect_uris").(*pluginsdk.Set).List()
+		spaRedirectUris := diff.Get("single_page_application.0.redirect_uris").(*pluginsdk.Set).List()
+		webRedirectUris := diff.Get("web.0.redirect_uris").(*pluginsdk.Set).List()
+		allRedirectUris := append(pubRedirectUris, append(spaRedirectUris, webRedirectUris...)...) //nolint:gocritic
+
+		// applications must use v2 access tokens with personal account sign-ins
+		if v, ok := diff.GetOk("api.0.requested_access_token_version"); !ok || v.(int) == 1 {
+			return fmt.Errorf("`requested_access_token_version` must be 2 when `sign_in_audience` is %q or %q",
+				msgraph.SignInAudienceAzureADandPersonalMicrosoftAccount, msgraph.SignInAudiencePersonalMicrosoftAccount)
+		}
+
+		// maximum number of scopes is 100 with personal account sign-ins
+		if len(oauth2PermissionScopes) > 100 {
+			return fmt.Errorf("maximum of 100 `oauth2_permission_scope` blocks are supported when `sign_in_audience` is %q or %q",
+				msgraph.SignInAudienceAzureADandPersonalMicrosoftAccount, msgraph.SignInAudiencePersonalMicrosoftAccount)
+		}
+
+		// scope name maximum length is 40 characters with personal account sign-ins
+		for _, raw := range oauth2PermissionScopes {
+			scope := raw.(map[string]interface{})
+			if v, ok := scope["value"]; ok {
+				if len(v.(string)) > 40 {
+					return fmt.Errorf("`value` property in the `oauth2_permission_scope` block must be 40 characters or less when `sign_in_audience` is %q or %q",
+						msgraph.SignInAudienceAzureADandPersonalMicrosoftAccount, msgraph.SignInAudiencePersonalMicrosoftAccount)
+				}
+			}
+		}
+
+		// maximum number of scopes is 100 with personal account sign-ins
+		if len(oauth2PermissionScopes) > 100 {
+			return fmt.Errorf("maximum of 100 `oauth2_permission_scope` blocks are supported when `sign_in_audience` is %q or %q",
+				msgraph.SignInAudienceAzureADandPersonalMicrosoftAccount, msgraph.SignInAudiencePersonalMicrosoftAccount)
+		}
+
+		// scope name maximum length is 40 characters with personal account sign-ins
+		for _, raw := range oauth2PermissionScopes {
+			scope := raw.(map[string]interface{})
+			if v, ok := scope["value"]; ok {
+				if len(v.(string)) > 40 {
+					return fmt.Errorf("`value` property in the `oauth2_permission_scope` block must be 40 characters or less when `sign_in_audience` is %q or %q",
+						msgraph.SignInAudienceAzureADandPersonalMicrosoftAccount, msgraph.SignInAudiencePersonalMicrosoftAccount)
+				}
+			}
+		}
+		// urn scheme not supported with personal account sign-ins
+		for _, v := range identifierUris {
+			if _, errs := validation.IsUriFunc([]string{"http", "https", "api", "ms-appx"}, false, false, false)(v, "identifier_uris"); len(errs) > 0 {
+				return fmt.Errorf("`identifier_uris` is invalid. The URN scheme is not supported when `sign_in_audience` is %q or %q",
+					msgraph.SignInAudienceAzureADandPersonalMicrosoftAccount, msgraph.SignInAudiencePersonalMicrosoftAccount)
+			}
+		}
+
+		// maximum of 50 identifier_uris with personal account sign-ins
+		if len(identifierUris) > 50 {
+			return fmt.Errorf("`identifier_uris` must have no more than 50 URIs when `sign_in_audience` is %q or %q",
+				msgraph.SignInAudienceAzureADandPersonalMicrosoftAccount, msgraph.SignInAudiencePersonalMicrosoftAccount)
+		}
+
+		// maximum of 100 redirect URIs are supported with personal account sign-ins
+		if len(pubRedirectUris) > 100 || len(spaRedirectUris) > 100 || len(webRedirectUris) > 100 {
+			return fmt.Errorf("`redirect_uris` must have no more than 100 URIs when `sign_in_audience` is %q or %q",
+				msgraph.SignInAudienceAzureADandPersonalMicrosoftAccount, msgraph.SignInAudiencePersonalMicrosoftAccount)
+		}
+
+		// redirect URIs containing wildcards not supported with personal account sign-ins
+		for _, v := range allRedirectUris {
+			u, err := url.Parse(v.(string))
+			if err == nil {
+				if strings.Contains(u.Host, "*") {
+					return fmt.Errorf("`redirect_uris` having wildcard hosts are not supported when `sign_in_audience` is %q or %q",
+						msgraph.SignInAudienceAzureADandPersonalMicrosoftAccount, msgraph.SignInAudiencePersonalMicrosoftAccount)
+				}
+			}
+		}
+
+		// requiredResourceAccess limitations with personal sign-ins:
+		// 50 resources per application
+		// 30 permissions per resource
+		// 200 permissions per application
+		requiredResourceAccess := diff.Get("required_resource_access").(*pluginsdk.Set).List()
+		if len(requiredResourceAccess) > 50 {
+			return fmt.Errorf("maximum of 50 `required_resource_access` blocks are supported when `sign_in_audience` is %q or %q",
+				msgraph.SignInAudienceAzureADandPersonalMicrosoftAccount, msgraph.SignInAudiencePersonalMicrosoftAccount)
+		}
+		totalPermissions := 0
+		for _, raw := range requiredResourceAccess {
+			v := raw.(map[string]interface{})
+			if resourceAccess, ok := v["resource_access"]; ok {
+				permissionCount := len(resourceAccess.([]interface{}))
+				if permissionCount > 30 {
+					return fmt.Errorf("maximum of 30 `resource_access` blocks for each `required_resource_access` block are supported when `sign_in_audience` is %q or %q",
+						msgraph.SignInAudienceAzureADandPersonalMicrosoftAccount, msgraph.SignInAudiencePersonalMicrosoftAccount)
+				}
+				totalPermissions += permissionCount
+				if totalPermissions > 200 {
+					return fmt.Errorf("maximum of 30 `resource_access` blocks per application are supported when `sign_in_audience` is %q or %q",
+						msgraph.SignInAudienceAzureADandPersonalMicrosoftAccount, msgraph.SignInAudiencePersonalMicrosoftAccount)
+				}
+			}
+		}
+	}
+
+	if s := diff.Get("sign_in_audience").(string); s == msgraph.SignInAudienceAzureADandPersonalMicrosoftAccount || s == msgraph.SignInAudiencePersonalMicrosoftAccount {
+		if v, ok := diff.GetOk("api.0.requested_access_token_version"); !ok || v.(int) == 1 {
+			return fmt.Errorf("`requested_access_token_version` must be 2 when `sign_in_audience` is %q or %q",
+				msgraph.SignInAudienceAzureADandPersonalMicrosoftAccount, msgraph.SignInAudiencePersonalMicrosoftAccount)
+		}
+	}
+
+	return nil
+}

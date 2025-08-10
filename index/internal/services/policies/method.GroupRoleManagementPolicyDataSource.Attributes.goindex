@@ -1,0 +1,28 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/policies
+import (
+	"context"
+	"fmt"
+
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
+	"github.com/hashicorp/terraform-provider-azuread/internal/sdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func (r GroupRoleManagementPolicyDataSource) Attributes() map[string]*schema.Schema {
+	return map[string]*pluginsdk.Schema{
+		"display_name": {
+			Description: "The display name of the policy",
+			Type:        pluginsdk.TypeString,
+			Computed:    true,
+		},
+
+		"description": {
+			Description: "Description of the policy",
+			Type:        pluginsdk.TypeString,
+			Computed:    true,
+		},
+	}
+}

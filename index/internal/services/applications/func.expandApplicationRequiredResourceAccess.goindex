@@ -1,0 +1,36 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/applications
+import (
+	"context"
+	"encoding/base64"
+	"fmt"
+	"net/http"
+	"reflect"
+	"strings"
+	"time"
+
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func expandApplicationRequiredResourceAccess(in []interface{}) *[]msgraph.RequiredResourceAccess {
+	result := make([]msgraph.RequiredResourceAccess, 0)
+
+	for _, raw := range in {
+		if raw == nil {
+			continue
+		}
+		requiredResourceAccess := raw.(map[string]interface{})
+
+		result = append(result, msgraph.RequiredResourceAccess{
+			ResourceAppId: pointer.To(requiredResourceAccess["resource_app_id"].(string)),
+			ResourceAccess: expandApplicationResourceAccess(
+				requiredResourceAccess["resource_access"].([]interface{}),
+			),
+		})
+	}
+
+	return &result
+}

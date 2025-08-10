@@ -1,0 +1,30 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/serviceprincipals
+import (
+	"context"
+	"fmt"
+	"time"
+
+	"github.com/hashicorp/terraform-provider-azuread/internal/sdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+)
+func (r ClientConfigDataSource) Attributes() map[string]*pluginsdk.Schema {
+	return map[string]*pluginsdk.Schema{
+		"client_id": {
+			Description: "The client ID (application ID) linked to the authenticated principal, or the application used for delegated authentication",
+			Type:        pluginsdk.TypeString,
+			Computed:    true,
+		},
+
+		"tenant_id": {
+			Description: "The tenant ID of the authenticated principal",
+			Type:        pluginsdk.TypeString,
+			Computed:    true,
+		},
+
+		"object_id": {
+			Description: "The object ID of the authenticated principal",
+			Type:        pluginsdk.TypeString,
+			Computed:    true,
+		},
+	}
+}

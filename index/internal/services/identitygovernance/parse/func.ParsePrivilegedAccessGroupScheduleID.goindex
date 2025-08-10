@@ -1,0 +1,33 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/identitygovernance/parse
+import (
+	"fmt"
+	"strings"
+
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func ParsePrivilegedAccessGroupScheduleID(idString string) (*PrivilegedAccessGroupScheduleId, error) {
+	// Parse the Schedule ID into its parts
+	parts := strings.Split(idString, "_")
+
+	if len(parts) != 3 {
+		return nil, fmt.Errorf("parsing GroupScheduleId: expecting 3 parts, got %d", len(parts))
+	}
+
+	if _, err := validation.IsUUID(parts[0], "GroupId"); len(err) > 0 {
+		return nil, fmt.Errorf("parsing GroupScheduleId: %+v", err)
+	}
+
+	if parts[1] != msgraph.PrivilegedAccessGroupRelationshipOwner &&
+		parts[1] != msgraph.PrivilegedAccessGroupRelationshipMember {
+		return nil, fmt.Errorf("parsing GroupScheduleId: invalid Relationship")
+	}
+
+	if _, err := validation.IsUUID(parts[2], "ScheduleId"); len(err) > 0 {
+		return nil, fmt.Errorf("parsing GroupScheduleId: %+v", err)
+	}
+
+	id := NewPrivilegedAccessGroupScheduleID(parts[0], parts[1], parts[2])
+
+	return id, nil
+}

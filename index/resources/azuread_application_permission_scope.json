@@ -1,0 +1,13 @@
+{
+  "terraform_type": "azuread_application_permission_scope",
+  "struct_type": "ApplicationPermissionScopeResource",
+  "namespace": "github.com/hashicorp/terraform-provider-azuread/internal/services/applications",
+  "registration_method": "",
+  "sdk_type": "modern_sdk",
+  "schema_index": "method.ApplicationPermissionScopeResource.Arguments.goindex",
+  "create_index": "method.ApplicationPermissionScopeResource.Create.goindex",
+  "read_index": "method.ApplicationPermissionScopeResource.Read.goindex",
+  "update_index": "method.ApplicationPermissionScopeResource.Update.goindex",
+  "delete_index": "method.ApplicationPermissionScopeResource.Delete.goindex",
+  "attribute_index": "method.ApplicationPermissionScopeResource.Attributes.goindex"
+}

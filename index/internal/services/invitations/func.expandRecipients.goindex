@@ -1,0 +1,18 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/invitations
+import "github.com/manicminer/hamilton/msgraph"
+func expandRecipients(in []interface{}) *[]msgraph.Recipient {
+	recipients := make([]msgraph.Recipient, 0, len(in))
+	for _, recipientRaw := range in {
+		recipient := recipientRaw.(string)
+
+		newRecipient := msgraph.Recipient{
+			EmailAddress: &msgraph.EmailAddress{
+				Address: &recipient,
+			},
+		}
+
+		recipients = append(recipients, newRecipient)
+	}
+
+	return &recipients
+}

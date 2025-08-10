@@ -1,0 +1,106 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/directoryroles
+import (
+	"context"
+	"fmt"
+	"net/http"
+	"strings"
+	"time"
+
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/terraform-provider-azuread/internal/sdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/services/directoryroles/parse"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/suppress"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func (r DirectoryRoleResource) Create() sdk.ResourceFunc {
+	return sdk.ResourceFunc{
+		Timeout: 5 * time.Minute,
+		Func: func(ctx context.Context, metadata sdk.ResourceMetaData) error {
+			client := metadata.Client.DirectoryRoles.DirectoryRolesClient
+			client.BaseClient.DisableRetries = true
+			defer func() { client.BaseClient.DisableRetries = false }()
+
+			directoryRoleTemplatesClient := metadata.Client.DirectoryRoles.DirectoryRoleTemplatesClient
+
+			var model DirectoryRoleModel
+			if err := metadata.Decode(&model); err != nil {
+				return fmt.Errorf("decoding: %+v", err)
+			}
+
+			// First we find the directory role template
+			var template *msgraph.DirectoryRoleTemplate
+			if model.DisplayName != "" {
+				templates, _, err := directoryRoleTemplatesClient.List(ctx)
+				if err != nil {
+					return fmt.Errorf("listing directory role templates: %+v", err)
+				}
+				if templates == nil {
+					return fmt.Errorf("listing directory role templates: API error, result was nil")
+				}
+
+				for _, t := range *templates {
+					if strings.EqualFold(model.DisplayName, pointer.From(t.DisplayName)) {
+						template = &t
+						break
+					}
+				}
+
+				if template == nil {
+					return fmt.Errorf("no directory role template found with display name: %q", model.DisplayName)
+				}
+			} else if model.TemplateId != "" {
+				var status int
+				var err error
+				template, status, err = directoryRoleTemplatesClient.Get(ctx, model.TemplateId)
+				if err != nil {
+					if status == http.StatusNotFound {
+						return fmt.Errorf("no directory role template with object ID %q was found", model.TemplateId)
+					}
+					return fmt.Errorf("retrieving directory role template with object ID %q: %+v", model.TemplateId, err)
+				}
+
+				if template == nil {
+					return fmt.Errorf("retrieving directory role template with object ID %q: API error, result was nil", model.TemplateId)
+				}
+			}
+
+			if template == nil {
+				return fmt.Errorf("no directory role template found")
+			}
+
+			if template.ID == nil {
+				return fmt.Errorf("received directory role template with nil ID (API error)")
+			}
+
+			templateId := *template.ID
+
+			// Now look for the directory role created from that template
+			directoryRole, status, err := client.GetByTemplateId(ctx, templateId)
+			if err != nil {
+				if status == http.StatusNotFound {
+					// Directory role was not found, so activate it
+					directoryRole, _, err = client.Activate(ctx, templateId)
+					if err != nil {
+						return fmt.Errorf("activating directory role for template ID %q: %+v", templateId, err)
+					}
+				} else {
+					return fmt.Errorf("retrieving directory role with template ID %q: %+v", templateId, err)
+				}
+			}
+
+			if directoryRole == nil {
+				return fmt.Errorf("retrieving directory role for template ID %q: result was nil", templateId)
+			}
+			if directoryRole.ID() == nil {
+				return fmt.Errorf("retrieving directory role for template ID %q: ID was nil (API error)", templateId)
+			}
+
+			id := parse.NewDirectoryRoleID(*directoryRole.ID())
+			metadata.SetID(id)
+
+			return nil
+		},
+	}
+}

@@ -1,0 +1,13 @@
+{
+  "terraform_type": "azuread_access_package_assignment_policy",
+  "struct_type": "",
+  "namespace": "github.com/hashicorp/terraform-provider-azuread/internal/services/identitygovernance",
+  "registration_method": "accessPackageAssignmentPolicyResource",
+  "sdk_type": "legacy_pluginsdk",
+  "schema_index": "func.accessPackageAssignmentPolicyResource.goindex",
+  "create_index": "func.accessPackageAssignmentPolicyResourceCreate.goindex",
+  "read_index": "func.accessPackageAssignmentPolicyResourceRead.goindex",
+  "update_index": "func.accessPackageAssignmentPolicyResourceUpdate.goindex",
+  "delete_index": "func.accessPackageAssignmentPolicyResourceDelete.goindex",
+  "attribute_index": "func.accessPackageAssignmentPolicyResource.goindex"
+}

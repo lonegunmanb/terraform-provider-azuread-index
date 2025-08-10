@@ -1,0 +1,32 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/applications
+import (
+	"context"
+	"encoding/base64"
+	"fmt"
+	"net/http"
+	"reflect"
+	"strings"
+	"time"
+
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func expandApplicationOptionalClaims(in []interface{}) *msgraph.OptionalClaims {
+	result := msgraph.OptionalClaims{}
+
+	if len(in) == 0 || in[0] == nil {
+		return &result
+	}
+
+	optionalClaims := in[0].(map[string]interface{})
+
+	result.AccessToken = expandApplicationOptionalClaim(optionalClaims["access_token"].([]interface{}))
+	result.IdToken = expandApplicationOptionalClaim(optionalClaims["id_token"].([]interface{}))
+	result.Saml2Token = expandApplicationOptionalClaim(optionalClaims["saml2_token"].([]interface{}))
+
+	return &result
+}

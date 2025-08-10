@@ -1,0 +1,13 @@
+{
+  "terraform_type": "azuread_synchronization_job",
+  "struct_type": "",
+  "namespace": "github.com/hashicorp/terraform-provider-azuread/internal/services/synchronization",
+  "registration_method": "synchronizationJobResource",
+  "sdk_type": "legacy_pluginsdk",
+  "schema_index": "func.synchronizationJobResource.goindex",
+  "create_index": "func.synchronizationJobResourceCreate.goindex",
+  "read_index": "func.synchronizationJobResourceRead.goindex",
+  "update_index": "func.synchronizationJobResourceUpdate.goindex",
+  "delete_index": "func.synchronizationJobResourceDelete.goindex",
+  "attribute_index": "func.synchronizationJobResource.goindex"
+}

@@ -1,0 +1,42 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/synchronization
+import (
+	"context"
+	"errors"
+	"fmt"
+	"log"
+	"net/http"
+	"time"
+
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers"
+	"github.com/hashicorp/terraform-provider-azuread/internal/services/synchronization/parse"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func synchronizationJobResourceRead(ctx context.Context, d *pluginsdk.ResourceData, meta interface{}) pluginsdk.Diagnostics {
+	client := meta.(*clients.Client).Synchronization.SynchronizationJobClient
+
+	id, err := parse.SynchronizationJobID(d.Id())
+	if err != nil {
+		return tf.ErrorDiagPathF(err, "id", "Parsing synchronization job with ID %q", d.Id())
+	}
+
+	job, status, err := client.Get(ctx, id.JobId, id.ServicePrincipalId)
+	if err != nil {
+		if status == http.StatusNotFound {
+			log.Printf("[DEBUG] Synchronization job with ID %q for service principal %q was not found - removing from state!", id.JobId, id.ServicePrincipalId)
+			d.SetId("")
+			return nil
+		}
+		return tf.ErrorDiagF(err, "Retrieving synchronization job with object ID %q", id.JobId)
+	}
+	tf.Set(d, "service_principal_id", id.ServicePrincipalId)
+	tf.Set(d, "schedule", flattenSynchronizationSchedule(job.Schedule))
+	tf.Set(d, "template_id", job.TemplateId)
+	tf.Set(d, "enabled", *job.Schedule.State == "Active")
+	return nil
+}

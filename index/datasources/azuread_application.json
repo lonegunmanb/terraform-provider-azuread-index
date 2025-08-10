@@ -1,0 +1,10 @@
+{
+  "terraform_type": "azuread_application",
+  "struct_type": "",
+  "namespace": "github.com/hashicorp/terraform-provider-azuread/internal/services/applications",
+  "registration_method": "applicationDataSource",
+  "sdk_type": "legacy_pluginsdk",
+  "schema_index": "func.applicationDataSource.goindex",
+  "read_index": "func.applicationDataSourceRead.goindex",
+  "attribute_index": "func.applicationDataSource.goindex"
+}

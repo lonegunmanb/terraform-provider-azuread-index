@@ -1,0 +1,55 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/clients
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"log"
+	"net/http"
+	"strings"
+
+	"github.com/hashicorp/go-azure-sdk/sdk/claims"
+	"github.com/hashicorp/go-azure-sdk/sdk/environments"
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/terraform-provider-azuread/internal/common"
+
+	administrativeunits "github.com/hashicorp/terraform-provider-azuread/internal/services/administrativeunits/client"
+	applications "github.com/hashicorp/terraform-provider-azuread/internal/services/applications/client"
+	approleassignments "github.com/hashicorp/terraform-provider-azuread/internal/services/approleassignments/client"
+	conditionalaccess "github.com/hashicorp/terraform-provider-azuread/internal/services/conditionalaccess/client"
+	directoryroles "github.com/hashicorp/terraform-provider-azuread/internal/services/directoryroles/client"
+	domains "github.com/hashicorp/terraform-provider-azuread/internal/services/domains/client"
+	groups "github.com/hashicorp/terraform-provider-azuread/internal/services/groups/client"
+	identitygovernance "github.com/hashicorp/terraform-provider-azuread/internal/services/identitygovernance/client"
+	invitations "github.com/hashicorp/terraform-provider-azuread/internal/services/invitations/client"
+	policies "github.com/hashicorp/terraform-provider-azuread/internal/services/policies/client"
+	serviceprincipals "github.com/hashicorp/terraform-provider-azuread/internal/services/serviceprincipals/client"
+	synchronization "github.com/hashicorp/terraform-provider-azuread/internal/services/synchronization/client"
+	userflows "github.com/hashicorp/terraform-provider-azuread/internal/services/userflows/client"
+	users "github.com/hashicorp/terraform-provider-azuread/internal/services/users/client"
+)
+type Client struct {
+	Environment environments.Environment
+	TenantID    string
+	ClientID    string
+	ObjectID    string
+	Claims      *claims.Claims
+
+	TerraformVersion string
+
+	StopContext context.Context
+
+	AdministrativeUnits *administrativeunits.Client
+	Applications        *applications.Client
+	AppRoleAssignments  *approleassignments.Client
+	ConditionalAccess   *conditionalaccess.Client
+	DirectoryRoles      *directoryroles.Client
+	Domains             *domains.Client
+	Groups              *groups.Client
+	IdentityGovernance  *identitygovernance.Client
+	Invitations         *invitations.Client
+	Policies            *policies.Client
+	ServicePrincipals   *serviceprincipals.Client
+	Synchronization     *synchronization.Client
+	UserFlows           *userflows.Client
+	Users               *users.Client
+}

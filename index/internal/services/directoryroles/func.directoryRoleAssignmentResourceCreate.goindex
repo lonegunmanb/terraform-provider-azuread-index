@@ -1,0 +1,90 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/directoryroles
+import (
+	"context"
+	"errors"
+	"fmt"
+	"log"
+	"net/http"
+	"time"
+
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func directoryRoleAssignmentResourceCreate(ctx context.Context, d *pluginsdk.ResourceData, meta interface{}) pluginsdk.Diagnostics {
+	client := meta.(*clients.Client).DirectoryRoles.RoleAssignmentsClient
+
+	roleId := d.Get("role_id").(string)
+	principalId := d.Get("principal_object_id").(string)
+
+	properties := msgraph.UnifiedRoleAssignment{
+		PrincipalId:      &principalId,
+		RoleDefinitionId: &roleId,
+	}
+
+	var appScopeId, directoryScopeId string
+
+	if v, ok := d.GetOk("app_scope_id"); ok {
+		appScopeId = v.(string)
+	} else if v, ok = d.GetOk("app_scope_object_id"); ok {
+		appScopeId = v.(string)
+	}
+
+	if v, ok := d.GetOk("directory_scope_id"); ok {
+		directoryScopeId = v.(string)
+	} else if v, ok = d.GetOk("directory_scope_object_id"); ok {
+		directoryScopeId = v.(string)
+	}
+
+	switch {
+	case appScopeId != "":
+		properties.AppScopeId = &appScopeId
+	case directoryScopeId != "":
+		properties.DirectoryScopeId = &directoryScopeId
+	default:
+		properties.DirectoryScopeId = pointer.To("/")
+	}
+
+	assignment, status, err := client.Create(ctx, properties)
+	if err != nil {
+		return tf.ErrorDiagF(err, "Assigning directory role %q to directory principal %q, received %d with error: %+v", roleId, principalId, status, err)
+	}
+	if assignment == nil || assignment.ID() == nil {
+		return tf.ErrorDiagF(errors.New("returned role assignment ID was nil"), "API Error")
+	}
+
+	d.SetId(*assignment.ID())
+
+	// Wait for role assignment to reflect
+	deadline, ok := ctx.Deadline()
+	if !ok {
+		return tf.ErrorDiagF(errors.New("context has no deadline"), "Waiting for directory role %q assignment to principal %q to take effect", roleId, principalId)
+	}
+	timeout := time.Until(deadline)
+	_, err = (&pluginsdk.StateChangeConf{ //nolint:staticcheck
+		Pending:                   []string{"Waiting"},
+		Target:                    []string{"Done"},
+		Timeout:                   timeout,
+		MinTimeout:                1 * time.Second,
+		ContinuousTargetOccurence: 3,
+		Refresh: func() (interface{}, string, error) {
+			_, status, err := client.Get(ctx, *assignment.ID(), odata.Query{})
+			if err != nil {
+				if status == http.StatusNotFound {
+					return "stub", "Waiting", nil
+				}
+				return nil, "Error", fmt.Errorf("retrieving role assignment")
+			}
+			return "stub", "Done", nil
+		},
+	}).WaitForStateContext(ctx)
+	if err != nil {
+		return tf.ErrorDiagF(err, "Waiting for role assignment for %q to reflect in directory role %q", principalId, roleId)
+	}
+
+	return directoryRoleAssignmentResourceRead(ctx, d, meta)
+}

@@ -1,0 +1,37 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/applications
+import (
+	"context"
+	"fmt"
+	"net/http"
+	"time"
+
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/terraform-provider-azuread/internal/sdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/services/applications/parse"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func (r ApplicationOptionalClaimsResource) Arguments() (ret map[string]*pluginsdk.Schema) {
+	ret = map[string]*pluginsdk.Schema{
+		"application_id": {
+			Description:  "The resource ID of the application to which these optional claims belong",
+			Type:         pluginsdk.TypeString,
+			Required:     true,
+			ForceNew:     true,
+			ValidateFunc: parse.ValidateApplicationID,
+		},
+
+		"access_token": schemaOptionalClaims(),
+		"id_token":     schemaOptionalClaims(),
+		"saml2_token":  schemaOptionalClaims(),
+	}
+
+	atLeastOneOf := []string{"access_token", "id_token", "saml2_token"}
+	ret["access_token"].AtLeastOneOf = atLeastOneOf
+	ret["id_token"].AtLeastOneOf = atLeastOneOf
+	ret["saml2_token"].AtLeastOneOf = atLeastOneOf
+
+	return
+}

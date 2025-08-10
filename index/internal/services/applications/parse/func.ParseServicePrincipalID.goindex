@@ -1,0 +1,23 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/applications/parse
+import (
+	"fmt"
+
+	"github.com/hashicorp/go-azure-helpers/resourcemanager/resourceids"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
+)
+func ParseServicePrincipalID(input string) (*ServicePrincipalId, error) {
+	parser := resourceids.NewParserFromResourceIdType(&ServicePrincipalId{})
+	parsed, err := parser.Parse(input, false)
+	if err != nil {
+		return nil, fmt.Errorf("parsing %q: %+v", input, err)
+	}
+
+	var ok bool
+	id := &ServicePrincipalId{}
+
+	if id.ServicePrincipalId, ok = parsed.Parsed["servicePrincipalId"]; !ok {
+		return nil, resourceids.NewSegmentNotSpecifiedError(id, "servicePrincipalId", *parsed)
+	}
+
+	return id, nil
+}

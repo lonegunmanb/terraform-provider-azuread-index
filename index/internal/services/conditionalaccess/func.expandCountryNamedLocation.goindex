@@ -1,0 +1,22 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/conditionalaccess
+import (
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func expandCountryNamedLocation(in []interface{}) *msgraph.CountryNamedLocation {
+	if len(in) == 0 || in[0] == nil {
+		return nil
+	}
+
+	result := msgraph.CountryNamedLocation{}
+	config := in[0].(map[string]interface{})
+
+	countriesAndRegions := config["countries_and_regions"].([]interface{})
+	includeUnknown := config["include_unknown_countries_and_regions"]
+
+	result.CountriesAndRegions = tf.ExpandStringSlicePtr(countriesAndRegions)
+	result.IncludeUnknownCountriesAndRegions = pointer.To(includeUnknown.(bool))
+
+	return &result
+}

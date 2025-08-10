@@ -1,0 +1,12 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/administrativeunits/parse
+import (
+	"fmt"
+	"strings"
+
+	"github.com/hashicorp/go-uuid"
+)
+type ObjectSubResourceId struct {
+	objectId string
+	subId    string
+	Type     string
+}

@@ -1,0 +1,18 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/conditionalaccess
+import (
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func flattenConditionalAccessClientApplications(in *msgraph.ConditionalAccessClientApplications) []interface{} {
+	if in == nil {
+		return []interface{}{}
+	}
+
+	return []interface{}{
+		map[string]interface{}{
+			"included_service_principals": tf.FlattenStringSlicePtr(in.IncludeServicePrincipals),
+			"excluded_service_principals": tf.FlattenStringSlicePtr(in.ExcludeServicePrincipals),
+		},
+	}
+}

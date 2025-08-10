@@ -1,0 +1,26 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/applications/parse
+import (
+	"fmt"
+
+	"github.com/hashicorp/go-azure-helpers/resourcemanager/resourceids"
+)
+func ParseRedirectUrisID(input string) (*RedirectUrisId, error) {
+	parser := resourceids.NewParserFromResourceIdType(&RedirectUrisId{})
+	parsed, err := parser.Parse(input, false)
+	if err != nil {
+		return nil, fmt.Errorf("parsing %q: %+v", input, err)
+	}
+
+	var ok bool
+	id := &RedirectUrisId{}
+
+	if id.ApplicationId, ok = parsed.Parsed["applicationId"]; !ok {
+		return nil, resourceids.NewSegmentNotSpecifiedError(id, "applicationId", *parsed)
+	}
+
+	if id.UriType, ok = parsed.Parsed["uriType"]; !ok {
+		return nil, resourceids.NewSegmentNotSpecifiedError(id, "uriType", *parsed)
+	}
+
+	return id, nil
+}

@@ -1,0 +1,37 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/tools/main
+import (
+	"flag"
+	"fmt"
+	"os"
+	"path/filepath"
+	"reflect"
+	"regexp"
+	"sort"
+	"strings"
+
+	"github.com/hashicorp/terraform-provider-azuread/internal/provider"
+	"github.com/hashicorp/terraform-provider-azuread/internal/sdk" // nolint: typecheck
+)
+func main() {
+	filePath := flag.String("path", "", "The relative path to the root directory")
+	showHelp := flag.Bool("help", false, "Display this message")
+
+	flag.Parse()
+
+	if *showHelp {
+		flag.Usage()
+		return
+	}
+
+	generators := []generator{
+		githubLabelsGenerator{},
+		githubIssueLabelsGenerator{},
+		teamCityServicesListGenerator{},
+	}
+	for _, value := range generators {
+		outputFile := value.outputPath(*filePath)
+		if err := value.run(outputFile, packagesToSkip); err != nil {
+			panic(err)
+		}
+	}
+}

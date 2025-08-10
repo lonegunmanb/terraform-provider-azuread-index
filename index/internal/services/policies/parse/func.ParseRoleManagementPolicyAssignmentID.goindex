@@ -1,0 +1,45 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/policies/parse
+import (
+	"fmt"
+	"strings"
+
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func ParseRoleManagementPolicyAssignmentID(input string) (*RoleManagementPolicyAssignmentId, error) {
+	parts := strings.Split(input, "_")
+	if len(parts) != 4 {
+		return nil, fmt.Errorf("parsing RoleManagementPolicyAssignmentId: invalid format")
+	}
+
+	id := RoleManagementPolicyAssignmentId{
+		ScopeType:        parts[0],
+		ScopeId:          parts[1],
+		PolicyId:         parts[2],
+		RoleDefinitionId: parts[3],
+	}
+
+	if _, err := validation.IsUUID(id.ScopeId, "ScopeId"); len(err) > 0 {
+		return nil, fmt.Errorf("parsing RoleManagementPolicyAssignmentId: %+v", err)
+	}
+
+	if _, err := validation.IsUUID(id.PolicyId, "PolicyId"); len(err) > 0 {
+		return nil, fmt.Errorf("parsing RoleManagementPolicyAssignmentId: %+v", err)
+	}
+
+	switch id.ScopeType {
+	case msgraph.UnifiedRoleManagementPolicyScopeDirectory, msgraph.UnifiedRoleManagementPolicyScopeDirectoryRole:
+		if _, err := validation.IsUUID(id.RoleDefinitionId, "RoleDefinitionId"); len(err) > 0 {
+			return nil, fmt.Errorf("parsing RoleManagementPolicyAssignmentId: %+v", err)
+		}
+	case msgraph.UnifiedRoleManagementPolicyScopeGroup:
+		if id.RoleDefinitionId != msgraph.PrivilegedAccessGroupRelationshipMember &&
+			id.RoleDefinitionId != msgraph.PrivilegedAccessGroupRelationshipOwner {
+			return nil, fmt.Errorf("parsing RoleManagementPolicyAssignmentId: invalid RoleDefinitionId")
+		}
+	default:
+		return nil, fmt.Errorf("parsing RoleManagementPolicyAssignmentId: invalid ScopeType")
+	}
+
+	return &id, nil
+}

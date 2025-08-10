@@ -1,0 +1,51 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/identitygovernance
+import (
+	"fmt"
+	"time"
+
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func expandAssignmentReviewSettings(input []interface{}) (*msgraph.AssignmentReviewSettings, error) {
+	if len(input) == 0 {
+		return nil, nil
+	}
+
+	in := input[0].(map[string]interface{})
+
+	result := msgraph.AssignmentReviewSettings{
+		AccessReviewTimeoutBehavior:     in["access_review_timeout_behavior"].(string),
+		DurationInDays:                  pointer.To(int32(in["duration_in_days"].(int))),
+		IsAccessRecommendationEnabled:   pointer.To(in["access_recommendation_enabled"].(bool)),
+		IsApprovalJustificationRequired: pointer.To(in["approver_justification_required"].(bool)),
+		IsEnabled:                       pointer.To(in["enabled"].(bool)),
+		RecurrenceType:                  in["review_frequency"].(string),
+		ReviewerType:                    in["review_type"].(string),
+	}
+
+	startOnDate := in["starting_on"].(string)
+	if startOnDate != "" {
+		startOn, err := time.Parse(time.RFC3339, startOnDate)
+		if err != nil {
+			return nil, fmt.Errorf("converting starting date %q to a valid date: %q", in["starting_on"].(string), err)
+		}
+
+		result.StartDateTime = &startOn
+	}
+
+	result.Reviewers = expandUserSets(in["reviewer"].([]interface{}))
+
+	if result.AccessReviewTimeoutBehavior == "" &&
+		(result.DurationInDays == nil || *result.DurationInDays == 0) &&
+		(result.IsAccessRecommendationEnabled == nil || !*result.IsAccessRecommendationEnabled) &&
+		(result.IsApprovalJustificationRequired == nil || !*result.IsApprovalJustificationRequired) &&
+		(result.IsEnabled == nil || !*result.IsEnabled) &&
+		result.RecurrenceType == "" &&
+		result.ReviewerType == "" &&
+		(result.Reviewers == nil || len(*result.Reviewers) == 0) {
+		return nil, nil
+	}
+
+	return &result, nil
+}

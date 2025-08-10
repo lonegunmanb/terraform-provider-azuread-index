@@ -1,0 +1,8 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/tf
+import (
+	"log"
+	"sync"
+)
+func UnlockByName(resourceType string, name string) {
+	mutex.Unlock(resourceType + "." + name)
+}

@@ -1,0 +1,86 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/applications
+import (
+	"context"
+	"fmt"
+	"net/http"
+	"strings"
+	"time"
+
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/terraform-provider-azuread/internal/sdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/services/applications/parse"
+	applicationsValidate "github.com/hashicorp/terraform-provider-azuread/internal/services/applications/validate"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func (r ApplicationPermissionScopeResource) Delete() sdk.ResourceFunc {
+	return sdk.ResourceFunc{
+		Timeout: 5 * time.Minute,
+		Func: func(ctx context.Context, metadata sdk.ResourceMetaData) error {
+			client := metadata.Client.Applications.ApplicationsClient
+			client.BaseClient.DisableRetries = true
+			defer func() { client.BaseClient.DisableRetries = false }()
+
+			id, err := parse.ParsePermissionScopeID(metadata.ResourceData.Id())
+			if err != nil {
+				return err
+			}
+
+			var model ApplicationPermissionScopeModel
+			if err := metadata.Decode(&model); err != nil {
+				return fmt.Errorf("decoding: %+v", err)
+			}
+
+			tf.LockByName(applicationResourceName, id.ApplicationId)
+			defer tf.UnlockByName(applicationResourceName, id.ApplicationId)
+
+			applicationId := parse.NewApplicationID(id.ApplicationId)
+			result, _, err := client.Get(ctx, applicationId.ApplicationId, odata.Query{})
+			if err != nil {
+				return fmt.Errorf("retrieving %s: %+v", applicationId, err)
+			}
+			if result == nil || result.Api == nil || result.Api.OAuth2PermissionScopes == nil {
+				return fmt.Errorf("retrieving %s: api.oauth2PermissionScopes was nil", applicationId)
+			}
+
+			// Look for a scope to remove, matching by ID
+			newScopes := make([]msgraph.PermissionScope, 0)
+			found := false
+			for _, existingScope := range *result.Api.OAuth2PermissionScopes {
+				if strings.EqualFold(*existingScope.ID, id.ScopeID) {
+					found = true
+				} else {
+					newScopes = append(newScopes, existingScope)
+				}
+			}
+			if !found {
+				return fmt.Errorf("deleting %s: could not identify existing permission scope", id)
+			}
+
+			// Disable the existing scope prior to update
+			if err = applicationDisableOauth2PermissionScopes(ctx, client, result, &newScopes); err != nil {
+				return fmt.Errorf("disabling %s in preparation for deletion: %+v", id, err)
+			}
+
+			properties := msgraph.Application{
+				DirectoryObject: msgraph.DirectoryObject{
+					Id: &applicationId.ApplicationId,
+				},
+				Api: &msgraph.ApplicationApi{
+					OAuth2PermissionScopes: &newScopes,
+				},
+			}
+
+			// Patch the application with the new set of scopes
+			_, err = client.Update(ctx, properties)
+			if err != nil {
+				return fmt.Errorf("deleting %s: %+v", id, err)
+			}
+
+			return nil
+		},
+	}
+}

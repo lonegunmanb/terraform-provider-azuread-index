@@ -1,0 +1,94 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/groups
+import (
+	"context"
+	"crypto/sha1"
+	"encoding/base64"
+	"errors"
+	"fmt"
+	"net/http"
+	"strings"
+	"time"
+
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func groupsDataSource() *pluginsdk.Resource {
+	return &pluginsdk.Resource{
+		ReadContext: groupsDataSourceRead,
+
+		Timeouts: &pluginsdk.ResourceTimeout{
+			Read: pluginsdk.DefaultTimeout(5 * time.Minute),
+		},
+
+		Schema: map[string]*pluginsdk.Schema{
+			"object_ids": {
+				Description:  "The object IDs of the groups",
+				Type:         pluginsdk.TypeList,
+				Optional:     true,
+				Computed:     true,
+				ExactlyOneOf: []string{"display_names", "display_name_prefix", "object_ids", "return_all"},
+				Elem: &pluginsdk.Schema{
+					Type:             pluginsdk.TypeString,
+					ValidateDiagFunc: validation.ValidateDiag(validation.IsUUID),
+				},
+			},
+
+			"display_names": {
+				Description:  "The display names of the groups",
+				Type:         pluginsdk.TypeList,
+				Optional:     true,
+				Computed:     true,
+				ExactlyOneOf: []string{"display_names", "display_name_prefix", "object_ids", "return_all"},
+				Elem: &pluginsdk.Schema{
+					Type:             pluginsdk.TypeString,
+					ValidateDiagFunc: validation.ValidateDiag(validation.StringIsNotEmpty),
+				},
+			},
+
+			"display_name_prefix": {
+				Description:      "Common display name prefix of the groups",
+				Type:             pluginsdk.TypeString,
+				Optional:         true,
+				Computed:         true,
+				ExactlyOneOf:     []string{"display_names", "display_name_prefix", "object_ids", "return_all"},
+				ValidateDiagFunc: validation.ValidateDiag(validation.StringIsNotEmpty),
+			},
+
+			"ignore_missing": {
+				Description:   "Ignore missing groups and return groups that were found. The data source will still fail if no groups are found",
+				Type:          pluginsdk.TypeBool,
+				Optional:      true,
+				Default:       false,
+				ConflictsWith: []string{"return_all"},
+			},
+
+			"return_all": {
+				Description:   "Retrieve all groups with no filter",
+				Type:          pluginsdk.TypeBool,
+				Optional:      true,
+				ConflictsWith: []string{"ignore_missing"},
+				ExactlyOneOf:  []string{"display_names", "display_name_prefix", "object_ids", "return_all"},
+			},
+
+			"mail_enabled": {
+				Description:   "Whether the groups are mail-enabled",
+				Type:          pluginsdk.TypeBool,
+				Optional:      true,
+				Computed:      true,
+				ConflictsWith: []string{"object_ids"},
+			},
+
+			"security_enabled": {
+				Description:   "Whether the groups are security-enabled",
+				Type:          pluginsdk.TypeBool,
+				Optional:      true,
+				Computed:      true,
+				ConflictsWith: []string{"object_ids"},
+			},
+		},
+	}
+}

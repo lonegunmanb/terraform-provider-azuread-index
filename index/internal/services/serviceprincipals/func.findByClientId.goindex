@@ -1,0 +1,33 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/serviceprincipals
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+	"strings"
+	"time"
+
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func findByClientId(ctx context.Context, client *msgraph.ServicePrincipalsClient, appId string) (*msgraph.ServicePrincipal, error) {
+	var servicePrincipal *msgraph.ServicePrincipal
+
+	result, _, err := client.List(ctx, odata.Query{Filter: fmt.Sprintf("appId eq '%s'", appId)})
+	if err != nil {
+		return nil, fmt.Errorf("could not list existing service principals")
+	}
+	if result != nil {
+		for _, r := range *result {
+			if r.AppId != nil && strings.EqualFold(*r.AppId, appId) {
+				servicePrincipal = &r
+				break
+			}
+		}
+	}
+
+	return servicePrincipal, nil
+}

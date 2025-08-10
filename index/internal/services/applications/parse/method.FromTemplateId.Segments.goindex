@@ -1,0 +1,16 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/applications/parse
+import (
+	"fmt"
+
+	"github.com/hashicorp/go-azure-helpers/resourcemanager/resourceids"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
+)
+func (id *FromTemplateId) Segments() []resourceids.Segment {
+	return []resourceids.Segment{
+		resourceids.StaticSegment("applicationTemplates", "applicationTemplates", "applicationTemplates"),
+		resourceids.UserSpecifiedSegment("templateId", "00000000-0000-0000-0000-000000000000"),
+		resourceids.StaticSegment("instantiate", "instantiate", "instantiate"),
+		resourceids.UserSpecifiedSegment("applicationId", "11111111-1111-1111-1111-111111111111"),
+		resourceids.UserSpecifiedSegment("servicePrincipalId", "22222222-2222-2222-2222-222222222222"),
+	}
+}

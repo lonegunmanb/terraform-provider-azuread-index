@@ -1,0 +1,23 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/synchronization
+import (
+	"time"
+
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func expandSynchronizationJobSubject(in []interface{}) *[]msgraph.SynchronizationJobSubject {
+	result := make([]msgraph.SynchronizationJobSubject, 0)
+	for _, raw := range in {
+		if raw == nil {
+			continue
+		}
+		item := raw.(map[string]interface{})
+
+		result = append(result, msgraph.SynchronizationJobSubject{
+			ObjectId:       pointer.To(item["object_id"].(string)),
+			ObjectTypeName: pointer.To(item["object_type_name"].(string)),
+		})
+	}
+
+	return &result
+}

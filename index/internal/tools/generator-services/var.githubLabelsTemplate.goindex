@@ -1,0 +1,38 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/tools/main
+import (
+	"flag"
+	"fmt"
+	"os"
+	"path/filepath"
+	"reflect"
+	"regexp"
+	"sort"
+	"strings"
+
+	"github.com/hashicorp/terraform-provider-azuread/internal/provider"
+	"github.com/hashicorp/terraform-provider-azuread/internal/sdk" // nolint: typecheck
+)
+const githubLabelsTemplate = `# NOTE: this file is generated via 'make generate'
+dependencies:
+- changed-files:
+  - any-glob-to-any-file:
+    - go.mod
+    - go.sum
+    - vendor/**/*
+documentation:
+- changed-files:
+  - any-glob-to-any-file: 
+    - docs/**/*
+    - examples/**/*
+tooling:
+- changed-files:
+  - any-glob-to-any-file: 
+    - .github/**/*
+    - internal/tools/**/*
+    - scripts/**/*
+    - GNUmakefile
+state-migration:
+- changed-files:
+  - any-glob-to-any-file: 
+    - internal/services/**/migration/**/*
+`

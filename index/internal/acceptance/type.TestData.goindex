@@ -1,0 +1,38 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/acceptance
+import (
+	"fmt"
+	"math"
+	"strconv"
+	"testing"
+
+	"github.com/hashicorp/go-uuid"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/acctest"
+)
+type TestData struct {
+	// RandomInteger is a random integer which unique to this test case
+	RandomInteger int
+
+	// RandomString is a random 5 character string unique to this test case
+	RandomString string
+
+	// RandomID is a random UUID unique to this test case
+	RandomID string
+
+	// RandomPassword is a random password unique to this test case
+	// This is not securely generated and only suitable for ephemeral test cases
+	RandomPassword string
+
+	// ResourceName is the fully qualified resource name, comprising the
+	// resource type and then the resource label
+	// e.g. `azuread_application.test`
+	ResourceName string
+
+	// ResourceType is the Terraform Resource Type - `azuread_application`
+	ResourceType string
+
+	// resourceLabel is the local used for the resource - generally "test""
+	resourceLabel string
+
+	// TenantID is the tenant to use when building the test client. When blank, the env var ARM_TENANT_ID is used.
+	TenantID string
+}

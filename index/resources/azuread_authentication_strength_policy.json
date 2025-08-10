@@ -1,0 +1,13 @@
+{
+  "terraform_type": "azuread_authentication_strength_policy",
+  "struct_type": "",
+  "namespace": "github.com/hashicorp/terraform-provider-azuread/internal/services/policies",
+  "registration_method": "authenticationStrengthPolicyResource",
+  "sdk_type": "legacy_pluginsdk",
+  "schema_index": "func.authenticationStrengthPolicyResource.goindex",
+  "create_index": "func.authenticationStrengthPolicyCreate.goindex",
+  "read_index": "func.authenticationStrengthPolicyRead.goindex",
+  "update_index": "func.authenticationStrengthPolicyUpdate.goindex",
+  "delete_index": "func.authenticationStrengthPolicyDelete.goindex",
+  "attribute_index": "func.authenticationStrengthPolicyResource.goindex"
+}

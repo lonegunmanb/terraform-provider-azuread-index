@@ -1,0 +1,27 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/acceptance
+import (
+	"fmt"
+	"math"
+	"strconv"
+	"testing"
+
+	"github.com/hashicorp/go-uuid"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/acctest"
+)
+func BuildTestData(t *testing.T, resourceType string, resourceLabel string) TestData {
+	EnsureProvidersAreInitialised()
+
+	testData := TestData{
+		RandomInteger:  RandTimeInt(),
+		RandomString:   acctest.RandString(5),
+		RandomPassword: fmt.Sprintf("%s%s", "p@$$Wd", acctest.RandString(6)),
+		ResourceName:   fmt.Sprintf("%s.%s", resourceType, resourceLabel),
+
+		ResourceType:  resourceType,
+		resourceLabel: resourceLabel,
+	}
+
+	testData.RandomID = testData.UUID()
+
+	return testData
+}

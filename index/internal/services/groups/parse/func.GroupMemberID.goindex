@@ -1,0 +1,14 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/groups/parse
+import "fmt"
+func GroupMemberID(idString string) (*GroupMemberId, error) {
+	id, err := ObjectSubResourceID(idString, "member")
+	if err != nil {
+		return nil, fmt.Errorf("unable to parse Member ID: %v", err)
+	}
+
+	return &GroupMemberId{
+		ObjectSubResourceId: *id,
+		GroupId:             id.objectId,
+		MemberId:            id.subId,
+	}, nil
+}

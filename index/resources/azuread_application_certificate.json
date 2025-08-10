@@ -1,0 +1,13 @@
+{
+  "terraform_type": "azuread_application_certificate",
+  "struct_type": "",
+  "namespace": "github.com/hashicorp/terraform-provider-azuread/internal/services/applications",
+  "registration_method": "applicationCertificateResource",
+  "sdk_type": "legacy_pluginsdk",
+  "schema_index": "func.applicationCertificateResource.goindex",
+  "create_index": "func.applicationCertificateResourceCreate.goindex",
+  "read_index": "func.applicationCertificateResourceRead.goindex",
+  "update_index": "func..goindex",
+  "delete_index": "func.applicationCertificateResourceDelete.goindex",
+  "attribute_index": "func.applicationCertificateResource.goindex"
+}

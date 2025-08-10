@@ -1,0 +1,10 @@
+{
+  "terraform_type": "azuread_named_location",
+  "struct_type": "",
+  "namespace": "github.com/hashicorp/terraform-provider-azuread/internal/services/conditionalaccess",
+  "registration_method": "namedLocationDataSource",
+  "sdk_type": "legacy_pluginsdk",
+  "schema_index": "func.namedLocationDataSource.goindex",
+  "read_index": "func.namedLocationDataSourceRead.goindex",
+  "attribute_index": "func.namedLocationDataSource.goindex"
+}

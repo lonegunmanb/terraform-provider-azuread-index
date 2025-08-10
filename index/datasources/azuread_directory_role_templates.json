@@ -1,0 +1,10 @@
+{
+  "terraform_type": "azuread_directory_role_templates",
+  "struct_type": "",
+  "namespace": "github.com/hashicorp/terraform-provider-azuread/internal/services/directoryroles",
+  "registration_method": "directoryRoleTemplatesDataSource",
+  "sdk_type": "legacy_pluginsdk",
+  "schema_index": "func.directoryRoleTemplatesDataSource.goindex",
+  "read_index": "func.directoryRoleTemplatesDataSourceRead.goindex",
+  "attribute_index": "func.directoryRoleTemplatesDataSource.goindex"
+}

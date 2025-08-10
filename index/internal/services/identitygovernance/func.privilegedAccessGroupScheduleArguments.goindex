@@ -1,0 +1,111 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/identitygovernance
+import (
+	"fmt"
+	"time"
+
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/terraform-provider-azuread/internal/sdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func privilegedAccessGroupScheduleArguments() map[string]*pluginsdk.Schema {
+	return map[string]*pluginsdk.Schema{
+		"group_id": {
+			Description:      "The ID of the Group representing the scope of the assignment",
+			Type:             pluginsdk.TypeString,
+			Required:         true,
+			ForceNew:         true,
+			ValidateDiagFunc: validation.ValidateDiag(validation.IsUUID),
+		},
+
+		"principal_id": {
+			Description:      "The ID of the Principal assigned to the schedule",
+			Type:             pluginsdk.TypeString,
+			Required:         true,
+			ForceNew:         true,
+			ValidateDiagFunc: validation.ValidateDiag(validation.IsUUID),
+		},
+
+		"assignment_type": {
+			Description: "The ID of the assignment to the group",
+			Type:        pluginsdk.TypeString,
+			Required:    true,
+			ForceNew:    true,
+			ValidateDiagFunc: validation.ValidateDiag(validation.StringInSlice([]string{
+				msgraph.PrivilegedAccessGroupRelationshipMember,
+				msgraph.PrivilegedAccessGroupRelationshipOwner,
+			}, false)),
+		},
+
+		"start_date": {
+			Description:           "The date that this assignment starts, formatted as an RFC3339 date string in UTC (e.g. 2018-01-01T01:02:03Z)",
+			Type:                  pluginsdk.TypeString,
+			Optional:              true,
+			Computed:              true,
+			ValidateDiagFunc:      validation.ValidateDiag(validation.IsRFC3339Time),
+			DiffSuppressOnRefresh: true,
+			DiffSuppressFunc: func(k, old, new string, d *pluginsdk.ResourceData) bool {
+				// Suppress diffs if the start date is in the past
+				oldTime, err := time.Parse(time.RFC3339, old)
+				if err == nil {
+					return oldTime.Before(time.Now())
+				}
+				// Suppress diffs if the new date is within 5 minutes of the old date
+				// Activation of a future start time is never exactly at the requested time
+				newTime, err := time.Parse(time.RFC3339, new)
+				if err == nil {
+					return newTime.Before(oldTime.Add(5 * time.Minute))
+				}
+				return false
+			},
+		},
+
+		"expiration_date": {
+			Description:      "The date that this assignment expires, formatted as an RFC3339 date string in UTC (e.g. 2018-01-01T01:02:03Z)",
+			Type:             pluginsdk.TypeString,
+			Optional:         true,
+			Computed:         true,
+			ConflictsWith:    []string{"duration"},
+			ValidateDiagFunc: validation.ValidateDiag(validation.IsRFC3339Time),
+		},
+
+		"duration": {
+			Description:      "The duration of the assignment, formatted as an ISO8601 duration string (e.g. P3D for 3 days)",
+			Type:             pluginsdk.TypeString,
+			Optional:         true,
+			ConflictsWith:    []string{"expiration_date"},
+			ValidateDiagFunc: validation.ValidateDiag(validation.StringIsNotEmpty),
+		},
+
+		"permanent_assignment": {
+			Description: "Is the assignment permanent",
+			Type:        pluginsdk.TypeBool,
+			Optional:    true,
+			Computed:    true,
+		},
+
+		"justification": {
+			Description:      "The justification for the assignment",
+			Type:             pluginsdk.TypeString,
+			Optional:         true,
+			ValidateDiagFunc: validation.ValidateDiag(validation.StringIsNotEmpty),
+		},
+
+		"ticket_number": {
+			Description:      "The ticket number authorising the assignment",
+			Type:             pluginsdk.TypeString,
+			Optional:         true,
+			RequiredWith:     []string{"ticket_system"},
+			ValidateDiagFunc: validation.ValidateDiag(validation.StringIsNotEmpty),
+		},
+
+		"ticket_system": {
+			Description:      "The ticket system authorising the assignment",
+			Type:             pluginsdk.TypeString,
+			Optional:         true,
+			RequiredWith:     []string{"ticket_number"},
+			ValidateDiagFunc: validation.ValidateDiag(validation.StringIsNotEmpty),
+		},
+	}
+}

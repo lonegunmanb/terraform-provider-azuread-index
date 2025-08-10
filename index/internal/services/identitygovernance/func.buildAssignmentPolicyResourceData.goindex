@@ -1,0 +1,63 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/identitygovernance
+import (
+	"context"
+	"fmt"
+	"log"
+	"net/http"
+	"time"
+
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/go-uuid"
+	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func buildAssignmentPolicyResourceData(ctx context.Context, d *pluginsdk.ResourceData, meta interface{}) (msgraph.AccessPackageAssignmentPolicy, error) {
+	accessPackageClient := meta.(*clients.Client).IdentityGovernance.AccessPackageClient
+
+	accessPackageId := d.Get("access_package_id").(string)
+	_, status, err := accessPackageClient.Get(ctx, accessPackageId, odata.Query{})
+	if err != nil {
+		if status == http.StatusNotFound {
+			log.Printf("[DEBUG] Access package with Object ID %q was not found - removing from state!", accessPackageId)
+		}
+
+		return msgraph.AccessPackageAssignmentPolicy{}, fmt.Errorf("retrieving access package with ID %v: %v", accessPackageId, err)
+	}
+
+	properties := msgraph.AccessPackageAssignmentPolicy{
+		ID:              pointer.To(d.Id()),
+		DisplayName:     pointer.To(d.Get("display_name").(string)),
+		Description:     pointer.To(d.Get("description").(string)),
+		CanExtend:       pointer.To(d.Get("extension_enabled").(bool)),
+		DurationInDays:  pointer.To(int32(d.Get("duration_in_days").(int))),
+		Questions:       expandAccessPackageQuestions(d.Get("question").([]interface{})),
+		AccessPackageId: pointer.To(d.Get("access_package_id").(string)),
+	}
+
+	expirationDateValue := d.Get("expiration_date").(string)
+	if expirationDateValue != "" {
+		expirationDate, err := time.Parse(time.RFC3339, expirationDateValue)
+		if err != nil {
+			return properties, fmt.Errorf("converting expiration date %v to a valid date", expirationDate)
+		}
+
+		properties.ExpirationDateTime = &expirationDate
+	}
+
+	properties.RequestorSettings = expandRequestorSettings(d.Get("requestor_settings").([]interface{}))
+	properties.RequestApprovalSettings = expandApprovalSettings(d.Get("approval_settings").([]interface{}))
+
+	reviewSettingsStruct, err := expandAssignmentReviewSettings(d.Get("assignment_review_settings").([]interface{}))
+	if err != nil {
+		return properties, fmt.Errorf("building assignment_review_settings configuration: %v", err)
+	}
+
+	properties.AccessReviewSettings = reviewSettingsStruct
+
+	return properties, nil
+}

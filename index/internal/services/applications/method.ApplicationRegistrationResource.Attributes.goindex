@@ -1,0 +1,44 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/applications
+import (
+	"context"
+	"fmt"
+	"net/http"
+	"time"
+
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers"
+	"github.com/hashicorp/terraform-provider-azuread/internal/sdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/services/applications/parse"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func (r ApplicationRegistrationResource) Attributes() map[string]*pluginsdk.Schema {
+	return map[string]*pluginsdk.Schema{
+		"client_id": {
+			Description: "The Client ID (also called Application ID)",
+			Type:        pluginsdk.TypeString,
+			Computed:    true,
+		},
+
+		"disabled_by_microsoft": {
+			Description: "If the application has been disabled by Microsoft, this shows the status or reason",
+			Type:        pluginsdk.TypeString,
+			Computed:    true,
+		},
+
+		"object_id": {
+			Description: "The object ID of the application within the tenant",
+			Type:        pluginsdk.TypeString,
+			Computed:    true,
+		},
+
+		"publisher_domain": {
+			Description: "The verified publisher domain for the application",
+			Type:        pluginsdk.TypeString,
+			Computed:    true,
+		},
+	}
+}

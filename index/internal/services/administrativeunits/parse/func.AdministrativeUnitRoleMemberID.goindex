@@ -1,0 +1,19 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/administrativeunits/parse
+import (
+	"fmt"
+	"strings"
+
+	"github.com/hashicorp/go-uuid"
+)
+func AdministrativeUnitRoleMemberID(idString string) (*AdministrativeUnitRoleMemberId, error) {
+	id, err := AdministrativeUnitRoleMemberObjectSubResourceID(idString, "roleMember")
+	if err != nil {
+		return nil, fmt.Errorf("unable to parse Member ID: %v", err)
+	}
+
+	return &AdministrativeUnitRoleMemberId{
+		ObjectSubResourceId:    *id,
+		AdministrativeUnitId:   id.objectId,
+		ScopedRoleMembershipId: id.subId,
+	}, nil
+}

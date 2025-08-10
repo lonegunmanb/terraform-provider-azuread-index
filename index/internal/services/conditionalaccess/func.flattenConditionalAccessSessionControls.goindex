@@ -1,0 +1,58 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/conditionalaccess
+import (
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func flattenConditionalAccessSessionControls(in *msgraph.ConditionalAccessSessionControls) []interface{} {
+	if in == nil {
+		return []interface{}{}
+	}
+
+	applicationEnforceRestrictions := false
+	if in.ApplicationEnforcedRestrictions != nil {
+		applicationEnforceRestrictions = pointer.From(in.ApplicationEnforcedRestrictions.IsEnabled)
+	}
+
+	cloudAppSecurity := ""
+	if in.CloudAppSecurity != nil {
+		cloudAppSecurity = pointer.From(in.CloudAppSecurity.CloudAppSecurityType)
+	}
+
+	disableResilienceDefaults := false
+	if in.DisableResilienceDefaults != nil {
+		disableResilienceDefaults = *in.DisableResilienceDefaults
+	}
+
+	signInFrequency := 0
+	signInFrequencyAuthenticationType := ""
+	signInFrequencyInterval := ""
+	signInFrequencyPeriod := ""
+	if in.SignInFrequency != nil {
+		if in.SignInFrequency.Value != nil && in.SignInFrequency.Type != nil {
+			signInFrequency = int(*in.SignInFrequency.Value)
+			signInFrequencyPeriod = *in.SignInFrequency.Type
+		}
+
+		signInFrequencyAuthenticationType = pointer.From(in.SignInFrequency.AuthenticationType)
+		signInFrequencyInterval = pointer.From(in.SignInFrequency.FrequencyInterval)
+	}
+
+	persistentBrowserMode := ""
+	if in.PersistentBrowser != nil {
+		persistentBrowserMode = pointer.From(in.PersistentBrowser.Mode)
+	}
+
+	return []interface{}{
+		map[string]interface{}{
+			"application_enforced_restrictions_enabled": applicationEnforceRestrictions,
+			"cloud_app_security_policy":                 cloudAppSecurity,
+			"disable_resilience_defaults":               disableResilienceDefaults,
+			"persistent_browser_mode":                   persistentBrowserMode,
+			"sign_in_frequency":                         signInFrequency,
+			"sign_in_frequency_authentication_type":     signInFrequencyAuthenticationType,
+			"sign_in_frequency_interval":                signInFrequencyInterval,
+			"sign_in_frequency_period":                  signInFrequencyPeriod,
+		},
+	}
+}

@@ -1,0 +1,5 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/approleassignments/parse
+import (
+	"fmt"
+)
+const appRoleAssignment = "appRoleAssignment"

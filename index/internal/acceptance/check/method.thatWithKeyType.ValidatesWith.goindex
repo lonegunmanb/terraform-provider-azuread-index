@@ -1,0 +1,42 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/acceptance/check
+import (
+	"context"
+	"fmt"
+	"regexp"
+	"strings"
+
+	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/terraform"
+	"github.com/hashicorp/terraform-provider-azuread/internal/acceptance/helpers"
+	"github.com/hashicorp/terraform-provider-azuread/internal/acceptance/testclient"
+	"github.com/hashicorp/terraform-provider-azuread/internal/acceptance/types"
+	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+)
+func (t thatWithKeyType) ValidatesWith(validationFunc KeyValidationFunc) pluginsdk.TestCheckFunc {
+	return func(state *terraform.State) error {
+		ms := state.RootModule()
+		rs, ok := ms.Resources[t.resourceName]
+		if !ok {
+			return fmt.Errorf("Not found: %s in %s", t.resourceName, ms.Path)
+		}
+		is := rs.Primary
+		if is == nil {
+			return fmt.Errorf("No primary instance: %s in %s", t.resourceName, ms.Path)
+		}
+
+		var values []interface{}
+		for attr, val := range is.Attributes {
+			if attrParts := strings.Split(attr, "."); len(attrParts) == 2 && attrParts[0] == t.key && attrParts[1] != "#" && attrParts[1] != "%" {
+				values = append(values, val)
+			}
+		}
+
+		client, err := testclient.Build(t.tenantId)
+		if err != nil {
+			return fmt.Errorf("building client: %+v", err)
+		}
+
+		return validationFunc(client.StopContext, client, values)
+	}
+}

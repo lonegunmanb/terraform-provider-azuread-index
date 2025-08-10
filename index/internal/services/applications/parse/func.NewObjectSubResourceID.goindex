@@ -1,0 +1,14 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/applications/parse
+import (
+	"fmt"
+	"strings"
+
+	"github.com/hashicorp/go-uuid"
+)
+func NewObjectSubResourceID(objectId, typeId, subId string) ObjectSubResourceId {
+	return ObjectSubResourceId{
+		objectId: objectId,
+		Type:     typeId,
+		subId:    subId,
+	}
+}

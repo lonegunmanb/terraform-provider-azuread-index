@@ -1,0 +1,41 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/applications
+import (
+	"context"
+	"encoding/base64"
+	"fmt"
+	"net/http"
+	"reflect"
+	"strings"
+	"time"
+
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func applicationAppRoleChanged(existing msgraph.AppRole, new msgraph.AppRole) bool {
+	if !reflect.DeepEqual(existing.AllowedMemberTypes, new.AllowedMemberTypes) {
+		return true
+	}
+	if !reflect.DeepEqual(existing.Description, new.Description) {
+		return true
+	}
+	if !reflect.DeepEqual(existing.DisplayName, new.DisplayName) {
+		return true
+	}
+
+	// The following order is important; we must check for nil, and we consider nil and "" to be equivalent Values
+	if reflect.DeepEqual(existing.Value, new.Value) {
+		return false
+	}
+	if existing.Value == nil && new.Value != nil && *new.Value == "" {
+		return false
+	}
+	if existing.Value != nil && *existing.Value == "" && new.Value == nil {
+		return false
+	}
+
+	return true
+}

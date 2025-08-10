@@ -1,0 +1,27 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/applications/parse
+import (
+	"fmt"
+
+	"github.com/hashicorp/go-azure-helpers/resourcemanager/resourceids"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
+)
+func ParsePermissionScopeID(input string) (*PermissionScopeId, error) {
+	parser := resourceids.NewParserFromResourceIdType(&PermissionScopeId{})
+	parsed, err := parser.Parse(input, false)
+	if err != nil {
+		return nil, fmt.Errorf("parsing %q: %+v", input, err)
+	}
+
+	var ok bool
+	id := &PermissionScopeId{}
+
+	if id.ApplicationId, ok = parsed.Parsed["applicationId"]; !ok {
+		return nil, resourceids.NewSegmentNotSpecifiedError(id, "applicationId", *parsed)
+	}
+
+	if id.ScopeID, ok = parsed.Parsed["scopeId"]; !ok {
+		return nil, resourceids.NewSegmentNotSpecifiedError(id, "scopeId", *parsed)
+	}
+
+	return id, nil
+}

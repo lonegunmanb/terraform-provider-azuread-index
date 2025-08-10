@@ -1,0 +1,34 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/conditionalaccess
+import (
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func expandConditionalAccessGrantControls(in []interface{}) *msgraph.ConditionalAccessGrantControls {
+	if len(in) == 0 || in[0] == nil {
+		return nil
+	}
+
+	result := msgraph.ConditionalAccessGrantControls{}
+	config := in[0].(map[string]interface{})
+
+	operator := config["operator"].(string)
+	authenticationStrengthId := config["authentication_strength_policy_id"].(string)
+	builtInControls := config["built_in_controls"].([]interface{})
+	customAuthenticationFactors := config["custom_authentication_factors"].([]interface{})
+	termsOfUse := config["terms_of_use"].([]interface{})
+
+	result.Operator = &operator
+
+	if authenticationStrengthId != "" {
+		result.AuthenticationStrength = &msgraph.AuthenticationStrengthPolicy{
+			ID: &authenticationStrengthId,
+		}
+	}
+
+	result.BuiltInControls = tf.ExpandStringSlicePtr(builtInControls)
+	result.CustomAuthenticationFactors = tf.ExpandStringSlicePtr(customAuthenticationFactors)
+	result.TermsOfUse = tf.ExpandStringSlicePtr(termsOfUse)
+
+	return &result
+}

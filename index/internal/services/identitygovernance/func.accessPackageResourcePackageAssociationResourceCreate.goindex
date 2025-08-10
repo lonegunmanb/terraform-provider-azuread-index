@@ -1,0 +1,63 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/identitygovernance
+import (
+	"context"
+	"fmt"
+	"log"
+	"net/http"
+	"time"
+
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
+	"github.com/hashicorp/terraform-provider-azuread/internal/services/identitygovernance/parse"
+	"github.com/hashicorp/terraform-provider-azuread/internal/services/identitygovernance/validate"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func accessPackageResourcePackageAssociationResourceCreate(ctx context.Context, d *pluginsdk.ResourceData, meta interface{}) pluginsdk.Diagnostics {
+	client := meta.(*clients.Client).IdentityGovernance.AccessPackageResourceRoleScopeClient
+	resourceClient := meta.(*clients.Client).IdentityGovernance.AccessPackageResourceClient
+
+	catalogResourceAssociationId, err := parse.AccessPackageResourceCatalogAssociationID(d.Get("catalog_resource_association_id").(string))
+	if err != nil {
+		return tf.ErrorDiagPathF(err, "catalog_resource_association_id", "Invalid catalog_resource_association_id: %q", d.Get("catalog_resource_association_id").(string))
+	}
+
+	accessType := d.Get("access_type").(string)
+	accessPackageId := d.Get("access_package_id").(string)
+
+	resource, _, err := resourceClient.Get(ctx, catalogResourceAssociationId.CatalogId, catalogResourceAssociationId.OriginId)
+	if err != nil {
+		return tf.ErrorDiagF(err, "Error retrieving access package resource and catalog association with resource ID %q and catalog ID %q.", catalogResourceAssociationId.CatalogId, catalogResourceAssociationId.OriginId)
+	}
+
+	properties := msgraph.AccessPackageResourceRoleScope{
+		AccessPackageId: &accessPackageId,
+		AccessPackageResourceRole: &msgraph.AccessPackageResourceRole{
+			DisplayName:  pointer.To(accessType),
+			OriginId:     pointer.To(fmt.Sprintf("%s_%s", accessType, catalogResourceAssociationId.OriginId)),
+			OriginSystem: resource.OriginSystem,
+			AccessPackageResource: &msgraph.AccessPackageResource{
+				ID:           resource.ID,
+				ResourceType: resource.ResourceType,
+				OriginId:     resource.OriginId,
+			},
+		},
+		AccessPackageResourceScope: &msgraph.AccessPackageResourceScope{
+			OriginSystem: resource.OriginSystem,
+			OriginId:     &catalogResourceAssociationId.OriginId,
+		},
+	}
+
+	resourcePackageAssociation, _, err := client.Create(ctx, properties)
+	if err != nil {
+		return tf.ErrorDiagF(err, "Error creating access package resource association from resource %q@%q to access package %q.", catalogResourceAssociationId.OriginId, resource.OriginSystem, accessPackageId)
+	}
+
+	id := parse.NewAccessPackageResourcePackageAssociationID(accessPackageId, *resourcePackageAssociation.ID, *resource.OriginId, accessType)
+	d.SetId(id.ID())
+
+	return accessPackageResourcePackageAssociationResourceRead(ctx, d, meta)
+}

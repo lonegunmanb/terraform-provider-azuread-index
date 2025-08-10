@@ -1,0 +1,75 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/applications
+import (
+	"context"
+	"encoding/base64"
+	"fmt"
+	"net/http"
+	"time"
+
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/terraform-provider-azuread/internal/sdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/services/applications/parse"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func (r ApplicationIdentifierUriResource) Read() sdk.ResourceFunc {
+	return sdk.ResourceFunc{
+		Timeout: 5 * time.Minute,
+		Func: func(ctx context.Context, metadata sdk.ResourceMetaData) error {
+			client := metadata.Client.Applications.ApplicationsClient
+			client.BaseClient.DisableRetries = true
+			defer func() { client.BaseClient.DisableRetries = false }()
+
+			id, err := parse.ParseIdentifierUriID(metadata.ResourceData.Id())
+			if err != nil {
+				return err
+			}
+
+			uriFromIdSegment, err := base64.StdEncoding.DecodeString(id.IdentifierUri)
+			if err != nil {
+				return fmt.Errorf("failed to decode identifierUri from resource ID: %+v", err)
+			}
+
+			applicationId := parse.NewApplicationID(id.ApplicationId)
+
+			tf.LockByName(applicationResourceName, id.ApplicationId)
+			defer tf.UnlockByName(applicationResourceName, id.ApplicationId)
+
+			result, status, err := client.Get(ctx, id.ApplicationId, odata.Query{})
+			if err != nil {
+				if status == http.StatusNotFound {
+					return metadata.MarkAsGone(id)
+				}
+				return fmt.Errorf("retrieving %s: %+v", id, err)
+			}
+			if result == nil {
+				return fmt.Errorf("retrieving %s: result was nil", id)
+			}
+			if result.IdentifierUris == nil {
+				return metadata.MarkAsGone(id)
+			}
+
+			// Match the identifier URI
+			var identifierUri *string
+			for _, existingUri := range *result.IdentifierUris {
+				if existingUri == string(uriFromIdSegment) {
+					identifierUri = &existingUri
+					break
+				}
+			}
+
+			if identifierUri == nil {
+				return metadata.MarkAsGone(id)
+			}
+
+			state := ApplicationIdentifierUriModel{
+				ApplicationId: applicationId.ID(),
+				IdentifierUri: *identifierUri,
+			}
+
+			return metadata.Encode(&state)
+		},
+	}
+}

@@ -1,0 +1,48 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/applications
+import (
+	"context"
+	"encoding/base64"
+	"fmt"
+	"net/http"
+	"reflect"
+	"strings"
+	"time"
+
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func expandApplicationOptionalClaim(in []interface{}) *[]msgraph.OptionalClaim {
+	result := make([]msgraph.OptionalClaim, 0)
+
+	for _, optionalClaimRaw := range in {
+		if optionalClaimRaw == nil {
+			continue
+		}
+		optionalClaim := optionalClaimRaw.(map[string]interface{})
+
+		additionalProps := make([]string, 0)
+		if props, ok := optionalClaim["additional_properties"]; ok && props != nil {
+			for _, prop := range props.([]interface{}) {
+				additionalProps = append(additionalProps, prop.(string))
+			}
+		}
+
+		newClaim := msgraph.OptionalClaim{
+			Name:                 pointer.To(optionalClaim["name"].(string)),
+			Essential:            pointer.To(optionalClaim["essential"].(bool)),
+			AdditionalProperties: &additionalProps,
+		}
+
+		if source, ok := optionalClaim["source"].(string); ok && source != "" {
+			newClaim.Source = &source
+		}
+
+		result = append(result, newClaim)
+	}
+
+	return &result
+}

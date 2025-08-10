@@ -1,0 +1,62 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/identitygovernance
+import (
+	"context"
+	"fmt"
+	"log"
+	"net/http"
+	"time"
+
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
+	"github.com/hashicorp/terraform-provider-azuread/internal/services/identitygovernance/parse"
+	"github.com/hashicorp/terraform-provider-azuread/internal/services/identitygovernance/validate"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func accessPackageResourcePackageAssociationResource() *pluginsdk.Resource {
+	return &pluginsdk.Resource{
+		CreateContext: accessPackageResourcePackageAssociationResourceCreate,
+		ReadContext:   accessPackageResourcePackageAssociationResourceRead,
+		DeleteContext: accessPackageResourcePackageAssociationResourceDelete,
+
+		Timeouts: &pluginsdk.ResourceTimeout{
+			Create: pluginsdk.DefaultTimeout(5 * time.Minute),
+			Read:   pluginsdk.DefaultTimeout(5 * time.Minute),
+			Delete: pluginsdk.DefaultTimeout(5 * time.Minute),
+		},
+
+		Importer: pluginsdk.ImporterValidatingResourceId(validate.AccessPackageResourcePackageAssociationID),
+
+		Schema: map[string]*pluginsdk.Schema{
+			"access_package_id": {
+				Description:  "The ID of access package this resource association is configured to",
+				Type:         pluginsdk.TypeString,
+				ValidateFunc: validation.IsUUID,
+				Required:     true,
+				ForceNew:     true,
+			},
+
+			"catalog_resource_association_id": {
+				Description: "The ID of the access package catalog association",
+				Type:        pluginsdk.TypeString,
+				Required:    true,
+				ForceNew:    true,
+			},
+
+			"access_type": {
+				Description: "The role of access type to the specified resource, valid values are `Member` and `Owner`",
+				Type:        pluginsdk.TypeString,
+				Optional:    true,
+				ForceNew:    true,
+				Default:     "Member",
+				ValidateFunc: validation.StringInSlice([]string{
+					"Member",
+					"Owner",
+				}, false),
+			},
+		},
+	}
+}

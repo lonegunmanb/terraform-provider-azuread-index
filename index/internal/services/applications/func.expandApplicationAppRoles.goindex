@@ -1,0 +1,52 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/applications
+import (
+	"context"
+	"encoding/base64"
+	"fmt"
+	"net/http"
+	"reflect"
+	"strings"
+	"time"
+
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func expandApplicationAppRoles(input []interface{}) *[]msgraph.AppRole {
+	result := make([]msgraph.AppRole, 0)
+
+	if len(input) == 0 {
+		return &result
+	}
+
+	for _, appRoleRaw := range input {
+		if appRoleRaw == nil {
+			continue
+		}
+		appRole := appRoleRaw.(map[string]interface{})
+
+		var allowedMemberTypes []msgraph.AppRoleAllowedMemberType
+		for _, allowedMemberType := range appRole["allowed_member_types"].(*pluginsdk.Set).List() {
+			allowedMemberTypes = append(allowedMemberTypes, allowedMemberType.(string))
+		}
+
+		newAppRole := msgraph.AppRole{
+			ID:                 pointer.To(appRole["id"].(string)),
+			AllowedMemberTypes: &allowedMemberTypes,
+			Description:        pointer.To(appRole["description"].(string)),
+			DisplayName:        pointer.To(appRole["display_name"].(string)),
+			IsEnabled:          pointer.To(appRole["enabled"].(bool)),
+		}
+
+		if v, ok := appRole["value"]; ok {
+			newAppRole.Value = pointer.To(v.(string))
+		}
+
+		result = append(result, newAppRole)
+	}
+
+	return &result
+}

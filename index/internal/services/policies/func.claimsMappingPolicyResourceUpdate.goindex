@@ -1,0 +1,34 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/policies
+import (
+	"context"
+	"fmt"
+	"log"
+	"net/http"
+	"time"
+
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/go-uuid"
+	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func claimsMappingPolicyResourceUpdate(ctx context.Context, d *pluginsdk.ResourceData, meta interface{}) pluginsdk.Diagnostics {
+	client := meta.(*clients.Client).Policies.ClaimsMappingPolicyClient
+	objectId := d.Id()
+
+	claimsMappingPolicy := msgraph.ClaimsMappingPolicy{
+		DirectoryObject: msgraph.DirectoryObject{
+			Id: &objectId,
+		},
+		Definition:  tf.ExpandStringSlicePtr(d.Get("definition").([]interface{})),
+		DisplayName: pointer.To(d.Get("display_name").(string)),
+	}
+	_, err := client.Update(ctx, claimsMappingPolicy)
+	if err != nil {
+		return tf.ErrorDiagF(err, "Could not update Claims Mapping Policy with object ID %q", objectId)
+	}
+
+	return claimsMappingPolicyResourceRead(ctx, d, meta)
+}

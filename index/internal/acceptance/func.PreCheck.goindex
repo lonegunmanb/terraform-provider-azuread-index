@@ -1,0 +1,26 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/acceptance
+import (
+	"context"
+	"fmt"
+	"os"
+	"regexp"
+	"testing"
+
+	"github.com/hashicorp/go-azure-sdk/sdk/auth"
+	"github.com/hashicorp/go-azure-sdk/sdk/environments"
+	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
+)
+func PreCheck(t *testing.T) {
+	variables := []string{
+		"ARM_CLIENT_ID",
+		"ARM_CLIENT_SECRET",
+		"ARM_TENANT_ID",
+	}
+
+	for _, variable := range variables {
+		value := os.Getenv(variable)
+		if value == "" {
+			t.Fatalf("`%s` must be set for acceptance tests!", variable)
+		}
+	}
+}

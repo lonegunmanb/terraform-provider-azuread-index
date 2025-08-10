@@ -1,0 +1,44 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/applications
+import (
+	"context"
+	"encoding/base64"
+	"fmt"
+	"net/http"
+	"reflect"
+	"strings"
+	"time"
+
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func flattenApplicationOptionalClaim(in *[]msgraph.OptionalClaim) []interface{} {
+	if in == nil {
+		return []interface{}{}
+	}
+
+	optionalClaims := make([]interface{}, 0)
+	for _, claim := range *in {
+		optionalClaim := map[string]interface{}{
+			"name":                  claim.Name,
+			"essential":             claim.Essential,
+			"source":                "",
+			"additional_properties": []string{},
+		}
+
+		if claim.Source != nil {
+			optionalClaim["source"] = *claim.Source
+		}
+
+		if claim.AdditionalProperties != nil && len(*claim.AdditionalProperties) > 0 {
+			optionalClaim["additional_properties"] = *claim.AdditionalProperties
+		}
+
+		optionalClaims = append(optionalClaims, optionalClaim)
+	}
+
+	return optionalClaims
+}

@@ -1,0 +1,17 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/acceptance
+import (
+	"fmt"
+	"math"
+	"strconv"
+	"testing"
+
+	"github.com/hashicorp/go-uuid"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/acctest"
+)
+func (t TestData) UUID() string {
+	uuid, err := uuid.GenerateUUID()
+	if err != nil {
+		panic(err)
+	}
+	return uuid
+}

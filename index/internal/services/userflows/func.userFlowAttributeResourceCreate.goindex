@@ -1,0 +1,54 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/userflows
+import (
+	"context"
+	"errors"
+	"fmt"
+	"log"
+	"net/http"
+	"strings"
+	"time"
+
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func userFlowAttributeResourceCreate(ctx context.Context, d *pluginsdk.ResourceData, meta interface{}) pluginsdk.Diagnostics {
+	client := meta.(*clients.Client).UserFlows.UserFlowAttributesClient
+
+	displayName := d.Get("display_name").(string)
+
+	query := odata.Query{Filter: fmt.Sprintf("displayName eq '%s'", displayName)}
+	if result, _, err := client.List(ctx, query); err == nil {
+		for _, r := range *result {
+			if r.ID != nil && r.DisplayName != nil && strings.EqualFold(*r.DisplayName, displayName) {
+				return tf.ImportAsExistsDiag("azuread_user_flow_attribute", *r.ID)
+			}
+		}
+	} else {
+		return tf.ErrorDiagF(err, "Checking for existing user flow attribute: %q", displayName)
+	}
+
+	attr := msgraph.UserFlowAttribute{
+		DataType:    pointer.To(d.Get("data_type").(string)),
+		Description: pointer.To(d.Get("description").(string)),
+		DisplayName: pointer.To(displayName),
+	}
+
+	userFlowAttr, _, err := client.Create(ctx, attr)
+	if err != nil {
+		return tf.ErrorDiagF(err, "Creating user flow attribute %q", displayName)
+	}
+
+	if userFlowAttr.ID == nil || *userFlowAttr.ID == "" {
+		return tf.ErrorDiagF(errors.New("API returned user flow attribute with nil ID"), "Bad API Response")
+	}
+
+	d.SetId(*userFlowAttr.ID)
+
+	return userFlowAttributeResourceRead(ctx, d, meta)
+}

@@ -1,0 +1,15 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/acceptance
+import "github.com/hashicorp/terraform-plugin-testing/helper/resource"
+func (td TestData) ImportStep(ignore ...string) resource.TestStep {
+	step := resource.TestStep{
+		ResourceName:      td.ResourceName,
+		ImportState:       true,
+		ImportStateVerify: true,
+	}
+
+	if len(ignore) > 0 {
+		step.ImportStateVerifyIgnore = ignore
+	}
+
+	return step
+}

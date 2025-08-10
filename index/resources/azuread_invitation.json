@@ -1,0 +1,13 @@
+{
+  "terraform_type": "azuread_invitation",
+  "struct_type": "",
+  "namespace": "github.com/hashicorp/terraform-provider-azuread/internal/services/invitations",
+  "registration_method": "invitationResource",
+  "sdk_type": "legacy_pluginsdk",
+  "schema_index": "func.invitationResource.goindex",
+  "create_index": "func.invitationResourceCreate.goindex",
+  "read_index": "func.invitationResourceRead.goindex",
+  "update_index": "func..goindex",
+  "delete_index": "func.invitationResourceDelete.goindex",
+  "attribute_index": "func.invitationResource.goindex"
+}

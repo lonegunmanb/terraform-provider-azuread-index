@@ -1,0 +1,13 @@
+{
+  "terraform_type": "azuread_privileged_access_group_assignment_schedule",
+  "struct_type": "PrivilegedAccessGroupAssignmentScheduleResource",
+  "namespace": "github.com/hashicorp/terraform-provider-azuread/internal/services/identitygovernance",
+  "registration_method": "",
+  "sdk_type": "modern_sdk",
+  "schema_index": "method.PrivilegedAccessGroupAssignmentScheduleResource.Arguments.goindex",
+  "create_index": "method.PrivilegedAccessGroupAssignmentScheduleResource.Create.goindex",
+  "read_index": "method.PrivilegedAccessGroupAssignmentScheduleResource.Read.goindex",
+  "update_index": "method.PrivilegedAccessGroupAssignmentScheduleResource.Update.goindex",
+  "delete_index": "method.PrivilegedAccessGroupAssignmentScheduleResource.Delete.goindex",
+  "attribute_index": "method.PrivilegedAccessGroupAssignmentScheduleResource.Attributes.goindex"
+}

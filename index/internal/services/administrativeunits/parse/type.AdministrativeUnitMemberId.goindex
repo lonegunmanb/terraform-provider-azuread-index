@@ -1,0 +1,7 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/administrativeunits/parse
+import "fmt"
+type AdministrativeUnitMemberId struct {
+	ObjectSubResourceId
+	AdministrativeUnitId string
+	MemberId             string
+}

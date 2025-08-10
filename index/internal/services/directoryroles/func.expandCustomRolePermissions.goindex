@@ -1,0 +1,27 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/directoryroles
+import (
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func expandCustomRolePermissions(in []interface{}) *[]msgraph.UnifiedRolePermission {
+	if in == nil {
+		return nil
+	}
+
+	result := make([]msgraph.UnifiedRolePermission, 0)
+	for _, permRaw := range in {
+		perm := permRaw.(map[string]interface{})
+
+		var allowedResourceActions *[]string
+		if v, ok := perm["allowed_resource_actions"]; ok {
+			allowedResourceActions = tf.ExpandStringSlicePtr(v.(*pluginsdk.Set).List())
+		}
+
+		result = append(result, msgraph.UnifiedRolePermission{
+			AllowedResourceActions: allowedResourceActions,
+		})
+	}
+
+	return &result
+}

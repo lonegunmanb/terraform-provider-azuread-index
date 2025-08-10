@@ -1,0 +1,78 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/sdk
+import (
+	"fmt"
+	"reflect"
+
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
+)
+func setListValue(input interface{}, index int, fieldName string, v []interface{}, debugLogger Logger) error {
+	switch fieldType := reflect.ValueOf(input).Elem().Field(index).Type(); fieldType {
+	case reflect.TypeOf([]string{}):
+		stringSlice := reflect.MakeSlice(reflect.TypeOf([]string{}), len(v), len(v))
+		for i, stringVal := range v {
+			stringSlice.Index(i).SetString(stringVal.(string))
+		}
+		reflect.ValueOf(input).Elem().Field(index).Set(stringSlice)
+
+	case reflect.TypeOf([]int{}):
+		iSlice := reflect.MakeSlice(reflect.TypeOf([]int{}), len(v), len(v))
+		for i, iVal := range v {
+			iSlice.Index(i).SetInt(int64(iVal.(int)))
+		}
+		reflect.ValueOf(input).Elem().Field(index).Set(iSlice)
+
+	case reflect.TypeOf([]float64{}):
+		fSlice := reflect.MakeSlice(reflect.TypeOf([]float64{}), len(v), len(v))
+		for i, fVal := range v {
+			fSlice.Index(i).SetFloat(fVal.(float64))
+		}
+		reflect.ValueOf(input).Elem().Field(index).Set(fSlice)
+
+	case reflect.TypeOf([]bool{}):
+		bSlice := reflect.MakeSlice(reflect.TypeOf([]bool{}), len(v), len(v))
+		for i, bVal := range v {
+			bSlice.Index(i).SetBool(bVal.(bool))
+		}
+		reflect.ValueOf(input).Elem().Field(index).Set(bSlice)
+
+	default:
+		valueToSet := reflect.MakeSlice(reflect.ValueOf(input).Elem().Field(index).Type(), 0, 0)
+		debugLogger.Infof("List Type", valueToSet.Type())
+
+		for _, mapVal := range v {
+			if test, ok := mapVal.(map[string]interface{}); ok && test != nil {
+				elem := reflect.New(fieldType.Elem())
+				debugLogger.Infof("element ", elem)
+				for j := 0; j < elem.Type().Elem().NumField(); j++ {
+					nestedField := elem.Type().Elem().Field(j)
+					debugLogger.Infof("nestedField ", nestedField)
+
+					if val, exists := nestedField.Tag.Lookup("tfschema"); exists {
+						nestedTFSchemaValue := test[val]
+						if err := setValue(elem.Interface(), nestedTFSchemaValue, j, fieldName, debugLogger); err != nil {
+							return err
+						}
+					}
+				}
+
+				if !elem.CanSet() {
+					elem = elem.Elem()
+				}
+
+				if valueToSet.Kind() == reflect.Ptr {
+					valueToSet.Elem().Set(reflect.Append(valueToSet.Elem(), elem))
+				} else {
+					valueToSet = reflect.Append(valueToSet, elem)
+				}
+
+				debugLogger.Infof("value to set type after changes", valueToSet.Type())
+			}
+		}
+
+		valueToSet = reflect.Indirect(valueToSet)
+		fieldToSet := reflect.ValueOf(input).Elem().Field(index)
+		fieldToSet.Set(reflect.Indirect(valueToSet))
+	}
+
+	return nil
+}

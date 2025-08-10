@@ -1,0 +1,36 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/policies
+import (
+	"context"
+	"fmt"
+	"log"
+	"net/http"
+	"time"
+
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/go-uuid"
+	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func claimsMappingPolicyResourceCreate(ctx context.Context, d *pluginsdk.ResourceData, meta interface{}) pluginsdk.Diagnostics {
+	client := meta.(*clients.Client).Policies.ClaimsMappingPolicyClient
+
+	claimsMappingPolicy := msgraph.ClaimsMappingPolicy{
+		Definition:  tf.ExpandStringSlicePtr(d.Get("definition").([]interface{})),
+		DisplayName: pointer.To(d.Get("display_name").(string)),
+	}
+	policy, _, err := client.Create(ctx, claimsMappingPolicy)
+	if err != nil {
+		return tf.ErrorDiagF(err, "Could not create Claims Mapping Policy")
+	}
+
+	if policy.ID() == nil || *policy.ID() == "" {
+		return tf.ErrorDiagF(fmt.Errorf("Object ID returned for Claims Mapping Policy is nil"), "Bad API response")
+	}
+
+	d.SetId(*policy.ID())
+
+	return claimsMappingPolicyResourceRead(ctx, d, meta)
+}

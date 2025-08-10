@@ -1,0 +1,14 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/administrativeunits/parse
+import "fmt"
+func AdministrativeUnitMemberID(idString string) (*AdministrativeUnitMemberId, error) {
+	id, err := ObjectSubResourceID(idString, "member")
+	if err != nil {
+		return nil, fmt.Errorf("unable to parse Member ID: %v", err)
+	}
+
+	return &AdministrativeUnitMemberId{
+		ObjectSubResourceId:  *id,
+		AdministrativeUnitId: id.objectId,
+		MemberId:             id.subId,
+	}, nil
+}

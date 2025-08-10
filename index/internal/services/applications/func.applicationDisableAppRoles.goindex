@@ -1,0 +1,131 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/applications
+import (
+	"context"
+	"encoding/base64"
+	"fmt"
+	"net/http"
+	"reflect"
+	"strings"
+	"time"
+
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func applicationDisableAppRoles(ctx context.Context, client *msgraph.ApplicationsClient, application *msgraph.Application, newRoles *[]msgraph.AppRole) error {
+	if application.ID() == nil {
+		return fmt.Errorf("cannot use Application model with nil ID")
+	}
+
+	if newRoles == nil {
+		newRoles = &[]msgraph.AppRole{}
+	}
+
+	app, status, err := client.Get(ctx, *application.ID(), odata.Query{})
+	if err != nil {
+		if status == http.StatusNotFound {
+			return fmt.Errorf("application with ID %q was not found", *application.ID())
+		}
+
+		return fmt.Errorf("retrieving Application with object ID %q: %+v", *application.ID(), err)
+	}
+
+	var existingRoles []msgraph.AppRole
+	if app.AppRoles != nil {
+		existingRoles = *app.AppRoles
+	}
+
+	// Shortcut: don't update if no changes to be made
+	if reflect.DeepEqual(existingRoles, *newRoles) {
+		return nil
+	}
+
+	// Identify any roles to be changed
+	var disable bool
+	for _, new := range *newRoles {
+		if new.ID == nil || *new.ID == "" {
+			return fmt.Errorf("new role provided with nil or empty ID")
+		}
+		for i, existing := range existingRoles {
+			if existing.ID != nil && *existing.ID == *new.ID {
+				if existing.IsEnabled != nil && *existing.IsEnabled && applicationAppRoleChanged(existing, new) {
+					*existingRoles[i].IsEnabled = false
+					disable = true
+				}
+				break
+			}
+		}
+	}
+
+	// Identify any roles to be removed
+	for i, existing := range existingRoles {
+		found := false
+		for _, new := range *newRoles {
+			if existing.ID != nil && *new.ID == *existing.ID {
+				found = true
+				break
+			}
+		}
+		if !found {
+			*existingRoles[i].IsEnabled = false
+			disable = true
+		}
+	}
+
+	if disable {
+		// Disable any changed or removed roles
+		properties := msgraph.Application{
+			DirectoryObject: msgraph.DirectoryObject{
+				Id: application.ID(),
+			},
+			AppRoles: &existingRoles,
+		}
+		if _, err := client.Update(ctx, properties); err != nil {
+			return fmt.Errorf("disabling App Roles for Application with object ID %q: %+v", *application.ID(), err)
+		}
+
+		// Wait for application manifest to reflect the disabled roles
+		deadline, ok := ctx.Deadline()
+		if !ok {
+			return fmt.Errorf("context has no deadline")
+		}
+		timeout := time.Until(deadline)
+		_, err = (&pluginsdk.StateChangeConf{ //nolint:staticcheck
+			Pending:    []string{"Waiting"},
+			Target:     []string{"Disabled"},
+			Timeout:    timeout,
+			MinTimeout: 1 * time.Second,
+			Refresh: func() (interface{}, string, error) {
+				app, _, err := client.Get(ctx, *application.ID(), odata.Query{})
+				if err != nil {
+					return nil, "Error", fmt.Errorf("retrieving Application with object ID %q: %+v", *application.ID(), err)
+				}
+				if app == nil || app.AppRoles == nil {
+					return nil, "Error", fmt.Errorf("reading roles for Application with object ID %q: %+v", *application.ID(), err)
+				}
+				actualRoles := *app.AppRoles
+				for _, expectedRole := range existingRoles {
+					if expectedRole.IsEnabled != nil && !*expectedRole.IsEnabled {
+						for _, actualRole := range actualRoles {
+							if expectedRole.ID != nil && actualRole.ID != nil && *expectedRole.ID == *actualRole.ID {
+								if actualRole.IsEnabled != nil && *actualRole.IsEnabled {
+									return actualRoles, "Waiting", nil
+								}
+								break
+							}
+						}
+					}
+				}
+				return actualRoles, "Disabled", nil
+			},
+		}).WaitForStateContext(ctx)
+		if err != nil {
+			return fmt.Errorf("waiting for App Roles to be disabled for Application with object ID %q: %+v", *application.ID(), err)
+		}
+	}
+
+	return nil
+}

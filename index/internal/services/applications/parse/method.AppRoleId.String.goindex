@@ -1,0 +1,10 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/applications/parse
+import (
+	"fmt"
+
+	"github.com/hashicorp/go-azure-helpers/resourcemanager/resourceids"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
+)
+func (id *AppRoleId) String() string {
+	return fmt.Sprintf("App Role (Application ID: %q, Role ID: %q)", id.ApplicationId, id.RoleID)
+}

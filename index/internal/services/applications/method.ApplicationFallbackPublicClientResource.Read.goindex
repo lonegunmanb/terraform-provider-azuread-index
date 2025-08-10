@@ -1,0 +1,55 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/applications
+import (
+	"context"
+	"fmt"
+	"net/http"
+	"time"
+
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/terraform-provider-azuread/internal/sdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/services/applications/parse"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+)
+func (r ApplicationFallbackPublicClientResource) Read() sdk.ResourceFunc {
+	return sdk.ResourceFunc{
+		Timeout: 5 * time.Minute,
+		Func: func(ctx context.Context, metadata sdk.ResourceMetaData) error {
+			client := metadata.Client.Applications.ApplicationsClient
+			client.BaseClient.DisableRetries = true
+			defer func() { client.BaseClient.DisableRetries = false }()
+
+			id, err := parse.ParseFallbackPublicClientID(metadata.ResourceData.Id())
+			if err != nil {
+				return err
+			}
+
+			applicationId := parse.NewApplicationID(id.ApplicationId)
+
+			tf.LockByName(applicationResourceName, id.ApplicationId)
+			defer tf.UnlockByName(applicationResourceName, id.ApplicationId)
+
+			result, status, err := client.Get(ctx, id.ApplicationId, odata.Query{})
+			if err != nil {
+				if status == http.StatusNotFound {
+					return metadata.MarkAsGone(id)
+				}
+				return fmt.Errorf("retrieving %s: %+v", id, err)
+			}
+			if result == nil {
+				return fmt.Errorf("retrieving %s: result was nil", id)
+			}
+			if result.IsFallbackPublicClient == nil {
+				return metadata.MarkAsGone(id)
+			}
+
+			state := ApplicationFallbackPublicClientModel{
+				ApplicationId: applicationId.ID(),
+				Enabled:       pointer.From(result.IsFallbackPublicClient),
+			}
+
+			return metadata.Encode(&state)
+		},
+	}
+}

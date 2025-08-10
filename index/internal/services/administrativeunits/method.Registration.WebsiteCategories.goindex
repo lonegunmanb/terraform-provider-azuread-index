@@ -1,0 +1,7 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/administrativeunits
+import "github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+func (r Registration) WebsiteCategories() []string {
+	return []string{
+		"Administrative Units",
+	}
+}

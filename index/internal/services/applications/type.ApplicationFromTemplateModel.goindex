@@ -1,0 +1,26 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/applications
+import (
+	"context"
+	"fmt"
+	"net/http"
+	"time"
+
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers"
+	"github.com/hashicorp/terraform-provider-azuread/internal/sdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/services/applications/parse"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
+	"github.com/manicminer/hamilton/msgraph"
+)
+type ApplicationFromTemplateModel struct {
+	TemplateId  string `tfschema:"template_id"`
+	DisplayName string `tfschema:"display_name"`
+
+	ApplicationId            string `tfschema:"application_id"`
+	ApplicationObjectId      string `tfschema:"application_object_id"`
+	ServicePrincipalId       string `tfschema:"service_principal_id"`
+	ServicePrincipalObjectId string `tfschema:"service_principal_object_id"`
+}

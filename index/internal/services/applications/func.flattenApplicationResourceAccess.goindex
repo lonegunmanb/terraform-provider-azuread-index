@@ -1,0 +1,34 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/applications
+import (
+	"context"
+	"encoding/base64"
+	"fmt"
+	"net/http"
+	"reflect"
+	"strings"
+	"time"
+
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func flattenApplicationResourceAccess(in *[]msgraph.ResourceAccess) []interface{} {
+	if in == nil {
+		return []interface{}{}
+	}
+
+	accesses := make([]interface{}, 0)
+	for _, resourceAccess := range *in {
+		access := make(map[string]interface{})
+		if resourceAccess.ID != nil {
+			access["id"] = *resourceAccess.ID
+		}
+		access["type"] = resourceAccess.Type
+		accesses = append(accesses, access)
+	}
+
+	return accesses
+}

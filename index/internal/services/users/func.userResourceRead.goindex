@@ -1,0 +1,113 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/users
+import (
+	"context"
+	"errors"
+	"fmt"
+	"log"
+	"net/http"
+	"strings"
+	"time"
+
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/go-uuid"
+	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func userResourceRead(ctx context.Context, d *pluginsdk.ResourceData, meta interface{}) pluginsdk.Diagnostics {
+	client := meta.(*clients.Client).Users.UsersClient
+
+	objectId := d.Id()
+
+	user, status, err := client.Get(ctx, objectId, odata.Query{})
+	if err != nil {
+		if status == http.StatusNotFound {
+			log.Printf("[DEBUG] User with Object ID %q was not found - removing from state!", objectId)
+			d.SetId("")
+			return nil
+		}
+		return tf.ErrorDiagF(err, "Retrieving user with object ID: %q", objectId)
+	}
+
+	tf.Set(d, "about_me", user.AboutMe)
+	tf.Set(d, "account_enabled", user.AccountEnabled)
+	tf.Set(d, "age_group", user.AgeGroup)
+	tf.Set(d, "business_phones", user.BusinessPhones)
+	tf.Set(d, "city", user.City)
+	tf.Set(d, "company_name", user.CompanyName)
+	tf.Set(d, "consent_provided_for_minor", user.ConsentProvidedForMinor)
+	tf.Set(d, "country", user.Country)
+	tf.Set(d, "creation_type", user.CreationType)
+	tf.Set(d, "department", user.Department)
+	tf.Set(d, "display_name", user.DisplayName)
+	tf.Set(d, "employee_id", user.EmployeeId)
+	tf.Set(d, "employee_type", user.EmployeeType)
+	tf.Set(d, "external_user_state", user.ExternalUserState)
+	tf.Set(d, "fax_number", user.FaxNumber)
+	tf.Set(d, "given_name", user.GivenName)
+	tf.Set(d, "im_addresses", user.ImAddresses)
+	tf.Set(d, "job_title", user.JobTitle)
+	tf.Set(d, "mail", user.Mail)
+	tf.Set(d, "mail_nickname", user.MailNickname)
+	tf.Set(d, "mobile_phone", user.MobilePhone)
+	tf.Set(d, "object_id", user.ID())
+	tf.Set(d, "office_location", user.OfficeLocation)
+	tf.Set(d, "onpremises_distinguished_name", user.OnPremisesDistinguishedName)
+	tf.Set(d, "onpremises_domain_name", user.OnPremisesDomainName)
+	tf.Set(d, "onpremises_immutable_id", user.OnPremisesImmutableId)
+	tf.Set(d, "onpremises_sam_account_name", user.OnPremisesSamAccountName)
+	tf.Set(d, "onpremises_security_identifier", user.OnPremisesSecurityIdentifier)
+	tf.Set(d, "onpremises_sync_enabled", user.OnPremisesSyncEnabled)
+	tf.Set(d, "onpremises_user_principal_name", user.OnPremisesUserPrincipalName)
+	tf.Set(d, "other_mails", user.OtherMails)
+	tf.Set(d, "postal_code", user.PostalCode)
+	tf.Set(d, "preferred_language", user.PreferredLanguage)
+	tf.Set(d, "proxy_addresses", user.ProxyAddresses)
+	tf.Set(d, "show_in_address_list", user.ShowInAddressList)
+	tf.Set(d, "state", user.State)
+	tf.Set(d, "street_address", user.StreetAddress)
+	tf.Set(d, "surname", user.Surname)
+	tf.Set(d, "usage_location", user.UsageLocation)
+	tf.Set(d, "user_principal_name", user.UserPrincipalName)
+	tf.Set(d, "user_type", user.UserType)
+
+	disableStrongPassword := false
+	disablePasswordExpiration := false
+
+	if user.PasswordPolicies != nil {
+		policies := strings.Split(string(*user.PasswordPolicies), ",")
+		for _, p := range policies {
+			if strings.EqualFold(strings.TrimSpace(p), "DisableStrongPassword") {
+				disableStrongPassword = true
+			}
+			if strings.EqualFold(strings.TrimSpace(p), "DisablePasswordExpiration") {
+				disablePasswordExpiration = true
+			}
+		}
+	}
+	tf.Set(d, "disable_strong_password", disableStrongPassword)
+	tf.Set(d, "disable_password_expiration", disablePasswordExpiration)
+
+	if user.EmployeeOrgData != nil {
+		tf.Set(d, "cost_center", user.EmployeeOrgData.CostCenter)
+		tf.Set(d, "division", user.EmployeeOrgData.Division)
+	}
+
+	managerId := ""
+	manager, status, err := client.GetManager(ctx, objectId)
+	if status != http.StatusNotFound {
+		if err != nil {
+			return tf.ErrorDiagF(err, "Could not retrieve manager for user with object ID %q", objectId)
+		}
+		if manager != nil && manager.ID() != nil {
+			managerId = *manager.ID()
+		}
+	}
+	tf.Set(d, "manager_id", managerId)
+
+	return nil
+}

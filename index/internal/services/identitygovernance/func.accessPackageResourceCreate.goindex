@@ -1,0 +1,47 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/identitygovernance
+import (
+	"context"
+	"fmt"
+	"log"
+	"net/http"
+	"time"
+
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/go-uuid"
+	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func accessPackageResourceCreate(ctx context.Context, d *pluginsdk.ResourceData, meta interface{}) pluginsdk.Diagnostics {
+	client := meta.(*clients.Client).IdentityGovernance.AccessPackageClient
+	accessPackageCatalogClient := meta.(*clients.Client).IdentityGovernance.AccessPackageCatalogClient
+
+	displayName := d.Get("display_name").(string)
+	catalogId := d.Get("catalog_id").(string)
+
+	accessPackageCatalog, _, err := accessPackageCatalogClient.Get(ctx, catalogId, odata.Query{})
+	if err != nil {
+		return tf.ErrorDiagF(err, "Retrieving access package catalog with object ID: %q", catalogId)
+	}
+
+	properties := msgraph.AccessPackage{
+		DisplayName: pointer.To(displayName),
+		Description: pointer.To(d.Get("description").(string)),
+		IsHidden:    pointer.To(d.Get("hidden").(bool)),
+		Catalog:     accessPackageCatalog,
+		CatalogId:   accessPackageCatalog.ID,
+	}
+
+	accessPackage, _, err := client.Create(ctx, properties)
+	if err != nil {
+		return tf.ErrorDiagF(err, "Creating access package %q", displayName)
+	}
+
+	d.SetId(*accessPackage.ID)
+
+	return accessPackageResourceRead(ctx, d, meta)
+}

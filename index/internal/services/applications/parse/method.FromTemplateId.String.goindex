@@ -1,0 +1,10 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/applications/parse
+import (
+	"fmt"
+
+	"github.com/hashicorp/go-azure-helpers/resourcemanager/resourceids"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
+)
+func (id *FromTemplateId) String() string {
+	return fmt.Sprintf("Application From Template (Template ID: %q, Application ID: %q, Service Principal ID: %q)", id.TemplateId, id.ApplicationId, id.ServicePrincipalId)
+}

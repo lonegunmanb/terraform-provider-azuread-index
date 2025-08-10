@@ -1,0 +1,38 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/invitations
+import (
+	"context"
+	"errors"
+	"fmt"
+	"log"
+	"net/http"
+	"time"
+
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func invitationResourceRead(ctx context.Context, d *pluginsdk.ResourceData, meta interface{}) pluginsdk.Diagnostics {
+	client := meta.(*clients.Client).Invitations.UsersClient
+
+	userID := d.Get("user_id").(string)
+
+	user, status, err := client.Get(ctx, userID, odata.Query{})
+	if err != nil {
+		if status == http.StatusNotFound {
+			log.Printf("[DEBUG] Invited user with Object ID %q was not found - removing from state!", userID)
+			d.Set("user_id", "")
+			return nil
+		}
+		return tf.ErrorDiagF(err, "Retrieving invited user with object ID: %q", userID)
+	}
+
+	tf.Set(d, "user_id", user.ID())
+	tf.Set(d, "user_email_address", user.Mail)
+
+	return nil
+}

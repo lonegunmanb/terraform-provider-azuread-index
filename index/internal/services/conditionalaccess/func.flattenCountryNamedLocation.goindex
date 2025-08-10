@@ -1,0 +1,23 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/conditionalaccess
+import (
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func flattenCountryNamedLocation(in *msgraph.CountryNamedLocation) []interface{} {
+	if in == nil {
+		return []interface{}{}
+	}
+
+	includeUnknown := false
+	if in.IncludeUnknownCountriesAndRegions != nil {
+		includeUnknown = *in.IncludeUnknownCountriesAndRegions
+	}
+
+	return []interface{}{
+		map[string]interface{}{
+			"countries_and_regions":                 tf.FlattenStringSlicePtr(in.CountriesAndRegions),
+			"include_unknown_countries_and_regions": includeUnknown,
+		},
+	}
+}

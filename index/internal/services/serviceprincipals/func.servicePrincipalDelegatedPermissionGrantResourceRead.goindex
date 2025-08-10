@@ -1,0 +1,37 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/serviceprincipals
+import (
+	"context"
+	"errors"
+	"fmt"
+	"log"
+	"net/http"
+	"time"
+
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func servicePrincipalDelegatedPermissionGrantResourceRead(ctx context.Context, d *pluginsdk.ResourceData, meta interface{}) pluginsdk.Diagnostics {
+	client := meta.(*clients.Client).ServicePrincipals.DelegatedPermissionGrantsClient
+
+	delegatedPermissionGrant, status, err := client.Get(ctx, d.Id(), odata.Query{})
+	if err != nil {
+		if status == http.StatusNotFound {
+			log.Printf("[DEBUG] Delegated Permission Grant with ID %q was not found - removing from state", d.Id())
+			d.SetId("")
+			return nil
+		}
+		return tf.ErrorDiagPathF(err, "id", "Retrieving Delegated Permission Grant with ID %q", d.Id())
+	}
+
+	tf.Set(d, "claim_values", delegatedPermissionGrant.Scopes)
+	tf.Set(d, "resource_service_principal_object_id", delegatedPermissionGrant.ResourceId)
+	tf.Set(d, "service_principal_object_id", delegatedPermissionGrant.ClientId)
+	tf.Set(d, "user_object_id", delegatedPermissionGrant.PrincipalId)
+
+	return nil
+}

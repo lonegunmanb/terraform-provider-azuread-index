@@ -1,0 +1,56 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/groups
+import (
+	"context"
+	"errors"
+	"fmt"
+	"log"
+	"net/http"
+	"strings"
+	"time"
+
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers"
+	"github.com/hashicorp/terraform-provider-azuread/internal/services/groups/parse"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func groupMemberResource() *pluginsdk.Resource {
+	return &pluginsdk.Resource{
+		CreateContext: groupMemberResourceCreate,
+		ReadContext:   groupMemberResourceRead,
+		DeleteContext: groupMemberResourceDelete,
+
+		Timeouts: &pluginsdk.ResourceTimeout{
+			Create: pluginsdk.DefaultTimeout(5 * time.Minute),
+			Read:   pluginsdk.DefaultTimeout(5 * time.Minute),
+			Delete: pluginsdk.DefaultTimeout(5 * time.Minute),
+		},
+
+		Importer: pluginsdk.ImporterValidatingResourceId(func(id string) error {
+			_, err := parse.GroupMemberID(id)
+			return err
+		}),
+
+		Schema: map[string]*pluginsdk.Schema{
+			"group_object_id": {
+				Description:      "The object ID of the group you want to add the member to",
+				Type:             pluginsdk.TypeString,
+				Required:         true,
+				ForceNew:         true,
+				ValidateDiagFunc: validation.ValidateDiag(validation.IsUUID),
+			},
+
+			"member_object_id": {
+				Description:      "The object ID of the principal you want to add as a member to the group. Supported object types are Users, Groups or Service Principals",
+				Type:             pluginsdk.TypeString,
+				Required:         true,
+				ForceNew:         true,
+				ValidateDiagFunc: validation.ValidateDiag(validation.IsUUID),
+			},
+		},
+	}
+}

@@ -1,0 +1,22 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/conditionalaccess
+import (
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func expandConditionalAccessLocations(in []interface{}) *msgraph.ConditionalAccessLocations {
+	if len(in) == 0 || in[0] == nil {
+		return nil
+	}
+
+	result := msgraph.ConditionalAccessLocations{}
+	config := in[0].(map[string]interface{})
+
+	includeLocations := config["included_locations"].([]interface{})
+	excludeLocations := config["excluded_locations"].([]interface{})
+
+	result.IncludeLocations = tf.ExpandStringSlicePtr(includeLocations)
+	result.ExcludeLocations = tf.ExpandStringSlicePtr(excludeLocations)
+
+	return &result
+}

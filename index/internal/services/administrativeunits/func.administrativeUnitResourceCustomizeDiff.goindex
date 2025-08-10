@@ -1,0 +1,44 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/administrativeunits
+import (
+	"context"
+	"errors"
+	"fmt"
+	"log"
+	"net/http"
+	"time"
+
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/go-uuid"
+	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func administrativeUnitResourceCustomizeDiff(ctx context.Context, diff *pluginsdk.ResourceDiff, meta interface{}) error {
+	client := meta.(*clients.Client).AdministrativeUnits.AdministrativeUnitsClient
+
+	// Check for duplicate names
+	oldDisplayName, newDisplayName := diff.GetChange("display_name")
+	if diff.Get("prevent_duplicate_names").(bool) && pluginsdk.ValueIsNotEmptyOrUnknown(newDisplayName) &&
+		(oldDisplayName.(string) == "" || oldDisplayName.(string) != newDisplayName.(string)) {
+		result, err := administrativeUnitFindByName(ctx, client, newDisplayName.(string))
+		if err != nil {
+			return fmt.Errorf("could not check for existing administrative unit(s): %+v", err)
+		}
+		if result != nil && len(*result) > 0 {
+			for _, existingAu := range *result {
+				if existingAu.ID == nil {
+					return fmt.Errorf("API error: administrative unit returned with nil object ID during duplicate name check")
+				}
+				if diff.Id() == "" || diff.Id() == *existingAu.ID {
+					return tf.ImportAsDuplicateError("azuread_administrative_unit", *existingAu.ID, newDisplayName.(string))
+				}
+			}
+		}
+	}
+
+	return nil
+}

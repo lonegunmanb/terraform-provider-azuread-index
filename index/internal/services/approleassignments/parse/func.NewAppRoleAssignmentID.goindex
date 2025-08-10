@@ -1,0 +1,10 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/approleassignments/parse
+import (
+	"fmt"
+)
+func NewAppRoleAssignmentID(objectId, keyId string) AppRoleAssignmentId {
+	return AppRoleAssignmentId{
+		ResourceId:   objectId,
+		AssignmentId: keyId,
+	}
+}

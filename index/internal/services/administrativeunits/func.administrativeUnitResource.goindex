@@ -1,0 +1,89 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/administrativeunits
+import (
+	"context"
+	"errors"
+	"fmt"
+	"log"
+	"net/http"
+	"time"
+
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/go-uuid"
+	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func administrativeUnitResource() *pluginsdk.Resource {
+	return &pluginsdk.Resource{
+		CreateContext: administrativeUnitResourceCreate,
+		ReadContext:   administrativeUnitResourceRead,
+		UpdateContext: administrativeUnitResourceUpdate,
+		DeleteContext: administrativeUnitResourceDelete,
+
+		CustomizeDiff: administrativeUnitResourceCustomizeDiff,
+
+		Timeouts: &pluginsdk.ResourceTimeout{
+			Create: pluginsdk.DefaultTimeout(5 * time.Minute),
+			Read:   pluginsdk.DefaultTimeout(5 * time.Minute),
+			Update: pluginsdk.DefaultTimeout(5 * time.Minute),
+			Delete: pluginsdk.DefaultTimeout(5 * time.Minute),
+		},
+
+		Importer: pluginsdk.ImporterValidatingResourceId(func(id string) error {
+			if _, err := uuid.ParseUUID(id); err != nil {
+				return fmt.Errorf("specified ID (%q) is not valid: %s", id, err)
+			}
+			return nil
+		}),
+
+		Schema: map[string]*pluginsdk.Schema{
+			"display_name": {
+				Description:      "The display name for the administrative unit",
+				Type:             pluginsdk.TypeString,
+				Required:         true,
+				ValidateDiagFunc: validation.ValidateDiag(validation.StringIsNotEmpty),
+			},
+
+			"description": {
+				Description: "The description for the administrative unit",
+				Type:        pluginsdk.TypeString,
+				Optional:    true,
+			},
+
+			"members": {
+				Description: "A set of object IDs of members who should be present in this administrative unit. Supported object types are Users or Groups",
+				Type:        pluginsdk.TypeSet,
+				Optional:    true,
+				Computed:    true,
+				Set:         pluginsdk.HashString,
+				Elem: &pluginsdk.Schema{
+					Type:             pluginsdk.TypeString,
+					ValidateDiagFunc: validation.ValidateDiag(validation.IsUUID),
+				},
+			},
+
+			"prevent_duplicate_names": {
+				Description: "If `true`, will return an error if an existing administrative unit is found with the same name",
+				Type:        pluginsdk.TypeBool,
+				Optional:    true,
+				Default:     false,
+			},
+
+			"hidden_membership_enabled": {
+				Description: "Whether the administrative unit and its members are hidden or publicly viewable in the directory",
+				Type:        pluginsdk.TypeBool,
+				Optional:    true,
+			},
+
+			"object_id": {
+				Description: "The object ID of the administrative unit",
+				Type:        pluginsdk.TypeString,
+				Computed:    true,
+			},
+		},
+	}
+}

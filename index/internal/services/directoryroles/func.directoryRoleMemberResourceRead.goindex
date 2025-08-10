@@ -1,0 +1,41 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/directoryroles
+import (
+	"context"
+	"errors"
+	"fmt"
+	"log"
+	"net/http"
+	"time"
+
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers"
+	"github.com/hashicorp/terraform-provider-azuread/internal/services/directoryroles/parse"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
+	"github.com/manicminer/hamilton/msgraph"
+)
+func directoryRoleMemberResourceRead(ctx context.Context, d *pluginsdk.ResourceData, meta interface{}) pluginsdk.Diagnostics {
+	client := meta.(*clients.Client).DirectoryRoles.DirectoryRolesClient
+
+	id, err := parse.DirectoryRoleMemberID(d.Id())
+	if err != nil {
+		return tf.ErrorDiagPathF(err, "id", "Parsing Directory Role Member ID %q", d.Id())
+	}
+
+	if _, status, err := client.GetMember(ctx, id.DirectoryRoleId, id.MemberId); err != nil {
+		if status == http.StatusNotFound {
+			log.Printf("[DEBUG] Member with ID %q was not found in directory role %q - removing from state", id.MemberId, id.DirectoryRoleId)
+			d.SetId("")
+			return nil
+		}
+		return tf.ErrorDiagF(err, "Retrieving role member %q for directory role with object ID: %q", id.MemberId, id.DirectoryRoleId)
+	}
+
+	tf.Set(d, "role_object_id", id.DirectoryRoleId)
+	tf.Set(d, "member_object_id", id.MemberId)
+
+	return nil
+}

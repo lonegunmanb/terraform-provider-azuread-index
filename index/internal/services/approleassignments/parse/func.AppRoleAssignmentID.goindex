@@ -1,0 +1,15 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/approleassignments/parse
+import (
+	"fmt"
+)
+func AppRoleAssignmentID(idString string) (*AppRoleAssignmentId, error) {
+	id, err := ObjectSubResourceID(idString, appRoleAssignment)
+	if err != nil {
+		return nil, fmt.Errorf("unable to parse App Role Assignment ID: %v", err)
+	}
+
+	return &AppRoleAssignmentId{
+		ResourceId:   id.objectId,
+		AssignmentId: id.subId,
+	}, nil
+}
