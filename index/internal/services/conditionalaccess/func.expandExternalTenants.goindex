@@ -1,24 +1,26 @@
 package github.com/hashicorp/terraform-provider-azuread/internal/services/conditionalaccess
 import (
+	"strings"
+
 	"github.com/hashicorp/go-azure-helpers/lang/pointer"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
-	"github.com/manicminer/hamilton/msgraph"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/stable"
+	"github.com/hashicorp/go-azure-sdk/sdk/nullable"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf"
 )
-func expandExternalTenants(in []interface{}) *msgraph.ConditionalAccessExternalTenants {
+func expandExternalTenants(in []interface{}) stable.ConditionalAccessExternalTenants {
 	if len(in) == 0 || in[0] == nil {
 		return nil
 	}
 
-	result := msgraph.ConditionalAccessExternalTenants{}
+	result := stable.BaseConditionalAccessExternalTenantsImpl{}
 
 	config := in[0].(map[string]interface{})
 
 	members := config["members"].([]interface{})
 
-	result.MembershipKind = pointer.To(config["membership_kind"].(string))
+	result.MembershipKind = pointer.To(stable.ConditionalAccessExternalTenantsMembershipKind(config["membership_kind"].(string)))
 
-	// only membership_kind enumerated is allowed to have members field set
-	// so we omit setting an empty array when no members configured
+	// only membership_kind enumerated is allowed to have members field set, so we omit setting an empty array when no members configured
 	if len(members) > 0 {
 		result.Members = tf.ExpandStringSlicePtr(members)
 	}

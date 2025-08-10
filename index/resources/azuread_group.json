@@ -6,7 +6,7 @@
   "sdk_type": "legacy_pluginsdk",
   "schema_index": "func.groupResource.goindex",
   "create_index": "func.groupResourceCreate.goindex",
-  "read_index": "func.groupResourceRead.goindex",
+  "read_index": "func..goindex",
   "update_index": "func.groupResourceUpdate.goindex",
   "delete_index": "func.groupResourceDelete.goindex",
   "attribute_index": "func.groupResource.goindex"

@@ -4,38 +4,45 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"net/http"
 	"strings"
 	"time"
 
 	"github.com/hashicorp/go-azure-helpers/lang/pointer"
-	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/go-azure-helpers/lang/response"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/beta"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/rolemanagement/beta/entitlementmanagementroleassignment"
+	"github.com/hashicorp/go-azure-sdk/sdk/nullable"
 	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
-	"github.com/manicminer/hamilton/msgraph"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/validation"
 )
 func accessPackageCatalogRoleAssignmentResourceRead(ctx context.Context, d *pluginsdk.ResourceData, meta interface{}) pluginsdk.Diagnostics {
-	client := meta.(*clients.Client).IdentityGovernance.AccessPackageCatalogRoleAssignmentsClient
+	client := meta.(*clients.Client).IdentityGovernance.RoleAssignmentClient
 
-	id := d.Id()
-	assignment, status, err := client.Get(ctx, id, odata.Query{})
+	id := beta.NewRoleManagementEntitlementManagementRoleAssignmentID(d.Id())
+
+	resp, err := client.GetEntitlementManagementRoleAssignment(ctx, id, entitlementmanagementroleassignment.DefaultGetEntitlementManagementRoleAssignmentOperationOptions())
 	if err != nil {
-		if status == http.StatusNotFound {
-			log.Printf("[DEBUG] Assignment with ID %q was not found - removing from state", id)
+		if response.WasNotFound(resp.HttpResponse) {
+			log.Printf("[DEBUG] %s was not found - removing from state", id)
 			d.SetId("")
 			return nil
 		}
-		return tf.ErrorDiagF(err, "Retrieving role assignment %q", id)
+		return tf.ErrorDiagF(err, "Retrieving %s", id)
 	}
 
-	catalogId := strings.TrimPrefix(*assignment.AppScopeId, "/AccessPackageCatalog/")
+	assignment := resp.Model
+	if assignment == nil {
+		return tf.ErrorDiagF(errors.New("model was nil"), "Retrieving %s", id)
+	}
+
+	catalogId := strings.TrimPrefix(assignment.AppScopeId.GetOrZero(), "/AccessPackageCatalog/")
 
 	tf.Set(d, "catalog_id", pointer.To(catalogId))
-	tf.Set(d, "principal_object_id", assignment.PrincipalId)
-	tf.Set(d, "role_id", assignment.RoleDefinitionId)
+	tf.Set(d, "principal_object_id", assignment.PrincipalId.GetOrZero())
+	tf.Set(d, "role_id", assignment.RoleDefinitionId.GetOrZero())
 
 	return nil
 }

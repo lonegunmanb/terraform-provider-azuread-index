@@ -4,55 +4,73 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"net/http"
 	"reflect"
 	"time"
 
 	"github.com/hashicorp/go-azure-helpers/lang/pointer"
-	"github.com/hashicorp/go-azure-sdk/sdk/odata"
-	"github.com/hashicorp/go-uuid"
+	"github.com/hashicorp/go-azure-helpers/lang/response"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/stable"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/identity/stable/conditionalaccessnamedlocation"
 	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
-	"github.com/hashicorp/terraform-provider-azuread/internal/helpers"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
-	"github.com/manicminer/hamilton/msgraph"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/consistency"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/validation"
+	"github.com/hashicorp/terraform-provider-azuread/internal/services/conditionalaccess/migrations"
 )
 func namedLocationResourceCreate(ctx context.Context, d *pluginsdk.ResourceData, meta interface{}) pluginsdk.Diagnostics {
-	client := meta.(*clients.Client).ConditionalAccess.NamedLocationsClient
-
-	displayName := d.Get("display_name").(string)
-
-	base := msgraph.BaseNamedLocation{
-		DisplayName: pointer.To(displayName),
-	}
+	client := meta.(*clients.Client).ConditionalAccess.NamedLocationClient
 
 	if v, ok := d.GetOk("ip"); ok {
 		properties := expandIPNamedLocation(v.([]interface{}))
-		properties.BaseNamedLocation = &base
+		properties.DisplayName = pointer.To(d.Get("display_name").(string))
 
-		ipLocation, _, err := client.CreateIP(ctx, *properties)
+		resp, err := client.CreateConditionalAccessNamedLocation(ctx, *properties, conditionalaccessnamedlocation.DefaultCreateConditionalAccessNamedLocationOperationOptions())
 		if err != nil {
 			return tf.ErrorDiagF(err, "Could not create named location")
 		}
-		if ipLocation.ID == nil || *ipLocation.ID == "" {
-			return tf.ErrorDiagF(errors.New("Bad API response"), "Object ID returned for named location is nil/empty")
+
+		if resp.Model == nil {
+			return tf.ErrorDiagF(errors.New("returned model was nil"), "Bad API Response")
 		}
 
-		d.SetId(*ipLocation.ID)
-	} else if v, ok := d.GetOk("country"); ok {
+		namedLocation, ok := resp.Model.(stable.IPNamedLocation)
+		if !ok {
+			return tf.ErrorDiagF(errors.New("returned model was not an IPNamedLocation"), "Bad API response")
+		}
+
+		if namedLocation.Id == nil {
+			return tf.ErrorDiagF(errors.New("nil/empty object ID returned for named location"), "Bad API response")
+		}
+
+		id := stable.NewIdentityConditionalAccessNamedLocationID(*namedLocation.Id)
+		d.SetId(id.ID())
+
+	} else if v, ok = d.GetOk("country"); ok {
 		properties := expandCountryNamedLocation(v.([]interface{}))
-		properties.BaseNamedLocation = &base
+		properties.DisplayName = pointer.To(d.Get("display_name").(string))
 
-		countryLocation, _, err := client.CreateCountry(ctx, *properties)
+		resp, err := client.CreateConditionalAccessNamedLocation(ctx, *properties, conditionalaccessnamedlocation.DefaultCreateConditionalAccessNamedLocationOperationOptions())
 		if err != nil {
 			return tf.ErrorDiagF(err, "Could not create named location")
 		}
-		if countryLocation.ID == nil || *countryLocation.ID == "" {
-			return tf.ErrorDiagF(errors.New("Bad API response"), "Object ID returned for named location is nil/empty")
+
+		if resp.Model == nil {
+			return tf.ErrorDiagF(errors.New("returned model was nil"), "Bad API Response")
 		}
 
-		d.SetId(*countryLocation.ID)
+		namedLocation, ok := resp.Model.(stable.CountryNamedLocation)
+		if !ok {
+			return tf.ErrorDiagF(errors.New("returned model was not a CountryNamedLocation"), "Bad API response")
+		}
+
+		if namedLocation.Id == nil {
+			return tf.ErrorDiagF(errors.New("nil/empty object ID returned for named location"), "Bad API response")
+		}
+
+		id := stable.NewIdentityConditionalAccessNamedLocationID(*namedLocation.Id)
+		d.SetId(id.ID())
+
 	} else {
 		return tf.ErrorDiagF(errors.New("one of `ip` or `country` must be specified"), "Unable to determine named location type")
 	}

@@ -1,0 +1,28 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/validation
+import (
+	"fmt"
+	"net/url"
+	"strings"
+
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/pluginsdk"
+)
+func IsRedirectUriFunc(urnAllowed bool, allowAllSchemes bool) pluginsdk.SchemaValidateFunc {
+	return func(i interface{}, k string) (warnings []string, errors []error) {
+		// See https://docs.microsoft.com/en-us/azure/active-directory-b2c/tutorial-create-user-flows?pivots=b2c-custom-policy#register-the-proxyidentityexperienceframework-application
+		var allowedSchemes []string
+		if !allowAllSchemes {
+			allowedSchemes = []string{"http", "https", "ms-appx-web"}
+		}
+
+		warnings, errors = IsUriFunc(allowedSchemes, urnAllowed, true, true)(i, k)
+		if len(errors) > 0 {
+			return
+		}
+
+		if len(i.(string)) > 256 {
+			errors = append(errors, fmt.Errorf("URI must be 256 characters or less for %q", k))
+		}
+
+		return
+	}
+}

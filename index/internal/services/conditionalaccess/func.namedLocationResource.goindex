@@ -4,19 +4,19 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"net/http"
 	"reflect"
 	"time"
 
 	"github.com/hashicorp/go-azure-helpers/lang/pointer"
-	"github.com/hashicorp/go-azure-sdk/sdk/odata"
-	"github.com/hashicorp/go-uuid"
+	"github.com/hashicorp/go-azure-helpers/lang/response"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/stable"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/identity/stable/conditionalaccessnamedlocation"
 	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
-	"github.com/hashicorp/terraform-provider-azuread/internal/helpers"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
-	"github.com/manicminer/hamilton/msgraph"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/consistency"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/validation"
+	"github.com/hashicorp/terraform-provider-azuread/internal/services/conditionalaccess/migrations"
 )
 func namedLocationResource() *pluginsdk.Resource {
 	return &pluginsdk.Resource{
@@ -33,17 +33,30 @@ func namedLocationResource() *pluginsdk.Resource {
 		},
 
 		Importer: pluginsdk.ImporterValidatingResourceId(func(id string) error {
-			if _, err := uuid.ParseUUID(id); err != nil {
-				return fmt.Errorf("specified ID (%q) is not valid: %s", id, err)
+			if _, errs := stable.ValidateIdentityConditionalAccessNamedLocationID(id, "id"); len(errs) > 0 {
+				out := ""
+				for _, err := range errs {
+					out += err.Error()
+				}
+				return fmt.Errorf(out)
 			}
 			return nil
 		}),
 
+		SchemaVersion: 1,
+		StateUpgraders: []pluginsdk.StateUpgrader{
+			{
+				Type:    migrations.ResourceNamedLocationInstanceResourceV0().CoreConfigSchema().ImpliedType(),
+				Upgrade: migrations.ResourceNamedLocationInstanceStateUpgradeV0,
+				Version: 0,
+			},
+		},
+
 		Schema: map[string]*pluginsdk.Schema{
 			"display_name": {
-				Type:             pluginsdk.TypeString,
-				Required:         true,
-				ValidateDiagFunc: validation.ValidateDiag(validation.StringIsNotEmpty),
+				Type:         pluginsdk.TypeString,
+				Required:     true,
+				ValidateFunc: validation.StringIsNotEmpty,
 			},
 
 			"ip": {

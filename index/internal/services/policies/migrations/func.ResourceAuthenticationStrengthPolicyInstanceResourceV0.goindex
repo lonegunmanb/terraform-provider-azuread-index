@@ -1,0 +1,33 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/policies/migrations
+import (
+	"context"
+	"fmt"
+	"log"
+
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/stable"
+	"github.com/hashicorp/go-uuid"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/pluginsdk"
+)
+func ResourceAuthenticationStrengthPolicyInstanceResourceV0() *pluginsdk.Resource {
+	return &pluginsdk.Resource{
+		Schema: map[string]*pluginsdk.Schema{
+			"display_name": {
+				Type:     pluginsdk.TypeString,
+				Required: true,
+			},
+
+			"description": {
+				Type:     pluginsdk.TypeString,
+				Optional: true,
+			},
+
+			"allowed_combinations": {
+				Type:     pluginsdk.TypeSet,
+				Required: true,
+				Elem: &pluginsdk.Schema{
+					Type: pluginsdk.TypeString,
+				},
+			},
+		},
+	}
+}

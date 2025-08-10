@@ -2,47 +2,48 @@ package github.com/hashicorp/terraform-provider-azuread/internal/services/applic
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"time"
 
 	"github.com/hashicorp/go-azure-helpers/lang/pointer"
-	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/go-azure-helpers/lang/response"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/applications/stable/application"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/stable"
+	"github.com/hashicorp/go-azure-sdk/sdk/nullable"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/pluginsdk"
 	"github.com/hashicorp/terraform-provider-azuread/internal/sdk"
 	"github.com/hashicorp/terraform-provider-azuread/internal/services/applications/parse"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
-	"github.com/manicminer/hamilton/msgraph"
 )
 func (r ApplicationOptionalClaimsResource) Read() sdk.ResourceFunc {
 	return sdk.ResourceFunc{
 		Timeout: 5 * time.Minute,
 		Func: func(ctx context.Context, metadata sdk.ResourceMetaData) error {
-			client := metadata.Client.Applications.ApplicationsClient
-			client.BaseClient.DisableRetries = true
-			defer func() { client.BaseClient.DisableRetries = false }()
+			client := metadata.Client.Applications.ApplicationClient
 
 			id, err := parse.ParseOptionalClaimsID(metadata.ResourceData.Id())
 			if err != nil {
 				return err
 			}
 
-			applicationId := parse.NewApplicationID(id.ApplicationId)
+			applicationId := stable.NewApplicationID(id.ApplicationId)
 
 			tf.LockByName(applicationResourceName, id.ApplicationId)
 			defer tf.UnlockByName(applicationResourceName, id.ApplicationId)
 
-			result, status, err := client.Get(ctx, id.ApplicationId, odata.Query{})
+			resp, err := client.GetApplication(ctx, applicationId, application.DefaultGetApplicationOperationOptions())
 			if err != nil {
-				if status == http.StatusNotFound {
+				if response.WasNotFound(resp.HttpResponse) {
 					return metadata.MarkAsGone(id)
 				}
 				return fmt.Errorf("retrieving %s: %+v", id, err)
 			}
-			if result == nil {
-				return fmt.Errorf("retrieving %s: result was nil", id)
+
+			app := resp.Model
+			if app == nil {
+				return fmt.Errorf("retrieving %s: model was nil", id)
 			}
 
-			if claims := result.OptionalClaims; claims == nil {
+			if claims := app.OptionalClaims; claims == nil {
 				return metadata.MarkAsGone(id)
 			} else if (claims.AccessToken == nil || len(*claims.AccessToken) == 0) &&
 				(claims.IdToken == nil || len(*claims.IdToken) == 0) &&
@@ -54,33 +55,33 @@ func (r ApplicationOptionalClaimsResource) Read() sdk.ResourceFunc {
 				ApplicationId: applicationId.ID(),
 			}
 
-			if accessTokenClaims := result.OptionalClaims.AccessToken; accessTokenClaims != nil {
+			if accessTokenClaims := app.OptionalClaims.AccessToken; accessTokenClaims != nil {
 				for _, claim := range *accessTokenClaims {
 					state.AccessTokens = append(state.AccessTokens, OptionalClaim{
 						Name:                 pointer.From(claim.Name),
-						Source:               pointer.From(claim.Source),
+						Source:               claim.Source.GetOrZero(),
 						Essential:            pointer.From(claim.Essential),
 						AdditionalProperties: pointer.From(claim.AdditionalProperties),
 					})
 				}
 			}
 
-			if idTokenClaims := result.OptionalClaims.IdToken; idTokenClaims != nil {
+			if idTokenClaims := app.OptionalClaims.IdToken; idTokenClaims != nil {
 				for _, claim := range *idTokenClaims {
 					state.IdTokens = append(state.IdTokens, OptionalClaim{
 						Name:                 pointer.From(claim.Name),
-						Source:               pointer.From(claim.Source),
+						Source:               claim.Source.GetOrZero(),
 						Essential:            pointer.From(claim.Essential),
 						AdditionalProperties: pointer.From(claim.AdditionalProperties),
 					})
 				}
 			}
 
-			if idTokenClaims := result.OptionalClaims.Saml2Token; idTokenClaims != nil {
+			if idTokenClaims := app.OptionalClaims.Saml2Token; idTokenClaims != nil {
 				for _, claim := range *idTokenClaims {
 					state.Saml2Tokens = append(state.Saml2Tokens, OptionalClaim{
 						Name:                 pointer.From(claim.Name),
-						Source:               pointer.From(claim.Source),
+						Source:               claim.Source.GetOrZero(),
 						Essential:            pointer.From(claim.Essential),
 						AdditionalProperties: pointer.From(claim.AdditionalProperties),
 					})

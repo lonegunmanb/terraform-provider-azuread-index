@@ -1,36 +1,44 @@
 package github.com/hashicorp/terraform-provider-azuread/internal/services/policies
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
-	"net/http"
 	"time"
 
-	"github.com/hashicorp/go-azure-helpers/lang/pointer"
-	"github.com/hashicorp/go-azure-sdk/sdk/odata"
-	"github.com/hashicorp/go-uuid"
+	"github.com/hashicorp/go-azure-helpers/lang/response"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/stable"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/policies/stable/claimsmappingpolicy"
+	"github.com/hashicorp/go-azure-sdk/sdk/nullable"
 	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
-	"github.com/manicminer/hamilton/msgraph"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/validation"
+	"github.com/hashicorp/terraform-provider-azuread/internal/services/policies/migrations"
 )
 func claimsMappingPolicyResourceCreate(ctx context.Context, d *pluginsdk.ResourceData, meta interface{}) pluginsdk.Diagnostics {
 	client := meta.(*clients.Client).Policies.ClaimsMappingPolicyClient
 
-	claimsMappingPolicy := msgraph.ClaimsMappingPolicy{
-		Definition:  tf.ExpandStringSlicePtr(d.Get("definition").([]interface{})),
-		DisplayName: pointer.To(d.Get("display_name").(string)),
+	properties := stable.ClaimsMappingPolicy{
+		Definition:  tf.ExpandStringSlice(d.Get("definition").([]interface{})),
+		DisplayName: nullable.Value(d.Get("display_name").(string)),
 	}
-	policy, _, err := client.Create(ctx, claimsMappingPolicy)
+
+	resp, err := client.CreateClaimsMappingPolicy(ctx, properties, claimsmappingpolicy.DefaultCreateClaimsMappingPolicyOperationOptions())
 	if err != nil {
 		return tf.ErrorDiagF(err, "Could not create Claims Mapping Policy")
 	}
 
-	if policy.ID() == nil || *policy.ID() == "" {
-		return tf.ErrorDiagF(fmt.Errorf("Object ID returned for Claims Mapping Policy is nil"), "Bad API response")
+	claimsMappingPolicy := resp.Model
+	if claimsMappingPolicy == nil {
+		return tf.ErrorDiagF(errors.New("model was nil"), "Could not create Claims Mapping Policy")
+	}
+	if claimsMappingPolicy.Id == nil {
+		return tf.ErrorDiagF(errors.New("model return with nil ID"), "Could not create Claims Mapping Policy")
 	}
 
-	d.SetId(*policy.ID())
+	id := stable.NewPolicyClaimsMappingPolicyID(*claimsMappingPolicy.Id)
+	d.SetId(id.ID())
 
 	return claimsMappingPolicyResourceRead(ctx, d, meta)
 }

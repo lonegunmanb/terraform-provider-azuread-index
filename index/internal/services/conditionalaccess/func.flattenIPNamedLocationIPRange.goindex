@@ -1,18 +1,28 @@
 package github.com/hashicorp/terraform-provider-azuread/internal/services/conditionalaccess
 import (
+	"strings"
+
 	"github.com/hashicorp/go-azure-helpers/lang/pointer"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
-	"github.com/manicminer/hamilton/msgraph"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/stable"
+	"github.com/hashicorp/go-azure-sdk/sdk/nullable"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf"
 )
-func flattenIPNamedLocationIPRange(in *[]msgraph.IPNamedLocationIPRange) []interface{} {
-	if in == nil || len(*in) == 0 {
+func flattenIPNamedLocationIPRange(in []stable.IPRange) []interface{} {
+	if len(in) == 0 {
 		return []interface{}{}
 	}
 
 	result := make([]string, 0)
-	for _, cidr := range *in {
-		if cidr.CIDRAddress != nil {
-			result = append(result, *cidr.CIDRAddress)
+	for _, i := range in {
+		switch model := i.(type) {
+		case stable.IPv4CIDRRange:
+			if model.CIDRAddress != nil {
+				result = append(result, *model.CIDRAddress)
+			}
+		case stable.IPv6CIDRRange:
+			if model.CIDRAddress != nil {
+				result = append(result, *model.CIDRAddress)
+			}
 		}
 	}
 

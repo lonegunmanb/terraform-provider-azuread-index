@@ -1,34 +1,35 @@
 package github.com/hashicorp/terraform-provider-azuread/internal/services/conditionalaccess
 import (
+	"strings"
+
 	"github.com/hashicorp/go-azure-helpers/lang/pointer"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
-	"github.com/manicminer/hamilton/msgraph"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/stable"
+	"github.com/hashicorp/go-azure-sdk/sdk/nullable"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf"
 )
-func expandConditionalAccessGrantControls(in []interface{}) *msgraph.ConditionalAccessGrantControls {
+func expandConditionalAccessGrantControls(in []interface{}) *stable.ConditionalAccessGrantControls {
 	if len(in) == 0 || in[0] == nil {
 		return nil
 	}
 
-	result := msgraph.ConditionalAccessGrantControls{}
+	result := stable.ConditionalAccessGrantControls{}
 	config := in[0].(map[string]interface{})
 
-	operator := config["operator"].(string)
-	authenticationStrengthId := config["authentication_strength_policy_id"].(string)
-	builtInControls := config["built_in_controls"].([]interface{})
-	customAuthenticationFactors := config["custom_authentication_factors"].([]interface{})
-	termsOfUse := config["terms_of_use"].([]interface{})
-
-	result.Operator = &operator
-
-	if authenticationStrengthId != "" {
-		result.AuthenticationStrength = &msgraph.AuthenticationStrengthPolicy{
-			ID: &authenticationStrengthId,
+	if id := config["authentication_strength_policy_id"].(string); id != "" {
+		result.AuthenticationStrength = &stable.AuthenticationStrengthPolicy{
+			Id: &id,
 		}
 	}
 
-	result.BuiltInControls = tf.ExpandStringSlicePtr(builtInControls)
-	result.CustomAuthenticationFactors = tf.ExpandStringSlicePtr(customAuthenticationFactors)
-	result.TermsOfUse = tf.ExpandStringSlicePtr(termsOfUse)
+	builtInControls := make([]stable.ConditionalAccessGrantControl, 0)
+	for _, elem := range config["built_in_controls"].([]interface{}) {
+		builtInControls = append(builtInControls, stable.ConditionalAccessGrantControl(elem.(string)))
+	}
+
+	result.BuiltInControls = &builtInControls
+	result.CustomAuthenticationFactors = tf.ExpandStringSlicePtr(config["custom_authentication_factors"].([]interface{}))
+	result.Operator = nullable.Value(config["operator"].(string))
+	result.TermsOfUse = tf.ExpandStringSlicePtr(config["terms_of_use"].([]interface{}))
 
 	return &result
 }

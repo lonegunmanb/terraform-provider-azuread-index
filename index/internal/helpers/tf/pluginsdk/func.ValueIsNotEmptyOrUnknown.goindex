@@ -1,0 +1,12 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/pluginsdk
+
+func ValueIsNotEmptyOrUnknown(in interface{}) bool {
+	switch val := in.(type) {
+	case string:
+		// consider strings potentially unknown if empty or set to the SDK dummy value
+		return val != "" && val != PluginSdkUnknownValue
+	default:
+		// for all other types, treat them as known
+		return true
+	}
+}

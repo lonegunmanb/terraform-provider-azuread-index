@@ -1,18 +1,23 @@
 package github.com/hashicorp/terraform-provider-azuread/internal/services/conditionalaccess
 import (
+	"strings"
+
 	"github.com/hashicorp/go-azure-helpers/lang/pointer"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
-	"github.com/manicminer/hamilton/msgraph"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/stable"
+	"github.com/hashicorp/go-azure-sdk/sdk/nullable"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf"
 )
-func flattenExternalTenants(in *msgraph.ConditionalAccessExternalTenants) []interface{} {
+func flattenExternalTenants(in stable.ConditionalAccessExternalTenants) []interface{} {
 	if in == nil {
 		return []interface{}{}
 	}
 
+	externalTenants := in.ConditionalAccessExternalTenants()
+
 	return []interface{}{
 		map[string]interface{}{
-			"membership_kind": in.MembershipKind,
-			"members":         tf.FlattenStringSlicePtr(in.Members),
+			"membership_kind": externalTenants.MembershipKind,
+			"members":         tf.FlattenStringSlicePtr(externalTenants.Members),
 		},
 	}
 }

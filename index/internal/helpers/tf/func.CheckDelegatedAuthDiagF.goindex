@@ -1,0 +1,11 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf
+import (
+	"fmt"
+
+	"github.com/hashicorp/go-cty/cty"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
+)
+func CheckDelegatedAuthDiagF(err error, format string, a ...interface{}) diag.Diagnostics {
+	err = fmt.Errorf("%v\n\n%s", err, "This error is known to occur when using an unsupported authentication mechanism. Please check that you are using delegated authentication, i.e. that you are authenticating as a user via Azure CLI, and try again.")
+	return ErrorDiagF(err, format, a...)
+}

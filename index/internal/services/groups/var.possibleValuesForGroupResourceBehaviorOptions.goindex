@@ -1,0 +1,12 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/groups
+
+var possibleValuesForGroupResourceBehaviorOptions = []string{
+	GroupResourceBehaviorOptionAllowOnlyMembersToPost,
+	GroupResourceBehaviorOptionCalendarMemberReadOnly,
+	GroupResourceBehaviorOptionConnectorsDisabled,
+	GroupResourceBehaviorOptionHideGroupInOutlook,
+	GroupResourceBehaviorOptionSkipExchangeInstantOn,
+	GroupResourceBehaviorOptionSubscribeMembersToCalendarEventsDisabled,
+	GroupResourceBehaviorOptionSubscribeNewGroupMembers,
+	GroupResourceBehaviorOptionWelcomeEmailDisabled,
+}

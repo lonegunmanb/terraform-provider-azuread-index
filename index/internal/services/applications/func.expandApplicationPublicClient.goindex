@@ -9,14 +9,19 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-helpers/lang/response"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/applications/stable/application"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/stable"
+	"github.com/hashicorp/go-azure-sdk/sdk/client"
+	"github.com/hashicorp/go-azure-sdk/sdk/nullable"
 	"github.com/hashicorp/go-azure-sdk/sdk/odata"
-	"github.com/hashicorp/terraform-provider-azuread/internal/helpers"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
-	"github.com/manicminer/hamilton/msgraph"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/applications"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/credentials"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/pluginsdk"
 )
-func expandApplicationPublicClient(input []interface{}) (result *msgraph.PublicClient) {
-	result = &msgraph.PublicClient{
+func expandApplicationPublicClient(input []interface{}) (result *stable.PublicClientApplication) {
+	result = &stable.PublicClientApplication{
 		RedirectUris: &[]string{},
 	}
 

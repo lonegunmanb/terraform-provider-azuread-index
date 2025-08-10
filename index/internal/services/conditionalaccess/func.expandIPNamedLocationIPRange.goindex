@@ -1,20 +1,19 @@
 package github.com/hashicorp/terraform-provider-azuread/internal/services/conditionalaccess
 import (
-	"github.com/hashicorp/go-azure-helpers/lang/pointer"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
-	"github.com/manicminer/hamilton/msgraph"
-)
-func expandIPNamedLocationIPRange(in []interface{}) *[]msgraph.IPNamedLocationIPRange {
-	if len(in) == 0 {
-		return nil
-	}
+	"strings"
 
-	result := make([]msgraph.IPNamedLocationIPRange, 0)
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/stable"
+	"github.com/hashicorp/go-azure-sdk/sdk/nullable"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf"
+)
+func expandIPNamedLocationIPRange(in []interface{}) []stable.IPRange {
+	result := make([]stable.IPRange, 0)
 	for _, cidr := range in {
-		result = append(result, msgraph.IPNamedLocationIPRange{
+		result = append(result, stable.IPv4CIDRRange{
 			CIDRAddress: pointer.To(cidr.(string)),
 		})
 	}
 
-	return &result
+	return result
 }

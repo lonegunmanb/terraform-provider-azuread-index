@@ -5,17 +5,21 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strconv"
 	"strings"
 
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/me/stable/me"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/serviceprincipals/stable/serviceprincipal"
 	"github.com/hashicorp/go-azure-sdk/sdk/claims"
 	"github.com/hashicorp/go-azure-sdk/sdk/environments"
-	"github.com/hashicorp/go-azure-sdk/sdk/odata"
 	"github.com/hashicorp/terraform-provider-azuread/internal/common"
 
 	administrativeunits "github.com/hashicorp/terraform-provider-azuread/internal/services/administrativeunits/client"
 	applications "github.com/hashicorp/terraform-provider-azuread/internal/services/applications/client"
 	approleassignments "github.com/hashicorp/terraform-provider-azuread/internal/services/approleassignments/client"
 	conditionalaccess "github.com/hashicorp/terraform-provider-azuread/internal/services/conditionalaccess/client"
+	directoryobjects "github.com/hashicorp/terraform-provider-azuread/internal/services/directoryobjects/client"
 	directoryroles "github.com/hashicorp/terraform-provider-azuread/internal/services/directoryroles/client"
 	domains "github.com/hashicorp/terraform-provider-azuread/internal/services/domains/client"
 	groups "github.com/hashicorp/terraform-provider-azuread/internal/services/groups/client"
@@ -42,6 +46,7 @@ type Client struct {
 	Applications        *applications.Client
 	AppRoleAssignments  *approleassignments.Client
 	ConditionalAccess   *conditionalaccess.Client
+	DirectoryObjects    *directoryobjects.Client
 	DirectoryRoles      *directoryroles.Client
 	Domains             *domains.Client
 	Groups              *groups.Client

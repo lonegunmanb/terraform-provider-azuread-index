@@ -1,27 +1,17 @@
 package github.com/hashicorp/terraform-provider-azuread/internal/services/serviceprincipals
 import (
-	"bytes"
-	"context"
-	"encoding/json"
-	"fmt"
-	"io"
-	"net/http"
-	"strings"
-	"time"
-
-	"github.com/hashicorp/go-azure-helpers/lang/pointer"
-	"github.com/hashicorp/go-azure-sdk/sdk/odata"
-	"github.com/manicminer/hamilton/msgraph"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/stable"
+	"github.com/hashicorp/go-azure-sdk/sdk/nullable"
 )
-func expandSamlSingleSignOn(in []interface{}) *msgraph.SamlSingleSignOnSettings {
-	result := msgraph.SamlSingleSignOnSettings{}
+func expandSamlSingleSignOn(in []interface{}) *stable.SamlSingleSignOnSettings {
+	result := stable.SamlSingleSignOnSettings{}
 	if len(in) == 0 || in[0] == nil {
 		return &result
 	}
 
 	samlSingleSignOnSettings := in[0].(map[string]interface{})
 
-	result.RelayState = pointer.To(samlSingleSignOnSettings["relay_state"].(string))
+	result.RelayState = nullable.Value(samlSingleSignOnSettings["relay_state"].(string))
 
 	return &result
 }

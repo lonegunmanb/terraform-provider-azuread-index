@@ -1,0 +1,56 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/validation
+import (
+	"fmt"
+	"net/url"
+	"strings"
+
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/pluginsdk"
+)
+func IsUriFunc(validUriSchemes []string, urnAllowed bool, allowTrailingSlash bool, forceTrailingSlash bool) pluginsdk.SchemaValidateFunc {
+	return func(i interface{}, k string) ([]string, []error) {
+		v, ok := i.(string)
+		if !ok {
+			return nil, []error{fmt.Errorf("expected a string value for %q", k)}
+		}
+
+		if v == "" {
+			return nil, []error{fmt.Errorf("URI must not be empty for %q", k)}
+		}
+
+		if urnAllowed {
+			parts := strings.Split(v, ":")
+			if len(parts) >= 3 && parts[0] == "urn" {
+				return nil, nil
+			}
+		}
+
+		u, err := url.Parse(v)
+		if err != nil {
+			return nil, []error{fmt.Errorf("URI is in an invalid format for %q", k)}
+		}
+
+		if !allowTrailingSlash && u.Path == "/" {
+			return nil, []error{fmt.Errorf("URI must not have a trailing slash when there is no path segment for %q", k)}
+		}
+
+		if u.Host == "" {
+			return nil, []error{fmt.Errorf("URI has no host for %q", k)}
+		}
+
+		if len(validUriSchemes) == 0 {
+			return nil, nil
+		}
+
+		if forceTrailingSlash && u.Path == "" {
+			return nil, []error{fmt.Errorf("URI must have a trailing slash when there is no path segment for %q", k)}
+		}
+
+		for _, s := range validUriSchemes {
+			if u.Scheme == s {
+				return nil, nil
+			}
+		}
+
+		return nil, []error{fmt.Errorf("unexpected URI scheme for %q, expected one of: %s", k, strings.Join(validUriSchemes, ", "))}
+	}
+}

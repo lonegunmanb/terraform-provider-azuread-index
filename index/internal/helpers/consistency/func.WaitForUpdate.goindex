@@ -1,0 +1,18 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/helpers/consistency
+import (
+	"context"
+	"errors"
+	"fmt"
+	"time"
+
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/pluginsdk"
+)
+func WaitForUpdate(ctx context.Context, f ChangeFunc) error {
+	deadline, ok := ctx.Deadline()
+	if !ok {
+		return errors.New("context has no deadline")
+	}
+
+	_, err := WaitForUpdateWithTimeout(ctx, time.Until(deadline), f)
+	return err
+}

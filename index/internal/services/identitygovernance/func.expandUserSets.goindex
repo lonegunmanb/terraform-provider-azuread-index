@@ -1,27 +1,65 @@
 package github.com/hashicorp/terraform-provider-azuread/internal/services/identitygovernance
 import (
+	"context"
 	"fmt"
-	"time"
+	"strings"
 
 	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/beta"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/identitygovernance/beta/entitlementmanagementaccesspackage"
+	"github.com/hashicorp/go-azure-sdk/sdk/nullable"
 	"github.com/hashicorp/go-azure-sdk/sdk/odata"
-	"github.com/manicminer/hamilton/msgraph"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
-func expandUserSets(input []interface{}) *[]msgraph.UserSet {
-	userSets := make([]msgraph.UserSet, 0)
-	for _, v := range input {
-		v_map := v.(map[string]interface{})
-		oDataType, needId := userSetODataType(v_map["subject_type"].(string))
-		userSet := msgraph.UserSet{
-			ODataType: oDataType,
-			IsBackup:  pointer.To(v_map["backup"].(bool)),
-		}
-		if needId {
-			userSet.ID = pointer.To(v_map["object_id"].(string))
+func expandUserSets(input []interface{}) (*[]beta.UserSet, error) {
+	userSets := make([]beta.UserSet, 0)
+	for _, raw := range input {
+		v := raw.(map[string]interface{})
+
+		isBackup := v["backup"].(bool)
+		objectId := v["object_id"].(string)
+		odataType := formatODataType(v["subject_type"].(string))
+
+		var userSet beta.UserSet
+		switch odataType {
+		case "ConnectedOrganizationMembers":
+			userSet = beta.ConnectedOrganizationMembers{
+				Id:       nullable.Value(objectId),
+				IsBackup: nullable.Value(isBackup),
+			}
+		case "ExternalSponsors":
+			userSet = beta.ExternalSponsors{
+				IsBackup: nullable.Value(isBackup),
+			}
+		case "GroupMembers":
+			userSet = beta.GroupMembers{
+				Id:       nullable.Value(objectId),
+				IsBackup: nullable.Value(isBackup),
+			}
+		case "InternalSponsors":
+			userSet = beta.InternalSponsors{
+				IsBackup: nullable.Value(isBackup),
+			}
+		case "RequestorManager":
+			userSet = beta.RequestorManager{
+				IsBackup: nullable.Value(isBackup),
+			}
+		case "SingleUser":
+			userSet = beta.SingleUser{
+				Id:       nullable.Value(objectId),
+				IsBackup: nullable.Value(isBackup),
+			}
+		case "TargetUserSponsors":
+			userSet = beta.TargetUserSponsors{
+				IsBackup: nullable.Value(isBackup),
+			}
+		default:
+			return nil, fmt.Errorf("unknown `subject_type`: %s", odataType)
 		}
 
 		userSets = append(userSets, userSet)
 	}
 
-	return &userSets
+	return &userSets, nil
 }

@@ -1,15 +1,19 @@
 package github.com/hashicorp/terraform-provider-azuread/internal/services/identitygovernance
 import (
 	"context"
+	"errors"
 	"fmt"
+	"strings"
 	"time"
 
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/beta"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/identitygovernance/beta/entitlementmanagementaccesspackage"
 	"github.com/hashicorp/go-azure-sdk/sdk/odata"
 	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
-	"github.com/manicminer/hamilton/msgraph"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/validation"
 )
 func accessPackageDataSource() *pluginsdk.Resource {
 	return &pluginsdk.Resource{
@@ -34,6 +38,7 @@ func accessPackageDataSource() *pluginsdk.Resource {
 				Type:          pluginsdk.TypeString,
 				Optional:      true,
 				Computed:      true,
+				ValidateFunc:  validation.StringIsNotEmpty,
 				AtLeastOneOf:  []string{"object_id", "display_name", "catalog_id"},
 				ConflictsWith: []string{"object_id"},
 				RequiredWith:  []string{"catalog_id"},
@@ -43,6 +48,7 @@ func accessPackageDataSource() *pluginsdk.Resource {
 				Description:   "The ID of the Catalog this access package is in",
 				Type:          pluginsdk.TypeString,
 				Optional:      true,
+				ValidateFunc:  validation.IsUUID,
 				AtLeastOneOf:  []string{"object_id", "display_name", "catalog_id"},
 				ConflictsWith: []string{"object_id"},
 				RequiredWith:  []string{"display_name"},

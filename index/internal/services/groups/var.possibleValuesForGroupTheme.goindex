@@ -1,0 +1,12 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/groups
+
+var possibleValuesForGroupTheme = []string{
+	GroupThemeNone,
+	GroupThemeBlue,
+	GroupThemeGreen,
+	GroupThemeOrange,
+	GroupThemePink,
+	GroupThemePurple,
+	GroupThemeRed,
+	GroupThemeTeal,
+}

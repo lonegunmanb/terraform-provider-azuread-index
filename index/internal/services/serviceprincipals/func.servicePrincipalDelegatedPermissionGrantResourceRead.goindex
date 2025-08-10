@@ -5,33 +5,49 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-helpers/lang/response"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/stable"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/oauth2permissiongrants/stable/oauth2permissiongrant"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/serviceprincipals/stable/serviceprincipal"
+	"github.com/hashicorp/go-azure-sdk/sdk/nullable"
 	"github.com/hashicorp/go-azure-sdk/sdk/odata"
 	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
-	"github.com/manicminer/hamilton/msgraph"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/validation"
+	"github.com/hashicorp/terraform-provider-azuread/internal/services/serviceprincipals/migrations"
 )
 func servicePrincipalDelegatedPermissionGrantResourceRead(ctx context.Context, d *pluginsdk.ResourceData, meta interface{}) pluginsdk.Diagnostics {
-	client := meta.(*clients.Client).ServicePrincipals.DelegatedPermissionGrantsClient
+	client := meta.(*clients.Client).ServicePrincipals.OAuth2PermissionGrantClient
 
-	delegatedPermissionGrant, status, err := client.Get(ctx, d.Id(), odata.Query{})
+	id, err := stable.ParseOAuth2PermissionGrantID(d.Id())
 	if err != nil {
-		if status == http.StatusNotFound {
-			log.Printf("[DEBUG] Delegated Permission Grant with ID %q was not found - removing from state", d.Id())
+		return tf.ErrorDiagPathF(err, "id", "Parsing ID")
+	}
+
+	resp, err := client.GetOAuth2PermissionGrant(ctx, *id, oauth2permissiongrant.DefaultGetOAuth2PermissionGrantOperationOptions())
+	if err != nil {
+		if response.WasNotFound(resp.HttpResponse) {
+			log.Printf("[DEBUG] %s was not found - removing from state", id)
 			d.SetId("")
 			return nil
 		}
 		return tf.ErrorDiagPathF(err, "id", "Retrieving Delegated Permission Grant with ID %q", d.Id())
 	}
 
-	tf.Set(d, "claim_values", delegatedPermissionGrant.Scopes)
-	tf.Set(d, "resource_service_principal_object_id", delegatedPermissionGrant.ResourceId)
+	delegatedPermissionGrant := resp.Model
+	if delegatedPermissionGrant == nil {
+		return tf.ErrorDiagF(errors.New("model was nil"), "Retrieving %s", id)
+	}
+
+	tf.Set(d, "claim_values", tf.FromSpaceSeparated(delegatedPermissionGrant.Scope.GetOrZero()))
+	tf.Set(d, "resource_service_principal_object_id", pointer.From(delegatedPermissionGrant.ResourceId))
 	tf.Set(d, "service_principal_object_id", delegatedPermissionGrant.ClientId)
-	tf.Set(d, "user_object_id", delegatedPermissionGrant.PrincipalId)
+	tf.Set(d, "user_object_id", delegatedPermissionGrant.PrincipalId.GetOrZero())
 
 	return nil
 }

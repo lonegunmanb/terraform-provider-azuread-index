@@ -1,23 +1,31 @@
 package github.com/hashicorp/terraform-provider-azuread/internal/services/conditionalaccess
 import (
+	"strings"
+
 	"github.com/hashicorp/go-azure-helpers/lang/pointer"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
-	"github.com/manicminer/hamilton/msgraph"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/stable"
+	"github.com/hashicorp/go-azure-sdk/sdk/nullable"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf"
 )
-func flattenConditionalAccessGrantControls(in *msgraph.ConditionalAccessGrantControls) []interface{} {
+func flattenConditionalAccessGrantControls(in *stable.ConditionalAccessGrantControls) []interface{} {
 	if in == nil {
 		return []interface{}{}
 	}
 
 	var authenticationStrengthPolicyId string
 	if in.AuthenticationStrength != nil {
-		authenticationStrengthPolicyId = pointer.From(in.AuthenticationStrength.ID)
+		authenticationStrengthPolicyId = pointer.From(in.AuthenticationStrength.Id)
+	}
+
+	builtInControls := make([]string, 0)
+	for _, v := range pointer.From(in.BuiltInControls) {
+		builtInControls = append(builtInControls, string(v))
 	}
 
 	return []interface{}{
 		map[string]interface{}{
-			"operator":                          in.Operator,
-			"built_in_controls":                 tf.FlattenStringSlicePtr(in.BuiltInControls),
+			"operator":                          in.Operator.GetOrZero(),
+			"built_in_controls":                 builtInControls,
 			"authentication_strength_policy_id": authenticationStrengthPolicyId,
 			"custom_authentication_factors":     tf.FlattenStringSlicePtr(in.CustomAuthenticationFactors),
 			"terms_of_use":                      tf.FlattenStringSlicePtr(in.TermsOfUse),

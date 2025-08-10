@@ -1,19 +1,23 @@
 package github.com/hashicorp/terraform-provider-azuread/internal/services/applications
 import (
 	"context"
+	"errors"
 	"fmt"
-	"net/http"
 	"strings"
 	"time"
 
-	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-helpers/lang/response"
+	applicationBeta "github.com/hashicorp/go-azure-sdk/microsoft-graph/applications/beta/application"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/applications/stable/application"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/applications/stable/owner"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/beta"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/stable"
 	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
-	"github.com/hashicorp/terraform-provider-azuread/internal/helpers"
-	"github.com/hashicorp/terraform-provider-azuread/internal/services/applications/parse"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
-	"github.com/manicminer/hamilton/msgraph"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/applications"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/validation"
 )
 func applicationDataSource() *pluginsdk.Resource {
 	return &pluginsdk.Resource{
@@ -29,18 +33,8 @@ func applicationDataSource() *pluginsdk.Resource {
 				Type:             pluginsdk.TypeString,
 				Optional:         true,
 				Computed:         true,
-				ExactlyOneOf:     []string{"application_id", "client_id", "display_name", "object_id", "identifier_uri"},
+				ExactlyOneOf:     []string{"client_id", "display_name", "object_id", "identifier_uri"},
 				ValidateDiagFunc: validation.ValidateDiag(validation.IsUUID),
-			},
-
-			"application_id": {
-				Description:      "The Application ID (also called Client ID)",
-				Type:             pluginsdk.TypeString,
-				Optional:         true,
-				Computed:         true,
-				ExactlyOneOf:     []string{"application_id", "client_id", "display_name", "object_id", "identifier_uri"},
-				ValidateDiagFunc: validation.ValidateDiag(validation.IsUUID),
-				Deprecated:       "The `application_id` property has been replaced with the `client_id` property and will be removed in version 3.0 of the AzureAD provider",
 			},
 
 			"client_id": {
@@ -48,7 +42,7 @@ func applicationDataSource() *pluginsdk.Resource {
 				Type:             pluginsdk.TypeString,
 				Optional:         true,
 				Computed:         true,
-				ExactlyOneOf:     []string{"application_id", "client_id", "display_name", "object_id", "identifier_uri"},
+				ExactlyOneOf:     []string{"client_id", "display_name", "object_id", "identifier_uri"},
 				ValidateDiagFunc: validation.ValidateDiag(validation.IsUUID),
 			},
 
@@ -57,7 +51,7 @@ func applicationDataSource() *pluginsdk.Resource {
 				Type:             pluginsdk.TypeString,
 				Optional:         true,
 				Computed:         true,
-				ExactlyOneOf:     []string{"application_id", "client_id", "display_name", "object_id", "identifier_uri"},
+				ExactlyOneOf:     []string{"client_id", "display_name", "object_id", "identifier_uri"},
 				ValidateDiagFunc: validation.ValidateDiag(validation.StringIsNotEmpty),
 			},
 
@@ -72,7 +66,7 @@ func applicationDataSource() *pluginsdk.Resource {
 				Type:             pluginsdk.TypeString,
 				Optional:         true,
 				Computed:         true,
-				ExactlyOneOf:     []string{"application_id", "client_id", "display_name", "object_id", "identifier_uri"},
+				ExactlyOneOf:     []string{"client_id", "display_name", "object_id", "identifier_uri"},
 				ValidateDiagFunc: validation.ValidateDiag(validation.StringIsNotEmpty),
 			},
 

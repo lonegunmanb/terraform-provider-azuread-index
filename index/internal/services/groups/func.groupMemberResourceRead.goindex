@@ -1,59 +1,41 @@
 package github.com/hashicorp/terraform-provider-azuread/internal/services/groups
 import (
 	"context"
-	"errors"
-	"fmt"
 	"log"
-	"net/http"
 	"strings"
 	"time"
 
 	"github.com/hashicorp/go-azure-helpers/lang/pointer"
-	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/go-azure-helpers/lang/response"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/beta"
+	groupBeta "github.com/hashicorp/go-azure-sdk/microsoft-graph/groups/beta/group"
+	memberBeta "github.com/hashicorp/go-azure-sdk/microsoft-graph/groups/beta/member"
 	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
-	"github.com/hashicorp/terraform-provider-azuread/internal/helpers"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/consistency"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/validation"
 	"github.com/hashicorp/terraform-provider-azuread/internal/services/groups/parse"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
-	"github.com/manicminer/hamilton/msgraph"
 )
 func groupMemberResourceRead(ctx context.Context, d *pluginsdk.ResourceData, meta interface{}) pluginsdk.Diagnostics {
-	client := meta.(*clients.Client).Groups.GroupsClient
+	client := meta.(*clients.Client).Groups.GroupMemberClientBeta
 
-	id, err := parse.GroupMemberID(d.Id())
+	resourceId, err := parse.GroupMemberID(d.Id())
 	if err != nil {
 		return tf.ErrorDiagPathF(err, "id", "Parsing Group Member ID %q", d.Id())
 	}
+	id := beta.NewGroupIdMemberID(resourceId.GroupId, resourceId.MemberId)
 
-	members, status, err := client.ListMembers(ctx, id.GroupId)
-	if err != nil {
-		if status == http.StatusNotFound {
-			log.Printf("[DEBUG] Group with ID %q was not found - removing group member with ID %q from state", id.GroupId, d.Id())
-			d.SetId("")
-			return nil
-		}
-		return tf.ErrorDiagF(err, "Retrieving members for group with object ID: %q", id.GroupId)
-	}
-
-	var memberObjectId string
-	if members != nil {
-		for _, objectId := range *members {
-			if strings.EqualFold(objectId, id.MemberId) {
-				memberObjectId = objectId
-				break
-			}
-		}
-	}
-
-	if memberObjectId == "" {
-		log.Printf("[DEBUG] Member with ID %q was not found in Group %q - removing from state", id.MemberId, id.GroupId)
+	if member, err := groupGetMember(ctx, client, id); err != nil {
+		return tf.ErrorDiagF(err, "Retrieving member %q for group with object ID: %q", id.DirectoryObjectId, id.GroupId)
+	} else if member == nil {
+		log.Printf("[DEBUG] %s - removing from state", id)
 		d.SetId("")
 		return nil
 	}
 
 	tf.Set(d, "group_object_id", id.GroupId)
-	tf.Set(d, "member_object_id", memberObjectId)
+	tf.Set(d, "member_object_id", id.DirectoryObjectId)
 
 	return nil
 }

@@ -1,0 +1,3 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/groups
+
+var possibleValuesForOnPremisesGroupType = []string{OnPremisesGroupTypeUniversalDistributionGroup, OnPremisesGroupTypeUniversalMailEnabledSecurityGroup, OnPremisesGroupTypeUniversalSecurityGroup}

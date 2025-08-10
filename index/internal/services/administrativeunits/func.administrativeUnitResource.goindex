@@ -5,17 +5,25 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-helpers/lang/response"
+	administrativeunitBeta "github.com/hashicorp/go-azure-sdk/microsoft-graph/administrativeunits/beta/administrativeunit"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/beta"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/stable"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/directory/stable/administrativeunit"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/directory/stable/administrativeunitmember"
+	"github.com/hashicorp/go-azure-sdk/sdk/nullable"
 	"github.com/hashicorp/go-azure-sdk/sdk/odata"
 	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
-	"github.com/hashicorp/terraform-provider-azuread/internal/helpers"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
-	"github.com/manicminer/hamilton/msgraph"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/consistency"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/validation"
+	"github.com/hashicorp/terraform-provider-azuread/internal/services/administrativeunits/migrations"
 )
 func administrativeUnitResource() *pluginsdk.Resource {
 	return &pluginsdk.Resource{
@@ -34,18 +42,31 @@ func administrativeUnitResource() *pluginsdk.Resource {
 		},
 
 		Importer: pluginsdk.ImporterValidatingResourceId(func(id string) error {
-			if _, err := uuid.ParseUUID(id); err != nil {
-				return fmt.Errorf("specified ID (%q) is not valid: %s", id, err)
+			if _, errs := stable.ValidateDirectoryAdministrativeUnitID(id, "id"); len(errs) > 0 {
+				out := ""
+				for _, err := range errs {
+					out += err.Error()
+				}
+				return fmt.Errorf(out)
 			}
 			return nil
 		}),
 
+		SchemaVersion: 1,
+		StateUpgraders: []pluginsdk.StateUpgrader{
+			{
+				Type:    migrations.ResourceAdministrativeUnitInstanceResourceV0().CoreConfigSchema().ImpliedType(),
+				Upgrade: migrations.ResourceAdministrativeUnitInstanceStateUpgradeV0,
+				Version: 0,
+			},
+		},
+
 		Schema: map[string]*pluginsdk.Schema{
 			"display_name": {
-				Description:      "The display name for the administrative unit",
-				Type:             pluginsdk.TypeString,
-				Required:         true,
-				ValidateDiagFunc: validation.ValidateDiag(validation.StringIsNotEmpty),
+				Description:  "The display name for the administrative unit",
+				Type:         pluginsdk.TypeString,
+				Required:     true,
+				ValidateFunc: validation.StringIsNotEmpty,
 			},
 
 			"description": {
@@ -61,8 +82,8 @@ func administrativeUnitResource() *pluginsdk.Resource {
 				Computed:    true,
 				Set:         pluginsdk.HashString,
 				Elem: &pluginsdk.Schema{
-					Type:             pluginsdk.TypeString,
-					ValidateDiagFunc: validation.ValidateDiag(validation.IsUUID),
+					Type:         pluginsdk.TypeString,
+					ValidateFunc: validation.IsUUID,
 				},
 			},
 

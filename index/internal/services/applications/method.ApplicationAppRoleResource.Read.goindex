@@ -2,56 +2,58 @@ package github.com/hashicorp/terraform-provider-azuread/internal/services/applic
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"strings"
 	"time"
 
 	"github.com/hashicorp/go-azure-helpers/lang/pointer"
-	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/go-azure-helpers/lang/response"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/applications/stable/application"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/stable"
+	"github.com/hashicorp/go-azure-sdk/sdk/nullable"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/validation"
 	"github.com/hashicorp/terraform-provider-azuread/internal/sdk"
 	"github.com/hashicorp/terraform-provider-azuread/internal/services/applications/parse"
 	applicationsValidate "github.com/hashicorp/terraform-provider-azuread/internal/services/applications/validate"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
-	"github.com/manicminer/hamilton/msgraph"
 )
 func (r ApplicationAppRoleResource) Read() sdk.ResourceFunc {
 	return sdk.ResourceFunc{
 		Timeout: 5 * time.Minute,
 		Func: func(ctx context.Context, metadata sdk.ResourceMetaData) error {
-			client := metadata.Client.Applications.ApplicationsClient
-			client.BaseClient.DisableRetries = true
-			defer func() { client.BaseClient.DisableRetries = false }()
+			client := metadata.Client.Applications.ApplicationClient
 
 			id, err := parse.ParseAppRoleID(metadata.ResourceData.Id())
 			if err != nil {
 				return err
 			}
 
-			applicationId := parse.NewApplicationID(id.ApplicationId)
+			applicationId := stable.NewApplicationID(id.ApplicationId)
 
 			tf.LockByName(applicationResourceName, id.ApplicationId)
 			defer tf.UnlockByName(applicationResourceName, id.ApplicationId)
 
-			result, status, err := client.Get(ctx, id.ApplicationId, odata.Query{})
+			resp, err := client.GetApplication(ctx, applicationId, application.DefaultGetApplicationOperationOptions())
 			if err != nil {
-				if status == http.StatusNotFound {
+				if response.WasNotFound(resp.HttpResponse) {
 					return metadata.MarkAsGone(id)
 				}
-				return fmt.Errorf("retrieving %s: %+v", id, err)
+				return fmt.Errorf("retrieving %s: %+v", applicationId, err)
 			}
-			if result == nil {
-				return fmt.Errorf("retrieving %s: result was nil", id)
+
+			app := resp.Model
+			if app == nil {
+				return fmt.Errorf("retrieving %s: model was nil", applicationId)
 			}
-			if result.AppRoles == nil {
+
+			if app.AppRoles == nil {
 				return metadata.MarkAsGone(id)
 			}
 
 			// Identify the role by ID
-			var role *msgraph.AppRole
-			for _, existingRole := range *result.AppRoles {
-				if strings.EqualFold(*existingRole.ID, id.RoleID) {
+			var role *stable.AppRole
+			for _, existingRole := range *app.AppRoles {
+				if strings.EqualFold(*existingRole.Id, id.RoleID) {
 					role = &existingRole
 					break
 				}
@@ -65,9 +67,9 @@ func (r ApplicationAppRoleResource) Read() sdk.ResourceFunc {
 				ApplicationId:      applicationId.ID(),
 				RoleId:             id.RoleID,
 				AllowedMemberTypes: pointer.From(role.AllowedMemberTypes),
-				Description:        pointer.From(role.Description),
-				DisplayName:        pointer.From(role.DisplayName),
-				Value:              pointer.From(role.Value),
+				Description:        role.Description.GetOrZero(),
+				DisplayName:        role.DisplayName.GetOrZero(),
+				Value:              role.Value.GetOrZero(),
 			}
 
 			return metadata.Encode(&state)

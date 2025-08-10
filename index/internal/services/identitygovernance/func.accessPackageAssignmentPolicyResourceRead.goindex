@@ -1,51 +1,55 @@
 package github.com/hashicorp/terraform-provider-azuread/internal/services/identitygovernance
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
-	"net/http"
 	"time"
 
 	"github.com/hashicorp/go-azure-helpers/lang/pointer"
-	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/go-azure-helpers/lang/response"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/beta"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/identitygovernance/beta/entitlementmanagementaccesspackage"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/identitygovernance/beta/entitlementmanagementaccesspackageassignmentpolicy"
+	"github.com/hashicorp/go-azure-sdk/sdk/nullable"
 	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
-	"github.com/hashicorp/terraform-provider-azuread/internal/helpers"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
-	"github.com/manicminer/hamilton/msgraph"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/consistency"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/validation"
 )
 func accessPackageAssignmentPolicyResourceRead(ctx context.Context, d *pluginsdk.ResourceData, meta interface{}) pluginsdk.Diagnostics {
 	client := meta.(*clients.Client).IdentityGovernance.AccessPackageAssignmentPolicyClient
 
-	objectId := d.Id()
-	accessPackageAssignmentPolicy, status, err := client.Get(ctx, objectId, odata.Query{})
+	id := beta.NewIdentityGovernanceEntitlementManagementAccessPackageAssignmentPolicyID(d.Id())
+
+	resp, err := client.GetEntitlementManagementAccessPackageAssignmentPolicy(ctx, id, entitlementmanagementaccesspackageassignmentpolicy.DefaultGetEntitlementManagementAccessPackageAssignmentPolicyOperationOptions())
 	if err != nil {
-		if status == http.StatusNotFound {
-			log.Printf("[DEBUG] Access package assignment policy with Object ID %q was not found - removing from state!", objectId)
+		if response.WasNotFound(resp.HttpResponse) {
+			log.Printf("[DEBUG] %s was not found - removing from state!", id)
 			d.SetId("")
 			return nil
 		}
 
-		return tf.ErrorDiagF(err, "Retrieving access package assignment policy with object ID: %q", objectId)
+		return tf.ErrorDiagF(err, "Retrieving %s", id)
 	}
 
-	tf.Set(d, "display_name", accessPackageAssignmentPolicy.DisplayName)
-	tf.Set(d, "access_package_id", accessPackageAssignmentPolicy.AccessPackageId)
-	tf.Set(d, "description", accessPackageAssignmentPolicy.Description)
-	tf.Set(d, "extension_enabled", accessPackageAssignmentPolicy.CanExtend)
-	tf.Set(d, "duration_in_days", accessPackageAssignmentPolicy.DurationInDays)
-	if expirationDate := accessPackageAssignmentPolicy.ExpirationDateTime; expirationDate != nil && !expirationDate.IsZero() {
-		tf.Set(d, "expiration_date", expirationDate.UTC().Format(time.RFC3339))
-	} else {
-		tf.Set(d, "expiration_date", "")
+	accessPackageAssignmentPolicy := resp.Model
+	if accessPackageAssignmentPolicy == nil {
+		return tf.ErrorDiagF(errors.New("model was nil"), "Retrieving %s", id)
 	}
 
-	tf.Set(d, "requestor_settings", flattenRequestorSettings(accessPackageAssignmentPolicy.RequestorSettings))
+	tf.Set(d, "access_package_id", accessPackageAssignmentPolicy.AccessPackageId.GetOrZero())
 	tf.Set(d, "approval_settings", flattenApprovalSettings(accessPackageAssignmentPolicy.RequestApprovalSettings))
 	tf.Set(d, "assignment_review_settings", flattenAssignmentReviewSettings(accessPackageAssignmentPolicy.AccessReviewSettings))
+	tf.Set(d, "description", accessPackageAssignmentPolicy.Description.GetOrZero())
+	tf.Set(d, "display_name", accessPackageAssignmentPolicy.DisplayName.GetOrZero())
+	tf.Set(d, "duration_in_days", int(accessPackageAssignmentPolicy.DurationInDays.GetOrZero()))
+	tf.Set(d, "expiration_date", accessPackageAssignmentPolicy.ExpirationDateTime.GetOrZero())
+	tf.Set(d, "extension_enabled", accessPackageAssignmentPolicy.CanExtend.GetOrZero())
 	tf.Set(d, "question", flattenAccessPackageQuestions(accessPackageAssignmentPolicy.Questions))
+	tf.Set(d, "requestor_settings", flattenRequestorSettings(accessPackageAssignmentPolicy.RequestorSettings))
 
 	return nil
 }

@@ -2,25 +2,26 @@ package github.com/hashicorp/terraform-provider-azuread/internal/services/applic
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"strings"
 	"time"
 
 	"github.com/hashicorp/go-azure-helpers/lang/pointer"
-	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/go-azure-helpers/lang/response"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/applications/stable/application"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/stable"
+	"github.com/hashicorp/go-azure-sdk/sdk/nullable"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/validation"
 	"github.com/hashicorp/terraform-provider-azuread/internal/sdk"
 	"github.com/hashicorp/terraform-provider-azuread/internal/services/applications/parse"
 	applicationsValidate "github.com/hashicorp/terraform-provider-azuread/internal/services/applications/validate"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
-	"github.com/manicminer/hamilton/msgraph"
 )
 func (r ApplicationAppRoleResource) Update() sdk.ResourceFunc {
 	return sdk.ResourceFunc{
 		Timeout: 10 * time.Minute,
 		Func: func(ctx context.Context, metadata sdk.ResourceMetaData) error {
-			client := metadata.Client.Applications.ApplicationsClient
+			client := metadata.Client.Applications.ApplicationClient
 
 			id, err := parse.ParseAppRoleID(metadata.ResourceData.Id())
 			if err != nil {
@@ -33,32 +34,35 @@ func (r ApplicationAppRoleResource) Update() sdk.ResourceFunc {
 			}
 
 			// Prepare a new role to replace the existing one
-			role := msgraph.AppRole{
-				ID:                 &id.RoleID,
+			role := stable.AppRole{
+				Id:                 &id.RoleID,
 				IsEnabled:          pointer.To(true),
 				AllowedMemberTypes: &model.AllowedMemberTypes,
-				Description:        &model.Description,
-				DisplayName:        &model.DisplayName,
-				Value:              &model.Value,
+				Description:        nullable.Value(model.Description),
+				DisplayName:        nullable.Value(model.DisplayName),
+				Value:              nullable.Value(model.Value),
 			}
+
+			applicationId := stable.NewApplicationID(id.ApplicationId)
 
 			tf.LockByName(applicationResourceName, id.ApplicationId)
 			defer tf.UnlockByName(applicationResourceName, id.ApplicationId)
 
-			applicationId := parse.NewApplicationID(id.ApplicationId)
-			result, _, err := client.Get(ctx, applicationId.ApplicationId, odata.Query{})
+			resp, err := client.GetApplication(ctx, applicationId, application.DefaultGetApplicationOperationOptions())
 			if err != nil {
 				return fmt.Errorf("retrieving %s: %+v", applicationId, err)
 			}
-			if result == nil || result.AppRoles == nil {
+
+			app := resp.Model
+			if app == nil || app.AppRoles == nil {
 				return fmt.Errorf("retrieving %s: appRoles was nil", applicationId)
 			}
 
 			// Look for a role to replace, matching by ID
-			newRoles := make([]msgraph.AppRole, 0)
+			newRoles := make([]stable.AppRole, 0)
 			found := false
-			for _, existingRole := range *result.AppRoles {
-				if strings.EqualFold(*existingRole.ID, id.RoleID) {
+			for _, existingRole := range *app.AppRoles {
+				if strings.EqualFold(*existingRole.Id, id.RoleID) {
 					newRoles = append(newRoles, role)
 					found = true
 				} else {
@@ -70,20 +74,17 @@ func (r ApplicationAppRoleResource) Update() sdk.ResourceFunc {
 			}
 
 			// Disable the existing role prior to update
-			if err = applicationDisableAppRoles(ctx, client, result, &newRoles); err != nil {
+			if err = applicationDisableAppRoles(ctx, client, applicationId, &newRoles); err != nil {
 				return fmt.Errorf("disabling %s in preparation for update: %+v", id, err)
 			}
 
-			properties := msgraph.Application{
-				DirectoryObject: msgraph.DirectoryObject{
-					Id: &applicationId.ApplicationId,
-				},
+			properties := stable.Application{
+				Id:       &applicationId.ApplicationId,
 				AppRoles: &newRoles,
 			}
 
 			// Patch the application with the new set of roles
-			_, err = client.Update(ctx, properties)
-			if err != nil {
+			if _, err = client.UpdateApplication(ctx, applicationId, properties, application.DefaultUpdateApplicationOperationOptions()); err != nil {
 				return fmt.Errorf("updating %s: %+v", id, err)
 			}
 

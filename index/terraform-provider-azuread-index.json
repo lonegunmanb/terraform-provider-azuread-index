@@ -1,5 +1,5 @@
 {
-  "version": "v2.53.1",
+  "version": "v3.0.0",
   "services": [
     {
       "service_name": "administrativeunits",
@@ -295,7 +295,6 @@
       "resource_crud_methods": {
         "azuread_group": {
           "create_method": "groupResourceCreate",
-          "read_method": "groupResourceRead",
           "update_method": "groupResourceUpdate",
           "delete_method": "groupResourceDelete"
         },

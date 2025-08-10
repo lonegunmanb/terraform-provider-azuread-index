@@ -5,24 +5,36 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"reflect"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-helpers/lang/response"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/beta"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/stable"
+	administrativeunitmemberBeta "github.com/hashicorp/go-azure-sdk/microsoft-graph/directory/beta/administrativeunitmember"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/directoryobjects/stable/directoryobject"
+	groupBeta "github.com/hashicorp/go-azure-sdk/microsoft-graph/groups/beta/group"
+	memberBeta "github.com/hashicorp/go-azure-sdk/microsoft-graph/groups/beta/member"
+	memberofBeta "github.com/hashicorp/go-azure-sdk/microsoft-graph/groups/beta/memberof"
+	ownerBeta "github.com/hashicorp/go-azure-sdk/microsoft-graph/groups/beta/owner"
+	"github.com/hashicorp/go-azure-sdk/sdk/nullable"
 	"github.com/hashicorp/go-azure-sdk/sdk/odata"
 	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
-	"github.com/hashicorp/terraform-provider-azuread/internal/helpers"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
-	"github.com/manicminer/hamilton/msgraph"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/consistency"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/validation"
+	"github.com/hashicorp/terraform-provider-azuread/internal/services/groups/migrations"
 )
 func groupResource() *pluginsdk.Resource {
 	return &pluginsdk.Resource{
 		CreateContext: groupResourceCreate,
-		ReadContext:   groupResourceRead,
+		ReadContext:   groupResourceReadFunc(false),
 		UpdateContext: groupResourceUpdate,
 		DeleteContext: groupResourceDelete,
 
@@ -36,18 +48,31 @@ func groupResource() *pluginsdk.Resource {
 		},
 
 		Importer: pluginsdk.ImporterValidatingResourceId(func(id string) error {
-			if _, err := uuid.ParseUUID(id); err != nil {
-				return fmt.Errorf("specified ID (%q) is not valid: %s", id, err)
+			if _, errs := beta.ValidateGroupID(id, "id"); len(errs) > 0 {
+				out := ""
+				for _, err := range errs {
+					out += err.Error()
+				}
+				return fmt.Errorf(out)
 			}
 			return nil
 		}),
 
+		SchemaVersion: 1,
+		StateUpgraders: []pluginsdk.StateUpgrader{
+			{
+				Type:    migrations.ResourceGroupInstanceResourceV0().CoreConfigSchema().ImpliedType(),
+				Upgrade: migrations.ResourceGroupInstanceStateUpgradeV0,
+				Version: 0,
+			},
+		},
+
 		Schema: map[string]*pluginsdk.Schema{
 			"display_name": {
-				Description:      "The display name for the group",
-				Type:             pluginsdk.TypeString,
-				Required:         true,
-				ValidateDiagFunc: validation.ValidateDiag(validation.StringIsNotEmpty),
+				Description:  "The display name for the group",
+				Type:         pluginsdk.TypeString,
+				Required:     true,
+				ValidateFunc: validation.StringIsNotEmpty,
 			},
 
 			"administrative_unit_ids": {
@@ -80,17 +105,8 @@ func groupResource() *pluginsdk.Resource {
 				Optional:    true,
 				ForceNew:    true,
 				Elem: &pluginsdk.Schema{
-					Type: pluginsdk.TypeString,
-					ValidateFunc: validation.StringInSlice([]string{
-						msgraph.GroupResourceBehaviorOptionAllowOnlyMembersToPost,
-						msgraph.GroupResourceBehaviorOptionCalendarMemberReadOnly,
-						msgraph.GroupResourceBehaviorOptionConnectorsDisabled,
-						msgraph.GroupResourceBehaviorOptionHideGroupInOutlook,
-						msgraph.GroupResourceBehaviorOptionSkipExchangeInstantOn,
-						msgraph.GroupResourceBehaviorOptionSubscribeMembersToCalendarEventsDisabled,
-						msgraph.GroupResourceBehaviorOptionSubscribeNewGroupMembers,
-						msgraph.GroupResourceBehaviorOptionWelcomeEmailDisabled,
-					}, false),
+					Type:         pluginsdk.TypeString,
+					ValidateFunc: validation.StringInSlice(possibleValuesForGroupResourceBehaviorOptions, false),
 				},
 			},
 
@@ -114,10 +130,10 @@ func groupResource() *pluginsdk.Resource {
 						},
 
 						"rule": {
-							Description:      "Rule to determine members for a dynamic group. Required when `group_types` contains 'DynamicMembership'",
-							Type:             pluginsdk.TypeString,
-							Required:         true,
-							ValidateDiagFunc: validation.ValidateDiag(validation.StringLenBetween(0, 3072)),
+							Description:  "Rule to determine members for a dynamic group. Required when `group_types` contains 'DynamicMembership'",
+							Type:         pluginsdk.TypeString,
+							Required:     true,
+							ValidateFunc: validation.StringLenBetween(0, 3072),
 						},
 					},
 				},
@@ -168,21 +184,17 @@ func groupResource() *pluginsdk.Resource {
 				ConflictsWith: []string{"dynamic_membership"},
 				Set:           pluginsdk.HashString,
 				Elem: &pluginsdk.Schema{
-					Type:             pluginsdk.TypeString,
-					ValidateDiagFunc: validation.ValidateDiag(validation.IsUUID),
+					Type:         pluginsdk.TypeString,
+					ValidateFunc: validation.IsUUID,
 				},
 			},
 
 			"onpremises_group_type": {
-				Description: "Indicates the target on-premise group type the group will be written back as",
-				Type:        pluginsdk.TypeString,
-				Optional:    true,
-				Computed:    true,
-				ValidateFunc: validation.StringInSlice([]string{
-					msgraph.UniversalDistributionGroup,
-					msgraph.UniversalSecurityGroup,
-					msgraph.UniversalMailEnabledSecurityGroup,
-				}, false),
+				Description:  "Indicates the target on-premise group type the group will be written back as",
+				Type:         pluginsdk.TypeString,
+				Optional:     true,
+				Computed:     true,
+				ValidateFunc: validation.StringInSlice(possibleValuesForOnPremisesGroupType, false),
 			},
 
 			"owners": {
@@ -194,8 +206,8 @@ func groupResource() *pluginsdk.Resource {
 				MaxItems:    100,
 				Set:         pluginsdk.HashString,
 				Elem: &pluginsdk.Schema{
-					Type:             pluginsdk.TypeString,
-					ValidateDiagFunc: validation.ValidateDiag(validation.IsUUID),
+					Type:         pluginsdk.TypeString,
+					ValidateFunc: validation.IsUUID,
 				},
 			},
 
@@ -212,10 +224,8 @@ func groupResource() *pluginsdk.Resource {
 				Optional:    true,
 				ForceNew:    true,
 				Elem: &pluginsdk.Schema{
-					Type: pluginsdk.TypeString,
-					ValidateFunc: validation.StringInSlice([]string{
-						msgraph.GroupResourceProvisioningOptionTeam,
-					}, false),
+					Type:         pluginsdk.TypeString,
+					ValidateFunc: validation.StringInSlice(possibleValuesForGroupResourceProvisioningOptions, false),
 				},
 			},
 
@@ -227,19 +237,10 @@ func groupResource() *pluginsdk.Resource {
 			},
 
 			"theme": {
-				Description: "The colour theme for a Microsoft 365 group",
-				Type:        pluginsdk.TypeString,
-				Optional:    true,
-				ValidateFunc: validation.StringInSlice([]string{
-					string(msgraph.GroupThemeNone),
-					string(msgraph.GroupThemeBlue),
-					string(msgraph.GroupThemeGreen),
-					string(msgraph.GroupThemeOrange),
-					string(msgraph.GroupThemePink),
-					string(msgraph.GroupThemePurple),
-					string(msgraph.GroupThemeRed),
-					string(msgraph.GroupThemeTeal),
-				}, false),
+				Description:  "The colour theme for a Microsoft 365 group",
+				Type:         pluginsdk.TypeString,
+				Optional:     true,
+				ValidateFunc: validation.StringInSlice(possibleValuesForGroupTheme, false),
 			},
 
 			"types": {
@@ -248,24 +249,17 @@ func groupResource() *pluginsdk.Resource {
 				Optional:    true,
 				ForceNew:    true,
 				Elem: &pluginsdk.Schema{
-					Type: pluginsdk.TypeString,
-					ValidateFunc: validation.StringInSlice([]string{
-						"DynamicMembership",
-						msgraph.GroupTypeUnified,
-					}, false),
+					Type:         pluginsdk.TypeString,
+					ValidateFunc: validation.StringInSlice(possibleValuesForGroupType, false),
 				},
 			},
 
 			"visibility": {
-				Description: "Specifies the group join policy and group content visibility",
-				Type:        pluginsdk.TypeString,
-				Optional:    true,
-				Computed:    true,
-				ValidateFunc: validation.StringInSlice([]string{
-					msgraph.GroupVisibilityHiddenMembership,
-					msgraph.GroupVisibilityPrivate,
-					msgraph.GroupVisibilityPublic,
-				}, false),
+				Description:  "Specifies the group join policy and group content visibility",
+				Type:         pluginsdk.TypeString,
+				Optional:     true,
+				Computed:     true,
+				ValidateFunc: validation.StringInSlice(possibleValuesForGroupVisibility, false),
 			},
 
 			"writeback_enabled": {

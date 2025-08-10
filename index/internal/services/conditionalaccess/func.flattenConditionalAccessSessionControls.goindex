@@ -1,27 +1,30 @@
 package github.com/hashicorp/terraform-provider-azuread/internal/services/conditionalaccess
 import (
+	"strings"
+
 	"github.com/hashicorp/go-azure-helpers/lang/pointer"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
-	"github.com/manicminer/hamilton/msgraph"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/stable"
+	"github.com/hashicorp/go-azure-sdk/sdk/nullable"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf"
 )
-func flattenConditionalAccessSessionControls(in *msgraph.ConditionalAccessSessionControls) []interface{} {
+func flattenConditionalAccessSessionControls(in *stable.ConditionalAccessSessionControls) []interface{} {
 	if in == nil {
 		return []interface{}{}
 	}
 
 	applicationEnforceRestrictions := false
 	if in.ApplicationEnforcedRestrictions != nil {
-		applicationEnforceRestrictions = pointer.From(in.ApplicationEnforcedRestrictions.IsEnabled)
+		applicationEnforceRestrictions = in.ApplicationEnforcedRestrictions.IsEnabled.GetOrZero()
 	}
 
 	cloudAppSecurity := ""
 	if in.CloudAppSecurity != nil {
-		cloudAppSecurity = pointer.From(in.CloudAppSecurity.CloudAppSecurityType)
+		cloudAppSecurity = string(pointer.From(in.CloudAppSecurity.CloudAppSecurityType))
 	}
 
 	disableResilienceDefaults := false
 	if in.DisableResilienceDefaults != nil {
-		disableResilienceDefaults = *in.DisableResilienceDefaults
+		disableResilienceDefaults = in.DisableResilienceDefaults.GetOrZero()
 	}
 
 	signInFrequency := 0
@@ -29,18 +32,18 @@ func flattenConditionalAccessSessionControls(in *msgraph.ConditionalAccessSessio
 	signInFrequencyInterval := ""
 	signInFrequencyPeriod := ""
 	if in.SignInFrequency != nil {
-		if in.SignInFrequency.Value != nil && in.SignInFrequency.Type != nil {
-			signInFrequency = int(*in.SignInFrequency.Value)
-			signInFrequencyPeriod = *in.SignInFrequency.Type
+		if !in.SignInFrequency.Value.IsNull() && in.SignInFrequency.Type != nil {
+			signInFrequency = int(in.SignInFrequency.Value.GetOrZero())
+			signInFrequencyPeriod = string(*in.SignInFrequency.Type)
 		}
 
-		signInFrequencyAuthenticationType = pointer.From(in.SignInFrequency.AuthenticationType)
-		signInFrequencyInterval = pointer.From(in.SignInFrequency.FrequencyInterval)
+		signInFrequencyAuthenticationType = string(pointer.From(in.SignInFrequency.AuthenticationType))
+		signInFrequencyInterval = string(pointer.From(in.SignInFrequency.FrequencyInterval))
 	}
 
 	persistentBrowserMode := ""
 	if in.PersistentBrowser != nil {
-		persistentBrowserMode = pointer.From(in.PersistentBrowser.Mode)
+		persistentBrowserMode = string(pointer.From(in.PersistentBrowser.Mode))
 	}
 
 	return []interface{}{

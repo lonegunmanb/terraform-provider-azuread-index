@@ -2,30 +2,30 @@ package github.com/hashicorp/terraform-provider-azuread/internal/services/applic
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"time"
 
 	"github.com/hashicorp/go-azure-helpers/lang/pointer"
-	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/go-azure-helpers/lang/response"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/applications/stable/application"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/stable"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/validation"
 	"github.com/hashicorp/terraform-provider-azuread/internal/sdk"
 	"github.com/hashicorp/terraform-provider-azuread/internal/services/applications/parse"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
-	"github.com/manicminer/hamilton/msgraph"
 )
-func (r ApplicationRedirectUrisResource) setRedirectUrisByType(application *msgraph.Application, model ApplicationRedirectUrisModel) {
+func (r ApplicationRedirectUrisResource) setRedirectUrisByType(application *stable.Application, model ApplicationRedirectUrisModel) {
 	switch model.UriType {
 	case RedirectUriTypePublicClient:
-		application.PublicClient = &msgraph.PublicClient{
+		application.PublicClient = &stable.PublicClientApplication{
 			RedirectUris: pointer.To(model.RedirectUris),
 		}
 	case RedirectUriTypeSPA:
-		application.Spa = &msgraph.ApplicationSpa{
+		application.Spa = &stable.SpaApplication{
 			RedirectUris: pointer.To(model.RedirectUris),
 		}
 	case RedirectUriTypeWeb:
-		application.Web = &msgraph.ApplicationWeb{
+		application.Web = &stable.WebApplication{
 			RedirectUris: pointer.To(model.RedirectUris),
 		}
 	}

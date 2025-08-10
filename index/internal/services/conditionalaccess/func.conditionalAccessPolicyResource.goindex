@@ -4,18 +4,18 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"net/http"
 	"time"
 
 	"github.com/hashicorp/go-azure-helpers/lang/pointer"
-	"github.com/hashicorp/go-azure-sdk/sdk/odata"
-	"github.com/hashicorp/go-uuid"
+	"github.com/hashicorp/go-azure-helpers/lang/response"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/stable"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/identity/stable/conditionalaccesspolicy"
 	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
-	"github.com/hashicorp/terraform-provider-azuread/internal/helpers"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
-	"github.com/manicminer/hamilton/msgraph"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/consistency"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/validation"
+	"github.com/hashicorp/terraform-provider-azuread/internal/services/conditionalaccess/migrations"
 )
 func conditionalAccessPolicyResource() *pluginsdk.Resource {
 	return &pluginsdk.Resource{
@@ -34,27 +34,36 @@ func conditionalAccessPolicyResource() *pluginsdk.Resource {
 		},
 
 		Importer: pluginsdk.ImporterValidatingResourceId(func(id string) error {
-			if _, err := uuid.ParseUUID(id); err != nil {
-				return fmt.Errorf("specified ID (%q) is not valid: %s", id, err)
+			if _, errs := stable.ValidateIdentityConditionalAccessPolicyID(id, "id"); len(errs) > 0 {
+				out := ""
+				for _, err := range errs {
+					out += err.Error()
+				}
+				return fmt.Errorf(out)
 			}
 			return nil
 		}),
 
+		SchemaVersion: 1,
+		StateUpgraders: []pluginsdk.StateUpgrader{
+			{
+				Type:    migrations.ResourceConditionalAccessPolicyInstanceResourceV0().CoreConfigSchema().ImpliedType(),
+				Upgrade: migrations.ResourceConditionalAccessPolicyInstanceStateUpgradeV0,
+				Version: 0,
+			},
+		},
+
 		Schema: map[string]*pluginsdk.Schema{
 			"display_name": {
-				Type:             pluginsdk.TypeString,
-				Required:         true,
-				ValidateDiagFunc: validation.ValidateDiag(validation.StringIsNotEmpty),
+				Type:         pluginsdk.TypeString,
+				Required:     true,
+				ValidateFunc: validation.StringIsNotEmpty,
 			},
 
 			"state": {
-				Type:     pluginsdk.TypeString,
-				Required: true,
-				ValidateFunc: validation.StringInSlice([]string{
-					msgraph.ConditionalAccessPolicyStateDisabled,
-					msgraph.ConditionalAccessPolicyStateEnabled,
-					msgraph.ConditionalAccessPolicyStateEnabledForReportingButNotEnforced,
-				}, false),
+				Type:         pluginsdk.TypeString,
+				Required:     true,
+				ValidateFunc: validation.StringInSlice(stable.PossibleValuesForConditionalAccessPolicyState(), false),
 			},
 
 			"conditions": {
@@ -74,8 +83,8 @@ func conditionalAccessPolicyResource() *pluginsdk.Resource {
 										Optional:     true,
 										ExactlyOneOf: []string{"conditions.0.applications.0.included_applications", "conditions.0.applications.0.included_user_actions"},
 										Elem: &pluginsdk.Schema{
-											Type:             pluginsdk.TypeString,
-											ValidateDiagFunc: validation.ValidateDiag(validation.StringIsNotEmpty),
+											Type:         pluginsdk.TypeString,
+											ValidateFunc: validation.StringIsNotEmpty,
 										},
 									},
 
@@ -83,8 +92,8 @@ func conditionalAccessPolicyResource() *pluginsdk.Resource {
 										Type:     pluginsdk.TypeList,
 										Optional: true,
 										Elem: &pluginsdk.Schema{
-											Type:             pluginsdk.TypeString,
-											ValidateDiagFunc: validation.ValidateDiag(validation.StringIsNotEmpty),
+											Type:         pluginsdk.TypeString,
+											ValidateFunc: validation.StringIsNotEmpty,
 										},
 									},
 
@@ -93,8 +102,8 @@ func conditionalAccessPolicyResource() *pluginsdk.Resource {
 										Optional:     true,
 										ExactlyOneOf: []string{"conditions.0.applications.0.included_applications", "conditions.0.applications.0.included_user_actions"},
 										Elem: &pluginsdk.Schema{
-											Type:             pluginsdk.TypeString,
-											ValidateDiagFunc: validation.ValidateDiag(validation.StringIsNotEmpty),
+											Type:         pluginsdk.TypeString,
+											ValidateFunc: validation.StringIsNotEmpty,
 										},
 									},
 								},
@@ -111,8 +120,8 @@ func conditionalAccessPolicyResource() *pluginsdk.Resource {
 										Type:     pluginsdk.TypeList,
 										Optional: true,
 										Elem: &pluginsdk.Schema{
-											Type:             pluginsdk.TypeString,
-											ValidateDiagFunc: validation.ValidateDiag(validation.StringIsNotEmpty),
+											Type:         pluginsdk.TypeString,
+											ValidateFunc: validation.StringIsNotEmpty,
 										},
 									},
 
@@ -120,8 +129,8 @@ func conditionalAccessPolicyResource() *pluginsdk.Resource {
 										Type:     pluginsdk.TypeList,
 										Optional: true,
 										Elem: &pluginsdk.Schema{
-											Type:             pluginsdk.TypeString,
-											ValidateDiagFunc: validation.ValidateDiag(validation.StringIsNotEmpty),
+											Type:         pluginsdk.TypeString,
+											ValidateFunc: validation.StringIsNotEmpty,
 										},
 									},
 								},
@@ -139,8 +148,8 @@ func conditionalAccessPolicyResource() *pluginsdk.Resource {
 										Optional:     true,
 										AtLeastOneOf: []string{"conditions.0.users.0.included_groups", "conditions.0.users.0.included_roles", "conditions.0.users.0.included_users", "conditions.0.users.0.included_guests_or_external_users"},
 										Elem: &pluginsdk.Schema{
-											Type:             pluginsdk.TypeString,
-											ValidateDiagFunc: validation.ValidateDiag(validation.StringIsNotEmpty),
+											Type:         pluginsdk.TypeString,
+											ValidateFunc: validation.StringIsNotEmpty,
 										},
 									},
 
@@ -148,8 +157,8 @@ func conditionalAccessPolicyResource() *pluginsdk.Resource {
 										Type:     pluginsdk.TypeList,
 										Optional: true,
 										Elem: &pluginsdk.Schema{
-											Type:             pluginsdk.TypeString,
-											ValidateDiagFunc: validation.ValidateDiag(validation.StringIsNotEmpty),
+											Type:         pluginsdk.TypeString,
+											ValidateFunc: validation.StringIsNotEmpty,
 										},
 									},
 
@@ -158,8 +167,8 @@ func conditionalAccessPolicyResource() *pluginsdk.Resource {
 										Optional:     true,
 										AtLeastOneOf: []string{"conditions.0.users.0.included_groups", "conditions.0.users.0.included_roles", "conditions.0.users.0.included_users", "conditions.0.users.0.included_guests_or_external_users"},
 										Elem: &pluginsdk.Schema{
-											Type:             pluginsdk.TypeString,
-											ValidateDiagFunc: validation.ValidateDiag(validation.StringIsNotEmpty),
+											Type:         pluginsdk.TypeString,
+											ValidateFunc: validation.StringIsNotEmpty,
 										},
 									},
 
@@ -167,8 +176,8 @@ func conditionalAccessPolicyResource() *pluginsdk.Resource {
 										Type:     pluginsdk.TypeList,
 										Optional: true,
 										Elem: &pluginsdk.Schema{
-											Type:             pluginsdk.TypeString,
-											ValidateDiagFunc: validation.ValidateDiag(validation.StringIsNotEmpty),
+											Type:         pluginsdk.TypeString,
+											ValidateFunc: validation.StringIsNotEmpty,
 										},
 									},
 
@@ -177,8 +186,8 @@ func conditionalAccessPolicyResource() *pluginsdk.Resource {
 										Optional:     true,
 										AtLeastOneOf: []string{"conditions.0.users.0.included_groups", "conditions.0.users.0.included_roles", "conditions.0.users.0.included_users", "conditions.0.users.0.included_guests_or_external_users"},
 										Elem: &pluginsdk.Schema{
-											Type:             pluginsdk.TypeString,
-											ValidateDiagFunc: validation.ValidateDiag(validation.StringIsNotEmpty),
+											Type:         pluginsdk.TypeString,
+											ValidateFunc: validation.StringIsNotEmpty,
 										},
 									},
 
@@ -186,8 +195,8 @@ func conditionalAccessPolicyResource() *pluginsdk.Resource {
 										Type:     pluginsdk.TypeList,
 										Optional: true,
 										Elem: &pluginsdk.Schema{
-											Type:             pluginsdk.TypeString,
-											ValidateDiagFunc: validation.ValidateDiag(validation.StringIsNotEmpty),
+											Type:         pluginsdk.TypeString,
+											ValidateFunc: validation.StringIsNotEmpty,
 										},
 									},
 
@@ -201,39 +210,28 @@ func conditionalAccessPolicyResource() *pluginsdk.Resource {
 													Type:     pluginsdk.TypeList,
 													Required: true,
 													Elem: &pluginsdk.Schema{
-														Type: pluginsdk.TypeString,
-														ValidateFunc: validation.StringInSlice([]string{
-															msgraph.ConditionalAccessGuestOrExternalUserTypeNone,
-															msgraph.ConditionalAccessGuestOrExternalUserTypeInternalGuest,
-															msgraph.ConditionalAccessGuestOrExternalUserTypeB2bCollaborationGuest,
-															msgraph.ConditionalAccessGuestOrExternalUserTypeB2bCollaborationMember,
-															msgraph.ConditionalAccessGuestOrExternalUserTypeB2bDirectConnectUser,
-															msgraph.ConditionalAccessGuestOrExternalUserTypeOtherExternalUser,
-															msgraph.ConditionalAccessGuestOrExternalUserTypeServiceProvider,
-															msgraph.ConditionalAccessGuestOrExternalUserTypeUnknownFutureValue,
-														}, false),
+														Type:         pluginsdk.TypeString,
+														ValidateFunc: validation.StringInSlice(stable.PossibleValuesForConditionalAccessGuestOrExternalUserTypes(), false),
 													},
 												},
+
 												"external_tenants": {
 													Type:     pluginsdk.TypeList,
 													Optional: true,
 													Elem: &pluginsdk.Resource{
 														Schema: map[string]*pluginsdk.Schema{
 															"membership_kind": {
-																Type:     pluginsdk.TypeString,
-																Required: true,
-																ValidateFunc: validation.StringInSlice([]string{
-																	msgraph.ConditionalAccessExternalTenantsMembershipKindAll,
-																	msgraph.ConditionalAccessExternalTenantsMembershipKindEnumerated,
-																	msgraph.ConditionalAccessExternalTenantsMembershipKindUnknownFutureValue,
-																}, false),
+																Type:         pluginsdk.TypeString,
+																Required:     true,
+																ValidateFunc: validation.StringInSlice(stable.PossibleValuesForConditionalAccessExternalTenantsMembershipKind(), false),
 															},
+
 															"members": {
 																Type:     pluginsdk.TypeList,
 																Optional: true,
 																Elem: &pluginsdk.Schema{
-																	Type:             pluginsdk.TypeString,
-																	ValidateDiagFunc: validation.ValidateDiag(validation.StringIsNotEmpty),
+																	Type:         pluginsdk.TypeString,
+																	ValidateFunc: validation.StringIsNotEmpty,
 																},
 															},
 														},
@@ -252,39 +250,28 @@ func conditionalAccessPolicyResource() *pluginsdk.Resource {
 													Type:     pluginsdk.TypeList,
 													Required: true,
 													Elem: &pluginsdk.Schema{
-														Type: pluginsdk.TypeString,
-														ValidateFunc: validation.StringInSlice([]string{
-															msgraph.ConditionalAccessGuestOrExternalUserTypeNone,
-															msgraph.ConditionalAccessGuestOrExternalUserTypeInternalGuest,
-															msgraph.ConditionalAccessGuestOrExternalUserTypeB2bCollaborationGuest,
-															msgraph.ConditionalAccessGuestOrExternalUserTypeB2bCollaborationMember,
-															msgraph.ConditionalAccessGuestOrExternalUserTypeB2bDirectConnectUser,
-															msgraph.ConditionalAccessGuestOrExternalUserTypeOtherExternalUser,
-															msgraph.ConditionalAccessGuestOrExternalUserTypeServiceProvider,
-															msgraph.ConditionalAccessGuestOrExternalUserTypeUnknownFutureValue,
-														}, false),
+														Type:         pluginsdk.TypeString,
+														ValidateFunc: validation.StringInSlice(stable.PossibleValuesForConditionalAccessGuestOrExternalUserTypes(), false),
 													},
 												},
+
 												"external_tenants": {
 													Type:     pluginsdk.TypeList,
 													Optional: true,
 													Elem: &pluginsdk.Resource{
 														Schema: map[string]*pluginsdk.Schema{
 															"membership_kind": {
-																Type:     pluginsdk.TypeString,
-																Required: true,
-																ValidateFunc: validation.StringInSlice([]string{
-																	msgraph.ConditionalAccessExternalTenantsMembershipKindAll,
-																	msgraph.ConditionalAccessExternalTenantsMembershipKindEnumerated,
-																	msgraph.ConditionalAccessExternalTenantsMembershipKindUnknownFutureValue,
-																}, false),
+																Type:         pluginsdk.TypeString,
+																Required:     true,
+																ValidateFunc: validation.StringInSlice(stable.PossibleValuesForConditionalAccessExternalTenantsMembershipKind(), false),
 															},
+
 															"members": {
 																Type:     pluginsdk.TypeList,
 																Optional: true,
 																Elem: &pluginsdk.Schema{
-																	Type:             pluginsdk.TypeString,
-																	ValidateDiagFunc: validation.ValidateDiag(validation.StringIsNotEmpty),
+																	Type:         pluginsdk.TypeString,
+																	ValidateFunc: validation.StringIsNotEmpty,
 																},
 															},
 														},
@@ -301,15 +288,8 @@ func conditionalAccessPolicyResource() *pluginsdk.Resource {
 							Type:     pluginsdk.TypeList,
 							Required: true,
 							Elem: &pluginsdk.Schema{
-								Type: pluginsdk.TypeString,
-								ValidateFunc: validation.StringInSlice([]string{
-									msgraph.ConditionalAccessClientAppTypeAll,
-									msgraph.ConditionalAccessClientAppTypeBrowser,
-									msgraph.ConditionalAccessClientAppTypeEasSupported,
-									msgraph.ConditionalAccessClientAppTypeExchangeActiveSync,
-									msgraph.ConditionalAccessClientAppTypeMobileAppsAndDesktopClients,
-									msgraph.ConditionalAccessClientAppTypeOther,
-								}, false),
+								Type:         pluginsdk.TypeString,
+								ValidateFunc: validation.StringInSlice(stable.PossibleValuesForConditionalAccessClientApp(), false),
 							},
 						},
 
@@ -326,18 +306,15 @@ func conditionalAccessPolicyResource() *pluginsdk.Resource {
 										Elem: &pluginsdk.Resource{
 											Schema: map[string]*pluginsdk.Schema{
 												"mode": {
-													Type:     pluginsdk.TypeString,
-													Required: true,
-													ValidateFunc: validation.StringInSlice([]string{
-														msgraph.ConditionalAccessFilterModeExclude,
-														msgraph.ConditionalAccessFilterModeInclude,
-													}, false),
+													Type:         pluginsdk.TypeString,
+													Required:     true,
+													ValidateFunc: validation.StringInSlice(stable.PossibleValuesForFilterMode(), false),
 												},
 
 												"rule": {
-													Type:             pluginsdk.TypeString,
-													Required:         true,
-													ValidateDiagFunc: validation.ValidateDiag(validation.StringIsNotEmpty),
+													Type:         pluginsdk.TypeString,
+													Required:     true,
+													ValidateFunc: validation.StringIsNotEmpty,
 												},
 											},
 										},
@@ -356,8 +333,8 @@ func conditionalAccessPolicyResource() *pluginsdk.Resource {
 										Type:     pluginsdk.TypeList,
 										Required: true,
 										Elem: &pluginsdk.Schema{
-											Type:             pluginsdk.TypeString,
-											ValidateDiagFunc: validation.ValidateDiag(validation.StringIsNotEmpty),
+											Type:         pluginsdk.TypeString,
+											ValidateFunc: validation.StringIsNotEmpty,
 										},
 									},
 
@@ -365,8 +342,8 @@ func conditionalAccessPolicyResource() *pluginsdk.Resource {
 										Type:     pluginsdk.TypeList,
 										Optional: true,
 										Elem: &pluginsdk.Schema{
-											Type:             pluginsdk.TypeString,
-											ValidateDiagFunc: validation.ValidateDiag(validation.StringIsNotEmpty),
+											Type:         pluginsdk.TypeString,
+											ValidateFunc: validation.StringIsNotEmpty,
 										},
 									},
 								},
@@ -383,17 +360,8 @@ func conditionalAccessPolicyResource() *pluginsdk.Resource {
 										Type:     pluginsdk.TypeList,
 										Required: true,
 										Elem: &pluginsdk.Schema{
-											Type: pluginsdk.TypeString,
-											ValidateFunc: validation.StringInSlice([]string{
-												msgraph.ConditionalAccessDevicePlatformAll,
-												msgraph.ConditionalAccessDevicePlatformAndroid,
-												msgraph.ConditionalAccessDevicePlatformIos,
-												msgraph.ConditionalAccessDevicePlatformLinux,
-												msgraph.ConditionalAccessDevicePlatformMacOs,
-												msgraph.ConditionalAccessDevicePlatformUnknownFutureValue,
-												msgraph.ConditionalAccessDevicePlatformWindows,
-												msgraph.ConditionalAccessDevicePlatformWindowsPhone,
-											}, false),
+											Type:         pluginsdk.TypeString,
+											ValidateFunc: validation.StringInSlice(stable.PossibleValuesForConditionalAccessDevicePlatform(), false),
 										},
 									},
 
@@ -401,17 +369,8 @@ func conditionalAccessPolicyResource() *pluginsdk.Resource {
 										Type:     pluginsdk.TypeList,
 										Optional: true,
 										Elem: &pluginsdk.Schema{
-											Type: pluginsdk.TypeString,
-											ValidateFunc: validation.StringInSlice([]string{
-												msgraph.ConditionalAccessDevicePlatformAll,
-												msgraph.ConditionalAccessDevicePlatformAndroid,
-												msgraph.ConditionalAccessDevicePlatformIos,
-												msgraph.ConditionalAccessDevicePlatformLinux,
-												msgraph.ConditionalAccessDevicePlatformMacOs,
-												msgraph.ConditionalAccessDevicePlatformUnknownFutureValue,
-												msgraph.ConditionalAccessDevicePlatformWindows,
-												msgraph.ConditionalAccessDevicePlatformWindowsPhone,
-											}, false),
+											Type:         pluginsdk.TypeString,
+											ValidateFunc: validation.StringInSlice(stable.PossibleValuesForConditionalAccessDevicePlatform(), false),
 										},
 									},
 								},
@@ -422,14 +381,8 @@ func conditionalAccessPolicyResource() *pluginsdk.Resource {
 							Type:     pluginsdk.TypeList,
 							Optional: true,
 							Elem: &pluginsdk.Schema{
-								Type: pluginsdk.TypeString,
-								ValidateFunc: validation.StringInSlice([]string{
-									msgraph.ConditionalAccessRiskLevelHigh,
-									msgraph.ConditionalAccessRiskLevelLow,
-									msgraph.ConditionalAccessRiskLevelMedium,
-									msgraph.ConditionalAccessRiskLevelNone,
-									msgraph.ConditionalAccessRiskLevelUnknownFutureValue,
-								}, false),
+								Type:         pluginsdk.TypeString,
+								ValidateFunc: validation.StringInSlice(stable.PossibleValuesForRiskLevel(), false),
 							},
 						},
 
@@ -437,15 +390,8 @@ func conditionalAccessPolicyResource() *pluginsdk.Resource {
 							Type:     pluginsdk.TypeList,
 							Optional: true,
 							Elem: &pluginsdk.Schema{
-								Type: pluginsdk.TypeString,
-								ValidateFunc: validation.StringInSlice([]string{
-									msgraph.ConditionalAccessRiskLevelHidden,
-									msgraph.ConditionalAccessRiskLevelHigh,
-									msgraph.ConditionalAccessRiskLevelLow,
-									msgraph.ConditionalAccessRiskLevelMedium,
-									msgraph.ConditionalAccessRiskLevelNone,
-									msgraph.ConditionalAccessRiskLevelUnknownFutureValue,
-								}, false),
+								Type:         pluginsdk.TypeString,
+								ValidateFunc: validation.StringInSlice(stable.PossibleValuesForRiskLevel(), false),
 							},
 						},
 
@@ -453,15 +399,8 @@ func conditionalAccessPolicyResource() *pluginsdk.Resource {
 							Type:     pluginsdk.TypeList,
 							Optional: true,
 							Elem: &pluginsdk.Schema{
-								Type: pluginsdk.TypeString,
-								ValidateFunc: validation.StringInSlice([]string{
-									msgraph.ConditionalAccessRiskLevelHidden,
-									msgraph.ConditionalAccessRiskLevelHigh,
-									msgraph.ConditionalAccessRiskLevelLow,
-									msgraph.ConditionalAccessRiskLevelMedium,
-									msgraph.ConditionalAccessRiskLevelNone,
-									msgraph.ConditionalAccessRiskLevelUnknownFutureValue,
-								}, false),
+								Type:         pluginsdk.TypeString,
+								ValidateFunc: validation.StringInSlice(stable.PossibleValuesForRiskLevel(), false),
 							},
 						},
 					},
@@ -486,17 +425,8 @@ func conditionalAccessPolicyResource() *pluginsdk.Resource {
 							Optional:     true,
 							AtLeastOneOf: []string{"grant_controls.0.built_in_controls", "grant_controls.0.authentication_strength_policy_id", "grant_controls.0.terms_of_use"},
 							Elem: &pluginsdk.Schema{
-								Type: pluginsdk.TypeString,
-								ValidateFunc: validation.StringInSlice([]string{
-									msgraph.ConditionalAccessGrantControlApprovedApplication,
-									msgraph.ConditionalAccessGrantControlBlock,
-									msgraph.ConditionalAccessGrantControlCompliantApplication,
-									msgraph.ConditionalAccessGrantControlCompliantDevice,
-									msgraph.ConditionalAccessGrantControlDomainJoinedDevice,
-									msgraph.ConditionalAccessGrantControlMfa,
-									msgraph.ConditionalAccessGrantControlPasswordChange,
-									msgraph.ConditionalAccessGrantControlUnknownFutureValue,
-								}, false),
+								Type:         pluginsdk.TypeString,
+								ValidateFunc: validation.StringInSlice(stable.PossibleValuesForConditionalAccessGrantControl(), false),
 							},
 						},
 
@@ -511,8 +441,8 @@ func conditionalAccessPolicyResource() *pluginsdk.Resource {
 							Type:     pluginsdk.TypeList,
 							Optional: true,
 							Elem: &pluginsdk.Schema{
-								Type:             pluginsdk.TypeString,
-								ValidateDiagFunc: validation.ValidateDiag(validation.StringIsNotEmpty),
+								Type:         pluginsdk.TypeString,
+								ValidateFunc: validation.StringIsNotEmpty,
 							},
 						},
 
@@ -521,8 +451,8 @@ func conditionalAccessPolicyResource() *pluginsdk.Resource {
 							Optional:     true,
 							AtLeastOneOf: []string{"grant_controls.0.built_in_controls", "grant_controls.0.authentication_strength_policy_id", "grant_controls.0.terms_of_use"},
 							Elem: &pluginsdk.Schema{
-								Type:             pluginsdk.TypeString,
-								ValidateDiagFunc: validation.ValidateDiag(validation.StringIsNotEmpty),
+								Type:         pluginsdk.TypeString,
+								ValidateFunc: validation.StringIsNotEmpty,
 							},
 						},
 					},
@@ -543,14 +473,9 @@ func conditionalAccessPolicyResource() *pluginsdk.Resource {
 						},
 
 						"cloud_app_security_policy": {
-							Type:     pluginsdk.TypeString,
-							Optional: true,
-							ValidateFunc: validation.StringInSlice([]string{
-								msgraph.ConditionalAccessCloudAppSecuritySessionControlTypeBlockDownloads,
-								msgraph.ConditionalAccessCloudAppSecuritySessionControlTypeMcasConfigured,
-								msgraph.ConditionalAccessCloudAppSecuritySessionControlTypeMonitorOnly,
-								msgraph.ConditionalAccessCloudAppSecuritySessionControlTypeUnknownFutureValue,
-							}, false),
+							Type:         pluginsdk.TypeString,
+							Optional:     true,
+							ValidateFunc: validation.StringInSlice(stable.PossibleValuesForCloudAppSecuritySessionControlType(), false),
 						},
 
 						"disable_resilience_defaults": {
@@ -559,12 +484,9 @@ func conditionalAccessPolicyResource() *pluginsdk.Resource {
 						},
 
 						"persistent_browser_mode": {
-							Type:     pluginsdk.TypeString,
-							Optional: true,
-							ValidateFunc: validation.StringInSlice([]string{
-								msgraph.PersistentBrowserSessionModeAlways,
-								msgraph.PersistentBrowserSessionModeNever,
-							}, false),
+							Type:         pluginsdk.TypeString,
+							Optional:     true,
+							ValidateFunc: validation.StringInSlice(stable.PossibleValuesForPersistentBrowserSessionMode(), false),
 						},
 
 						"sign_in_frequency": {
@@ -575,33 +497,24 @@ func conditionalAccessPolicyResource() *pluginsdk.Resource {
 						},
 
 						"sign_in_frequency_authentication_type": {
-							Type:     pluginsdk.TypeString,
-							Optional: true,
-							Computed: true,
-							ValidateFunc: validation.StringInSlice([]string{
-								msgraph.ConditionalAccessAuthenticationTypePrimaryAndSecondaryAuthentication,
-								msgraph.ConditionalAccessAuthenticationTypeSecondaryAuthentication,
-							}, false),
+							Type:         pluginsdk.TypeString,
+							Optional:     true,
+							Computed:     true,
+							ValidateFunc: validation.StringInSlice(stable.PossibleValuesForSignInFrequencyAuthenticationType(), false),
 						},
 
 						"sign_in_frequency_interval": {
-							Type:     pluginsdk.TypeString,
-							Optional: true,
-							Computed: true,
-							ValidateFunc: validation.StringInSlice([]string{
-								msgraph.ConditionalAccessFrequencyIntervalTimeBased,
-								msgraph.ConditionalAccessFrequencyIntervalEveryTime,
-							}, false),
+							Type:         pluginsdk.TypeString,
+							Optional:     true,
+							Computed:     true,
+							ValidateFunc: validation.StringInSlice(stable.PossibleValuesForSignInFrequencyInterval(), false),
 						},
 
 						"sign_in_frequency_period": {
 							Type:         pluginsdk.TypeString,
 							Optional:     true,
 							RequiredWith: []string{"session_controls.0.sign_in_frequency"},
-							ValidateFunc: validation.StringInSlice([]string{
-								msgraph.ConditionalAccessFrequencyTypeDays,
-								msgraph.ConditionalAccessFrequencyTypeHours,
-							}, false),
+							ValidateFunc: validation.StringInSlice(stable.PossibleValuesForSigninFrequencyType(), false),
 						},
 					},
 				},

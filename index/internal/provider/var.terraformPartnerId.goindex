@@ -7,8 +7,8 @@ import (
 	"github.com/hashicorp/go-azure-sdk/sdk/environments"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/validation"
 	"github.com/hashicorp/terraform-provider-azuread/internal/sdk"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
 )
 const terraformPartnerId = "222c6c49-1b0a-5959-a213-6608f9eb8820"

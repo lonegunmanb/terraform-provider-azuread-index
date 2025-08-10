@@ -1,23 +1,28 @@
 package github.com/hashicorp/terraform-provider-azuread/internal/services/identitygovernance
 import (
+	"context"
 	"fmt"
-	"time"
+	"strings"
 
 	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/beta"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/identitygovernance/beta/entitlementmanagementaccesspackage"
+	"github.com/hashicorp/go-azure-sdk/sdk/nullable"
 	"github.com/hashicorp/go-azure-sdk/sdk/odata"
-	"github.com/manicminer/hamilton/msgraph"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
-func flattenAccessPackageLocalizedContent(input *msgraph.AccessPackageLocalizedContent) []map[string]interface{} {
+func flattenAccessPackageLocalizedContent(input *beta.AccessPackageLocalizedContent) []map[string]interface{} {
 	result := []map[string]interface{}{{
-		"default_text": input.DefaultText,
+		"default_text": input.DefaultText.GetOrZero(),
 	}}
 
 	texts := make([]map[string]interface{}, 0)
 
 	for _, v := range *input.LocalizedTexts {
 		text := map[string]interface{}{
-			"language_code": v.LanguageCode,
-			"content":       v.Text,
+			"language_code": v.LanguageCode.GetOrZero(),
+			"content":       v.Text.GetOrZero(),
 		}
 
 		texts = append(texts, text)

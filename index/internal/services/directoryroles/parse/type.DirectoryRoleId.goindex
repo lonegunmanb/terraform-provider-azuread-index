@@ -1,5 +1,0 @@
-package github.com/hashicorp/terraform-provider-azuread/internal/services/directoryroles/parse
-import "fmt"
-type DirectoryRoleId struct {
-	val string
-}

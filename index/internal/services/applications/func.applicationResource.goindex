@@ -4,24 +4,33 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"net/http"
 	"net/url"
 	"strings"
 	"time"
 
 	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-helpers/lang/response"
+	applicationBeta "github.com/hashicorp/go-azure-sdk/microsoft-graph/applications/beta/application"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/applications/stable/application"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/applications/stable/logo"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/applications/stable/owner"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/applicationtemplates/stable/applicationtemplate"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/beta"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/stable"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/serviceprincipals/stable/serviceprincipal"
+	"github.com/hashicorp/go-azure-sdk/sdk/nullable"
 	"github.com/hashicorp/go-azure-sdk/sdk/odata"
 	"github.com/hashicorp/go-cty/cty"
 	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
-	"github.com/hashicorp/terraform-provider-azuread/internal/helpers"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/applications"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/consistency"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/credentials"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/validation"
 	"github.com/hashicorp/terraform-provider-azuread/internal/services/applications/migrations"
-	"github.com/hashicorp/terraform-provider-azuread/internal/services/applications/parse"
 	applicationsValidate "github.com/hashicorp/terraform-provider-azuread/internal/services/applications/validate"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
-	"github.com/manicminer/hamilton/msgraph"
 )
 func applicationResource() *pluginsdk.Resource {
 	return &pluginsdk.Resource{
@@ -40,9 +49,9 @@ func applicationResource() *pluginsdk.Resource {
 		},
 
 		Importer: pluginsdk.ImporterValidatingResourceId(func(id string) error {
-			if _, errors := parse.ValidateApplicationID(id, "id"); len(errors) > 0 {
+			if _, errs := stable.ValidateApplicationID(id, "id"); len(errs) > 0 {
 				out := ""
-				for _, err := range errors {
+				for _, err := range errs {
 					out += err.Error()
 				}
 				return fmt.Errorf(out)
@@ -130,14 +139,11 @@ func applicationResource() *pluginsdk.Resource {
 									},
 
 									"type": {
-										Description: "Whether this delegated permission should be considered safe for non-admin users to consent to on behalf of themselves, or whether an administrator should be required for consent to the permissions",
-										Type:        pluginsdk.TypeString,
-										Optional:    true,
-										Default:     msgraph.PermissionScopeTypeUser,
-										ValidateFunc: validation.StringInSlice([]string{
-											msgraph.PermissionScopeTypeAdmin,
-											msgraph.PermissionScopeTypeUser,
-										}, false),
+										Description:  "Whether this delegated permission should be considered safe for non-admin users to consent to on behalf of themselves, or whether an administrator should be required for consent to the permissions",
+										Type:         pluginsdk.TypeString,
+										Optional:     true,
+										Default:      PermissionScopeTypeUser,
+										ValidateFunc: validation.StringInSlice(possibleValuesForPermissionScopeType, false),
 									},
 
 									"user_consent_description": {
@@ -211,13 +217,8 @@ func applicationResource() *pluginsdk.Resource {
 							Required:    true,
 							MinItems:    1,
 							Elem: &pluginsdk.Schema{
-								Type: pluginsdk.TypeString,
-								ValidateFunc: validation.StringInSlice(
-									[]string{
-										msgraph.AppRoleAllowedMemberTypeApplication,
-										msgraph.AppRoleAllowedMemberTypeUser,
-									}, false,
-								),
+								Type:         pluginsdk.TypeString,
+								ValidateFunc: validation.StringInSlice(possibleValuesForAppRoleAllowedMemberType, false),
 							},
 						},
 
@@ -320,14 +321,8 @@ func applicationResource() *pluginsdk.Resource {
 				Type:        pluginsdk.TypeSet,
 				Optional:    true,
 				Elem: &pluginsdk.Schema{
-					Type: pluginsdk.TypeString,
-					ValidateFunc: validation.StringInSlice([]string{
-						msgraph.GroupMembershipClaimAll,
-						msgraph.GroupMembershipClaimNone,
-						msgraph.GroupMembershipClaimApplicationGroup,
-						msgraph.GroupMembershipClaimDirectoryRole,
-						msgraph.GroupMembershipClaimSecurityGroup,
-					}, false),
+					Type:         pluginsdk.TypeString,
+					ValidateFunc: validation.StringInSlice(possibleValuesForGroupMembershipClaim, false),
 				},
 			},
 
@@ -504,16 +499,10 @@ func applicationResource() *pluginsdk.Resource {
 									},
 
 									"type": {
-										Description: "",
-										Type:        pluginsdk.TypeString,
-										Required:    true,
-										ValidateFunc: validation.StringInSlice(
-											[]string{
-												msgraph.ResourceAccessTypeRole,
-												msgraph.ResourceAccessTypeScope,
-											},
-											false, // force case sensitivity
-										),
+										Description:  "",
+										Type:         pluginsdk.TypeString,
+										Required:     true,
+										ValidateFunc: validation.StringInSlice(possibleValuesForResourceAccessType, false),
 									},
 								},
 							},
@@ -529,16 +518,11 @@ func applicationResource() *pluginsdk.Resource {
 			},
 
 			"sign_in_audience": {
-				Description: "The Microsoft account types that are supported for the current application",
-				Type:        pluginsdk.TypeString,
-				Optional:    true,
-				Default:     msgraph.SignInAudienceAzureADMyOrg,
-				ValidateFunc: validation.StringInSlice([]string{
-					msgraph.SignInAudienceAzureADMyOrg,
-					msgraph.SignInAudienceAzureADMultipleOrgs,
-					msgraph.SignInAudienceAzureADandPersonalMicrosoftAccount,
-					msgraph.SignInAudiencePersonalMicrosoftAccount,
-				}, false),
+				Description:  "The Microsoft account types that are supported for the current application",
+				Type:         pluginsdk.TypeString,
+				Optional:     true,
+				Default:      SignInAudienceAzureADMyOrg,
+				ValidateFunc: validation.StringInSlice(possibleValuesForSignInAudience, false),
 			},
 
 			"single_page_application": {
@@ -650,13 +634,6 @@ func applicationResource() *pluginsdk.Resource {
 						},
 					},
 				},
-			},
-
-			"application_id": {
-				Description: "The Application ID (also called Client ID)",
-				Type:        pluginsdk.TypeString,
-				Computed:    true,
-				Deprecated:  "The `application_id` attribute has been replaced by the `client_id` attribute and will be removed in version 3.0 of the AzureAD provider",
 			},
 
 			"client_id": {

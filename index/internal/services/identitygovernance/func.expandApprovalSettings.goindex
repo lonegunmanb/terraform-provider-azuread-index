@@ -1,43 +1,63 @@
 package github.com/hashicorp/terraform-provider-azuread/internal/services/identitygovernance
 import (
+	"context"
 	"fmt"
-	"time"
+	"strings"
 
 	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/beta"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/identitygovernance/beta/entitlementmanagementaccesspackage"
+	"github.com/hashicorp/go-azure-sdk/sdk/nullable"
 	"github.com/hashicorp/go-azure-sdk/sdk/odata"
-	"github.com/manicminer/hamilton/msgraph"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
-func expandApprovalSettings(input []interface{}) *msgraph.ApprovalSettings {
+func expandApprovalSettings(input []interface{}) (*beta.ApprovalSettings, error) {
 	if len(input) == 0 {
-		return nil
+		return nil, nil
 	}
 
 	in := input[0].(map[string]interface{})
 
-	result := msgraph.ApprovalSettings{
-		IsApprovalRequired:               pointer.To(in["approval_required"].(bool)),
-		IsApprovalRequiredForExtension:   pointer.To(in["approval_required_for_extension"].(bool)),
-		IsRequestorJustificationRequired: pointer.To(in["requestor_justification_required"].(bool)),
+	result := beta.ApprovalSettings{
+		IsApprovalRequired:               nullable.Value(in["approval_required"].(bool)),
+		IsApprovalRequiredForExtension:   nullable.Value(in["approval_required_for_extension"].(bool)),
+		IsRequestorJustificationRequired: nullable.Value(in["requestor_justification_required"].(bool)),
 	}
 
-	approvalStages := make([]msgraph.ApprovalStage, 0)
-	for _, v := range in["approval_stage"].([]interface{}) {
-		v_map := v.(map[string]interface{})
+	approvalStages := make([]beta.ApprovalStage, 0)
+	if _, ok := in["approval_stage"]; ok {
+		for _, raw := range in["approval_stage"].([]interface{}) {
+			v := raw.(map[string]interface{})
 
-		stage := msgraph.ApprovalStage{
-			ApprovalStageTimeOutInDays:      pointer.To(int32(v_map["approval_timeout_in_days"].(int))),
-			EscalationTimeInMinutes:         pointer.To(int32(v_map["enable_alternative_approval_in_days"].(int) * 24 * 60)),
-			IsApproverJustificationRequired: pointer.To(v_map["approver_justification_required"].(bool)),
-			IsEscalationEnabled:             pointer.To(v_map["alternative_approval_enabled"].(bool)),
+			stage := beta.ApprovalStage{
+				ApprovalStageTimeOutInDays:      nullable.NoZero(int64(v["approval_timeout_in_days"].(int))),
+				EscalationTimeInMinutes:         nullable.NoZero(int64(v["enable_alternative_approval_in_days"].(int) * 24 * 60)),
+				IsApproverJustificationRequired: nullable.NoZero(v["approver_justification_required"].(bool)),
+				IsEscalationEnabled:             nullable.NoZero(v["alternative_approval_enabled"].(bool)),
+			}
+
+			if _, ok := v["primary_approver"]; ok {
+				primaryApprovers, err := expandUserSets(v["primary_approver"].([]interface{}))
+				if err != nil {
+					return nil, fmt.Errorf("building `primary_approver`: %v", err)
+				}
+				stage.PrimaryApprovers = primaryApprovers
+			}
+
+			if _, ok := v["escalation_approver"]; ok {
+				escalationApprovers, err := expandUserSets(v["escalation_approver"].([]interface{}))
+				if err != nil {
+					return nil, fmt.Errorf("building `escalation_approver`: %v", err)
+				}
+				stage.EscalationApprovers = escalationApprovers
+			}
+
+			approvalStages = append(approvalStages, stage)
 		}
-
-		stage.PrimaryApprovers = expandUserSets(v_map["primary_approver"].([]interface{}))
-		stage.EscalationApprovers = expandUserSets(v_map["alternative_approver"].([]interface{}))
-
-		approvalStages = append(approvalStages, stage)
 	}
 
 	result.ApprovalStages = &approvalStages
 
-	return &result
+	return &result, nil
 }

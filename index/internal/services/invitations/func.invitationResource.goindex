@@ -8,13 +8,18 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-helpers/lang/response"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/stable"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/invitations/stable/invitation"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/users/stable/user"
+	"github.com/hashicorp/go-azure-sdk/sdk/nullable"
 	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
-	"github.com/hashicorp/terraform-provider-azuread/internal/helpers"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
-	"github.com/manicminer/hamilton/msgraph"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/consistency"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/validation"
 )
 func invitationResource() *pluginsdk.Resource {
 	return &pluginsdk.Resource{
@@ -38,19 +43,19 @@ func invitationResource() *pluginsdk.Resource {
 			},
 
 			"user_email_address": {
-				Description:      "The email address of the user being invited",
-				Type:             pluginsdk.TypeString,
-				Required:         true,
-				ForceNew:         true,
-				ValidateDiagFunc: validation.StringIsEmailAddress,
+				Description:  "The email address of the user being invited",
+				Type:         pluginsdk.TypeString,
+				Required:     true,
+				ForceNew:     true,
+				ValidateFunc: validation.StringIsEmailAddress,
 			},
 
 			"user_display_name": {
-				Description:      "The display name of the user being invited",
-				Type:             pluginsdk.TypeString,
-				Optional:         true,
-				ForceNew:         true,
-				ValidateDiagFunc: validation.ValidateDiag(validation.StringIsNotEmpty),
+				Description:  "The display name of the user being invited",
+				Type:         pluginsdk.TypeString,
+				Optional:     true,
+				ForceNew:     true,
+				ValidateFunc: validation.StringIsNotEmpty,
 			},
 
 			"message": {
@@ -67,40 +72,37 @@ func invitationResource() *pluginsdk.Resource {
 							Optional:    true,
 							MaxItems:    1,
 							Elem: &pluginsdk.Schema{
-								Type:             pluginsdk.TypeString,
-								ValidateDiagFunc: validation.StringIsEmailAddress,
+								Type:         pluginsdk.TypeString,
+								ValidateFunc: validation.StringIsNotEmpty,
 							},
 						},
 
 						"body": {
-							Description:      "Customized message body you want to send if you don't want to send the default message",
-							Type:             pluginsdk.TypeString,
-							Optional:         true,
-							ConflictsWith:    []string{"message.0.language"},
-							ValidateDiagFunc: validation.ValidateDiag(validation.StringIsNotEmpty),
+							Description:   "Customized message body you want to send if you don't want to send the default message",
+							Type:          pluginsdk.TypeString,
+							Optional:      true,
+							ConflictsWith: []string{"message.0.language"},
+							ValidateFunc:  validation.StringIsNotEmpty,
 						},
 
 						"language": {
-							Description:      "The language you want to send the default message in",
-							Type:             pluginsdk.TypeString,
-							Optional:         true,
-							ConflictsWith:    []string{"message.0.body"},
-							ValidateDiagFunc: validation.ISO639Language,
+							Description:   "The language you want to send the default message in",
+							Type:          pluginsdk.TypeString,
+							Optional:      true,
+							ConflictsWith: []string{"message.0.body"},
+							ValidateFunc:  validation.ISO639Language,
 						},
 					},
 				},
 			},
 
 			"user_type": {
-				Description: "The user type of the user being invited",
-				Type:        pluginsdk.TypeString,
-				Optional:    true,
-				ForceNew:    true,
-				Default:     "Guest",
-				ValidateFunc: validation.StringInSlice([]string{
-					msgraph.InvitedUserTypeGuest,
-					msgraph.InvitedUserTypeMember,
-				}, false),
+				Description:  "The user type of the user being invited",
+				Type:         pluginsdk.TypeString,
+				Optional:     true,
+				ForceNew:     true,
+				Default:      "Guest",
+				ValidateFunc: validation.StringInSlice(possibleValuesForInvitedUserType, false),
 			},
 
 			"redeem_url": {

@@ -1,41 +1,49 @@
 package github.com/hashicorp/terraform-provider-azuread/internal/services/identitygovernance
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
-	"net/http"
 	"time"
 
 	"github.com/hashicorp/go-azure-helpers/lang/pointer"
-	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/go-azure-helpers/lang/response"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/beta"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/identitygovernance/beta/entitlementmanagementaccesspackage"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/identitygovernance/beta/entitlementmanagementaccesspackagecatalog"
+	"github.com/hashicorp/go-azure-sdk/sdk/nullable"
 	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
-	"github.com/hashicorp/terraform-provider-azuread/internal/helpers"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
-	"github.com/manicminer/hamilton/msgraph"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/consistency"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/validation"
 )
 func accessPackageResourceRead(ctx context.Context, d *pluginsdk.ResourceData, meta interface{}) pluginsdk.Diagnostics {
 	client := meta.(*clients.Client).IdentityGovernance.AccessPackageClient
 
-	objectId := d.Id()
-	accessPackage, status, err := client.Get(ctx, objectId, odata.Query{})
+	id := beta.NewIdentityGovernanceEntitlementManagementAccessPackageID(d.Id())
+
+	resp, err := client.GetEntitlementManagementAccessPackage(ctx, id, entitlementmanagementaccesspackage.DefaultGetEntitlementManagementAccessPackageOperationOptions())
 	if err != nil {
-		if status == http.StatusNotFound {
-			log.Printf("[DEBUG] Access package with Object ID %q was not found - removing from state!", objectId)
+		if response.WasNotFound(resp.HttpResponse) {
+			log.Printf("[DEBUG] %s was not found - removing from state!", id)
 			d.SetId("")
 			return nil
 		}
 
-		return tf.ErrorDiagF(err, "Retrieving access package with object ID: %q", objectId)
+		return tf.ErrorDiagF(err, "Retrieving %s", id)
 	}
 
-	tf.Set(d, "display_name", accessPackage.DisplayName)
-	tf.Set(d, "description", accessPackage.Description)
-	tf.Set(d, "hidden", accessPackage.IsHidden)
-	// v1.0 graph API doesn't contain this info however beta contains
-	tf.Set(d, "catalog_id", accessPackage.CatalogId)
+	accessPackage := resp.Model
+	if accessPackage == nil {
+		return tf.ErrorDiagF(errors.New("model was nil"), "Retrieving %s", id)
+	}
+
+	tf.Set(d, "catalog_id", accessPackage.CatalogId.GetOrZero()) // only beta API returns this field
+	tf.Set(d, "description", accessPackage.Description.GetOrZero())
+	tf.Set(d, "display_name", accessPackage.DisplayName.GetOrZero())
+	tf.Set(d, "hidden", accessPackage.IsHidden.GetOrZero())
 
 	return nil
 }

@@ -1,0 +1,10 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/helpers/consistency
+import (
+	"context"
+	"errors"
+	"fmt"
+	"time"
+
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/pluginsdk"
+)
+type ChangeFunc func(ctx context.Context) (*bool, error)

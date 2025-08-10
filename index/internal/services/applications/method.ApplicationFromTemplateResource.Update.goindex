@@ -2,24 +2,26 @@ package github.com/hashicorp/terraform-provider-azuread/internal/services/applic
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"time"
 
 	"github.com/hashicorp/go-azure-helpers/lang/pointer"
-	"github.com/hashicorp/go-azure-sdk/sdk/odata"
-	"github.com/hashicorp/terraform-provider-azuread/internal/helpers"
+	"github.com/hashicorp/go-azure-helpers/lang/response"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/applications/stable/application"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/applicationtemplates/stable/applicationtemplate"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/stable"
+	"github.com/hashicorp/go-azure-sdk/sdk/nullable"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/consistency"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/validation"
 	"github.com/hashicorp/terraform-provider-azuread/internal/sdk"
 	"github.com/hashicorp/terraform-provider-azuread/internal/services/applications/parse"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
-	"github.com/manicminer/hamilton/msgraph"
 )
 func (r ApplicationFromTemplateResource) Update() sdk.ResourceFunc {
 	return sdk.ResourceFunc{
 		Timeout: 10 * time.Minute,
 		Func: func(ctx context.Context, metadata sdk.ResourceMetaData) error {
-			client := metadata.Client.Applications.ApplicationsClient
+			client := metadata.Client.Applications.ApplicationClient
 			rd := metadata.ResourceData
 
 			id, err := parse.ParseFromTemplateID(metadata.ResourceData.Id())
@@ -32,15 +34,14 @@ func (r ApplicationFromTemplateResource) Update() sdk.ResourceFunc {
 				return fmt.Errorf("decoding: %+v", err)
 			}
 
+			applicationId := stable.NewApplicationID(id.ApplicationId)
+
 			if rd.HasChange("display_name") {
-				properties := msgraph.Application{
-					DirectoryObject: msgraph.DirectoryObject{
-						Id: &id.ApplicationId,
-					},
-					DisplayName: pointer.To(model.DisplayName),
+				properties := stable.Application{
+					DisplayName: nullable.Value(model.DisplayName),
 				}
 
-				if _, err = client.Update(ctx, properties); err != nil {
+				if _, err = client.UpdateApplication(ctx, applicationId, properties, application.DefaultUpdateApplicationOperationOptions()); err != nil {
 					return fmt.Errorf("updating %s: %+v", id, err)
 				}
 			}

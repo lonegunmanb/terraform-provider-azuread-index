@@ -1,27 +1,29 @@
 package github.com/hashicorp/terraform-provider-azuread/internal/services/directoryroles
 import (
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
-	"github.com/manicminer/hamilton/msgraph"
-)
-func expandCustomRolePermissions(in []interface{}) *[]msgraph.UnifiedRolePermission {
-	if in == nil {
-		return nil
-	}
+	"context"
+	"fmt"
 
-	result := make([]msgraph.UnifiedRolePermission, 0)
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-helpers/lang/response"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/stable"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/directoryroles/stable/member"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/pluginsdk"
+)
+func expandCustomRolePermissions(in []interface{}) []stable.UnifiedRolePermission {
+	result := make([]stable.UnifiedRolePermission, 0)
 	for _, permRaw := range in {
 		perm := permRaw.(map[string]interface{})
 
-		var allowedResourceActions *[]string
+		var allowedResourceActions []string
 		if v, ok := perm["allowed_resource_actions"]; ok {
-			allowedResourceActions = tf.ExpandStringSlicePtr(v.(*pluginsdk.Set).List())
+			allowedResourceActions = tf.ExpandStringSlice(v.(*pluginsdk.Set).List())
 		}
 
-		result = append(result, msgraph.UnifiedRolePermission{
+		result = append(result, stable.UnifiedRolePermission{
 			AllowedResourceActions: allowedResourceActions,
 		})
 	}
 
-	return &result
+	return result
 }

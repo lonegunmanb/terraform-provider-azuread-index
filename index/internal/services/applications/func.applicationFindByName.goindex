@@ -9,25 +9,30 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-helpers/lang/response"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/applications/stable/application"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/stable"
+	"github.com/hashicorp/go-azure-sdk/sdk/client"
+	"github.com/hashicorp/go-azure-sdk/sdk/nullable"
 	"github.com/hashicorp/go-azure-sdk/sdk/odata"
-	"github.com/hashicorp/terraform-provider-azuread/internal/helpers"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
-	"github.com/manicminer/hamilton/msgraph"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/applications"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/credentials"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/pluginsdk"
 )
-func applicationFindByName(ctx context.Context, client *msgraph.ApplicationsClient, displayName string) (*[]msgraph.Application, error) {
-	query := odata.Query{
-		Filter: fmt.Sprintf("displayName eq '%s'", displayName),
+func applicationFindByName(ctx context.Context, client *application.ApplicationClient, displayName string) (*[]stable.Application, error) {
+	options := application.ListApplicationsOperationOptions{
+		Filter: pointer.To(fmt.Sprintf("displayName eq '%s'", displayName)),
 	}
-	apps, _, err := client.List(ctx, query)
+	resp, err := client.ListApplications(ctx, options)
 	if err != nil {
-		return nil, fmt.Errorf("unable to list Applications with filter %q: %+v", query.Filter, err)
+		return nil, fmt.Errorf("unable to list Applications with filter %q: %+v", *options.Filter, err)
 	}
 
-	result := make([]msgraph.Application, 0)
-	if apps != nil {
+	result := make([]stable.Application, 0)
+	if apps := resp.Model; apps != nil {
 		for _, app := range *apps {
-			if app.DisplayName != nil && *app.DisplayName == displayName {
+			if app.DisplayName.GetOrZero() == displayName {
 				result = append(result, app)
 			}
 		}

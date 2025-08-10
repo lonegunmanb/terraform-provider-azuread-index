@@ -6,7 +6,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/pluginsdk"
 )
 func logEntry(f string, v ...interface{}) {
 	if os.Getenv("TF_LOG") == "" {

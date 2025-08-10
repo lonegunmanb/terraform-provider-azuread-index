@@ -1,0 +1,7 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/identitygovernance
+
+var possibleValuesForAccessReviewReviewerType = []string{
+	AccessReviewReviewerTypeManager,
+	AccessReviewReviewerTypeReviewers,
+	AccessReviewReviewerTypeSelf,
+}

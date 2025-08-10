@@ -3,8 +3,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
-	"github.com/manicminer/hamilton/msgraph"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/validation"
 )
 func NewRoleManagementPolicyAssignmentID(scopeType, scopeId, policyId, roleDefinitionId string) *RoleManagementPolicyAssignmentId {
 	return &RoleManagementPolicyAssignmentId{

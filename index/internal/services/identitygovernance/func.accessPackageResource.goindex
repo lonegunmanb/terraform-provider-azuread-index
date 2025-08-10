@@ -1,20 +1,23 @@
 package github.com/hashicorp/terraform-provider-azuread/internal/services/identitygovernance
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
-	"net/http"
 	"time"
 
 	"github.com/hashicorp/go-azure-helpers/lang/pointer"
-	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/go-azure-helpers/lang/response"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/beta"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/identitygovernance/beta/entitlementmanagementaccesspackage"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/identitygovernance/beta/entitlementmanagementaccesspackagecatalog"
+	"github.com/hashicorp/go-azure-sdk/sdk/nullable"
 	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
-	"github.com/hashicorp/terraform-provider-azuread/internal/helpers"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
-	"github.com/manicminer/hamilton/msgraph"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/consistency"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/validation"
 )
 func accessPackageResource() *pluginsdk.Resource {
 	return &pluginsdk.Resource{
@@ -39,25 +42,25 @@ func accessPackageResource() *pluginsdk.Resource {
 
 		Schema: map[string]*pluginsdk.Schema{
 			"catalog_id": {
-				Description:      "The ID of the Catalog this access package will be created in",
-				Type:             pluginsdk.TypeString,
-				Required:         true,
-				ForceNew:         true,
-				ValidateDiagFunc: validation.ValidateDiag(validation.IsUUID),
+				Description:  "The ID of the Catalog this access package will be created in",
+				Type:         pluginsdk.TypeString,
+				Required:     true,
+				ForceNew:     true,
+				ValidateFunc: validation.IsUUID,
 			},
 
 			"display_name": {
-				Description:      "The display name of the access package",
-				Type:             pluginsdk.TypeString,
-				Required:         true,
-				ValidateDiagFunc: validation.ValidateDiag(validation.StringIsNotEmpty),
+				Description:  "The display name of the access package",
+				Type:         pluginsdk.TypeString,
+				Required:     true,
+				ValidateFunc: validation.StringIsNotEmpty,
 			},
 
 			"description": {
-				Description:      "The description of the access package",
-				Type:             pluginsdk.TypeString,
-				Required:         true,
-				ValidateDiagFunc: validation.ValidateDiag(validation.StringIsNotEmpty),
+				Description:  "The description of the access package",
+				Type:         pluginsdk.TypeString,
+				Required:     true,
+				ValidateFunc: validation.StringIsNotEmpty,
 			},
 
 			"hidden": {

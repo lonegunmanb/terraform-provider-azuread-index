@@ -1,0 +1,31 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/helpers/applications
+import (
+	"context"
+	"fmt"
+	"strings"
+
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-helpers/lang/response"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/applications/stable/owner"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/stable"
+)
+func FlattenOAuth2PermissionScopes(in *[]stable.PermissionScope) (result []map[string]interface{}) {
+	if in == nil {
+		return //nolint:nakedret
+	}
+
+	for _, p := range *in {
+		result = append(result, map[string]interface{}{
+			"admin_consent_description":  p.AdminConsentDescription.GetOrZero(),
+			"admin_consent_display_name": p.AdminConsentDisplayName.GetOrZero(),
+			"id":                         pointer.From(p.Id),
+			"enabled":                    pointer.From(p.IsEnabled),
+			"type":                       p.Type.GetOrZero(),
+			"user_consent_description":   p.UserConsentDescription.GetOrZero(),
+			"user_consent_display_name":  p.UserConsentDisplayName.GetOrZero(),
+			"value":                      p.Value.GetOrZero(),
+		})
+	}
+
+	return //nolint:nakedret
+}

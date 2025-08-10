@@ -9,48 +9,49 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-helpers/lang/response"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/beta"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/stable"
+	serviceprincipalBeta "github.com/hashicorp/go-azure-sdk/microsoft-graph/serviceprincipals/beta/serviceprincipal"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/serviceprincipals/stable/owner"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/serviceprincipals/stable/serviceprincipal"
+	"github.com/hashicorp/go-azure-sdk/sdk/nullable"
 	"github.com/hashicorp/go-azure-sdk/sdk/odata"
 	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
-	"github.com/hashicorp/terraform-provider-azuread/internal/helpers"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
-	"github.com/manicminer/hamilton/msgraph"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/applications"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/consistency"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/validation"
+	"github.com/hashicorp/terraform-provider-azuread/internal/services/serviceprincipals/migrations"
 )
 func servicePrincipalResourceDelete(ctx context.Context, d *pluginsdk.ResourceData, meta interface{}) pluginsdk.Diagnostics {
-	client := meta.(*clients.Client).ServicePrincipals.ServicePrincipalsClient
-	servicePrincipalId := d.Id()
+	client := meta.(*clients.Client).ServicePrincipals.ServicePrincipalClient
 
-	_, status, err := client.Get(ctx, servicePrincipalId, odata.Query{})
+	id, err := stable.ParseServicePrincipalID(d.Id())
 	if err != nil {
-		if status == http.StatusNotFound {
-			return tf.ErrorDiagPathF(fmt.Errorf("Service Principal was not found"), "id", "Retrieving service principal with object ID %q", servicePrincipalId)
-		}
-
-		return tf.ErrorDiagPathF(err, "id", "Retrieving service principal with object ID %q", servicePrincipalId)
+		return tf.ErrorDiagPathF(err, "id", "Parsing ID")
 	}
 
 	useExisting := d.Get("use_existing").(bool)
-	status, err = client.Delete(ctx, servicePrincipalId)
-	if !useExisting {
-		if err != nil && !useExisting {
-			return tf.ErrorDiagPathF(err, "id", "Deleting service principal with object ID %q, got status %d", servicePrincipalId, status)
+
+	if _, err = client.DeleteServicePrincipal(ctx, *id, serviceprincipal.DefaultDeleteServicePrincipalOperationOptions()); !useExisting {
+		if err != nil {
+			return tf.ErrorDiagPathF(err, "id", "Deleting %s", id)
 		}
 
 		// Wait for service principal object to be deleted
-		if err := helpers.WaitForDeletion(ctx, func(ctx context.Context) (*bool, error) {
-			defer func() { client.BaseClient.DisableRetries = false }()
-			client.BaseClient.DisableRetries = true
-			if _, status, err := client.Get(ctx, servicePrincipalId, odata.Query{}); err != nil {
-				if status == http.StatusNotFound {
+		if err = consistency.WaitForDeletion(ctx, func(ctx context.Context) (*bool, error) {
+			if resp, err := client.GetServicePrincipal(ctx, *id, serviceprincipal.DefaultGetServicePrincipalOperationOptions()); err != nil {
+				if response.WasNotFound(resp.HttpResponse) {
 					return pointer.To(false), nil
 				}
 				return nil, err
 			}
 			return pointer.To(true), nil
 		}); err != nil {
-			return tf.ErrorDiagF(err, "Waiting for deletion of group with object ID %q", servicePrincipalId)
+			return tf.ErrorDiagF(err, "Waiting for deletion of %s", id)
 		}
 	}
 

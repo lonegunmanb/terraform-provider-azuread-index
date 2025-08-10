@@ -1,38 +1,57 @@
 package github.com/hashicorp/terraform-provider-azuread/internal/services/conditionalaccess
 import (
+	"strings"
+
 	"github.com/hashicorp/go-azure-helpers/lang/pointer"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
-	"github.com/manicminer/hamilton/msgraph"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/stable"
+	"github.com/hashicorp/go-azure-sdk/sdk/nullable"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf"
 )
-func expandConditionalAccessConditionSet(in []interface{}) *msgraph.ConditionalAccessConditionSet {
+func expandConditionalAccessConditionSet(in []interface{}) *stable.ConditionalAccessConditionSet {
 	if len(in) == 0 || in[0] == nil {
 		return nil
 	}
 
-	result := msgraph.ConditionalAccessConditionSet{}
+	result := stable.ConditionalAccessConditionSet{}
 	config := in[0].(map[string]interface{})
 
 	applications := config["applications"].([]interface{})
-	users := config["users"].([]interface{})
-	clientAppTypes := config["client_app_types"].([]interface{})
+	clientApplications := config["client_applications"].([]interface{})
 	devices := config["devices"].([]interface{})
 	locations := config["locations"].([]interface{})
 	platforms := config["platforms"].([]interface{})
-	servicePrincipalRiskLevels := config["service_principal_risk_levels"].([]interface{})
-	signInRiskLevels := config["sign_in_risk_levels"].([]interface{})
-	userRiskLevels := config["user_risk_levels"].([]interface{})
-	clientApplications := config["client_applications"].([]interface{})
+	users := config["users"].([]interface{})
+
+	clientAppTypes := make([]stable.ConditionalAccessClientApp, 0)
+	for _, elem := range config["client_app_types"].([]interface{}) {
+		clientAppTypes = append(clientAppTypes, stable.ConditionalAccessClientApp(elem.(string)))
+	}
+
+	servicePrincipalRiskLevels := make([]stable.RiskLevel, 0)
+	for _, elem := range config["service_principal_risk_levels"].([]interface{}) {
+		servicePrincipalRiskLevels = append(servicePrincipalRiskLevels, stable.RiskLevel(elem.(string)))
+	}
+
+	signInRiskLevels := make([]stable.RiskLevel, 0)
+	for _, elem := range config["sign_in_risk_levels"].([]interface{}) {
+		signInRiskLevels = append(signInRiskLevels, stable.RiskLevel(elem.(string)))
+	}
+
+	userRiskLevels := make([]stable.RiskLevel, 0)
+	for _, elem := range config["user_risk_levels"].([]interface{}) {
+		userRiskLevels = append(userRiskLevels, stable.RiskLevel(elem.(string)))
+	}
 
 	result.Applications = expandConditionalAccessApplications(applications)
-	result.Users = expandConditionalAccessUsers(users)
-	result.ClientAppTypes = tf.ExpandStringSlicePtr(clientAppTypes)
+	result.ClientAppTypes = clientAppTypes
+	result.ClientApplications = expandConditionalAccessClientApplications(clientApplications)
 	result.Devices = expandConditionalAccessDevices(devices)
 	result.Locations = expandConditionalAccessLocations(locations)
 	result.Platforms = expandConditionalAccessPlatforms(platforms)
-	result.ServicePrincipalRiskLevels = tf.ExpandStringSlicePtr(servicePrincipalRiskLevels)
-	result.SignInRiskLevels = tf.ExpandStringSlicePtr(signInRiskLevels)
-	result.UserRiskLevels = tf.ExpandStringSlicePtr(userRiskLevels)
-	result.ClientApplications = expandConditionalAccessClientApplications(clientApplications)
+	result.ServicePrincipalRiskLevels = &servicePrincipalRiskLevels
+	result.SignInRiskLevels = signInRiskLevels
+	result.UserRiskLevels = userRiskLevels
+	result.Users = expandConditionalAccessUsers(users)
 
 	return &result
 }

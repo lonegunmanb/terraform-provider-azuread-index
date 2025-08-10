@@ -1,28 +1,29 @@
 package github.com/hashicorp/terraform-provider-azuread/internal/services/applications
 import (
 	"context"
+	"errors"
 	"fmt"
-	"net/http"
 	"time"
 
 	"github.com/hashicorp/go-azure-helpers/lang/pointer"
-	"github.com/hashicorp/go-azure-sdk/sdk/odata"
-	"github.com/hashicorp/terraform-provider-azuread/internal/helpers"
+	"github.com/hashicorp/go-azure-helpers/lang/response"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/applications/stable/application"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/stable"
+	"github.com/hashicorp/go-azure-sdk/sdk/nullable"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/consistency"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/validation"
 	"github.com/hashicorp/terraform-provider-azuread/internal/sdk"
-	"github.com/hashicorp/terraform-provider-azuread/internal/services/applications/parse"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
-	"github.com/manicminer/hamilton/msgraph"
 )
 func (r ApplicationRegistrationResource) Update() sdk.ResourceFunc {
 	return sdk.ResourceFunc{
 		Timeout: 10 * time.Minute,
 		Func: func(ctx context.Context, metadata sdk.ResourceMetaData) error {
-			client := metadata.Client.Applications.ApplicationsClient
+			client := metadata.Client.Applications.ApplicationClient
 			rd := metadata.ResourceData
 
-			id, err := parse.ParseApplicationID(metadata.ResourceData.Id())
+			id, err := stable.ParseApplicationID(metadata.ResourceData.Id())
 			if err != nil {
 				return err
 			}
@@ -35,88 +36,83 @@ func (r ApplicationRegistrationResource) Update() sdk.ResourceFunc {
 			tf.LockByName(applicationResourceName, id.ApplicationId)
 			defer tf.UnlockByName(applicationResourceName, id.ApplicationId)
 
-			properties := msgraph.Application{
-				DirectoryObject: msgraph.DirectoryObject{
-					Id: &id.ApplicationId,
-				},
-			}
+			properties := stable.Application{}
 
 			if rd.HasChange("display_name") {
-				properties.DisplayName = &model.DisplayName
+				properties.DisplayName = nullable.Value(model.DisplayName)
 			}
 
 			if rd.HasChange("description") {
-				properties.Description = tf.NullableString(model.Description)
+				properties.Description = nullable.NoZero(model.Description)
 			}
 
 			if rd.HasChange("group_membership_claims") {
-				properties.GroupMembershipClaims = pointer.To(model.GroupMembershipClaims)
+				properties.GroupMembershipClaims = expandApplicationGroupMembershipClaims(tf.FlattenStringSlice(model.GroupMembershipClaims))
 			}
 
 			if rd.HasChange("notes") {
-				properties.Notes = tf.NullableString(model.Notes)
+				properties.Notes = nullable.NoZero(model.Notes)
 			}
 
 			if rd.HasChange("requested_access_token_version") {
-				properties.Api = &msgraph.ApplicationApi{
-					RequestedAccessTokenVersion: pointer.To(int32(model.RequestedAccessTokenVersion)),
+				properties.Api = &stable.ApiApplication{
+					RequestedAccessTokenVersion: nullable.Value(int64(model.RequestedAccessTokenVersion)),
 				}
 			}
 
 			if rd.HasChange("service_management_reference") {
-				properties.ServiceManagementReference = tf.NullableString(model.ServiceManagementReference)
+				properties.ServiceManagementReference = nullable.NoZero(model.ServiceManagementReference)
 			}
 
 			if rd.HasChange("sign_in_audience") {
-				properties.SignInAudience = &model.SignInAudience
+				properties.SignInAudience = nullable.Value(model.SignInAudience)
 			}
 
 			if rd.HasChange("marketing_url") || rd.HasChange("privacy_statement_url") || rd.HasChange("support_url") || rd.HasChange("terms_of_service_url") {
-				properties.Info = &msgraph.InformationalUrl{}
+				properties.Info = &stable.InformationalUrl{}
 
 				if rd.HasChange("marketing_url") {
-					properties.Info.MarketingUrl = tf.NullableString(model.MarketingUrl)
+					properties.Info.MarketingUrl = nullable.NoZero(model.MarketingUrl)
 				}
 
 				if rd.HasChange("privacy_statement_url") {
-					properties.Info.PrivacyStatementUrl = tf.NullableString(model.PrivacyStatementUrl)
+					properties.Info.PrivacyStatementUrl = nullable.NoZero(model.PrivacyStatementUrl)
 				}
 
 				if rd.HasChange("support_url") {
-					properties.Info.SupportUrl = tf.NullableString(model.SupportUrl)
+					properties.Info.SupportUrl = nullable.NoZero(model.SupportUrl)
 				}
 
 				if rd.HasChange("terms_of_service_url") {
-					properties.Info.TermsOfServiceUrl = tf.NullableString(model.TermsOfServiceUrl)
+					properties.Info.TermsOfServiceUrl = nullable.NoZero(model.TermsOfServiceUrl)
 				}
 			}
 
 			if rd.HasChange("implicit_access_token_issuance_enabled") || rd.HasChange("homepage_url") || rd.HasChange("implicit_id_token_issuance_enabled") || rd.HasChange("logout_url") {
-				properties.Web = &msgraph.ApplicationWeb{}
+				properties.Web = &stable.WebApplication{}
 
 				if rd.HasChange("homepage_url") {
-					properties.Web.HomePageUrl = tf.NullableString(model.HomepageUrl)
+					properties.Web.HomePageUrl = nullable.NoZero(model.HomepageUrl)
 				}
 
 				if rd.HasChange("logout_url") {
-					properties.Web.LogoutUrl = tf.NullableString(model.LogoutUrl)
+					properties.Web.LogoutUrl = nullable.NoZero(model.LogoutUrl)
 				}
 
 				if rd.HasChange("implicit_access_token_issuance_enabled") || rd.HasChange("implicit_id_token_issuance_enabled") {
-					properties.Web.ImplicitGrantSettings = &msgraph.ImplicitGrantSettings{}
+					properties.Web.ImplicitGrantSettings = &stable.ImplicitGrantSettings{}
 
 					if rd.HasChange("implicit_access_token_issuance_enabled") {
-						properties.Web.ImplicitGrantSettings.EnableAccessTokenIssuance = pointer.To(model.ImplicitAccessTokenIssuanceEnabled)
+						properties.Web.ImplicitGrantSettings.EnableAccessTokenIssuance = nullable.Value(model.ImplicitAccessTokenIssuanceEnabled)
 					}
 
 					if rd.HasChange("implicit_id_token_issuance_enabled") {
-						properties.Web.ImplicitGrantSettings.EnableIdTokenIssuance = pointer.To(model.ImplicitIdTokenIssuanceEnabled)
+						properties.Web.ImplicitGrantSettings.EnableIdTokenIssuance = nullable.Value(model.ImplicitIdTokenIssuanceEnabled)
 					}
 				}
 			}
 
-			_, err = client.Update(ctx, properties)
-			if err != nil {
+			if _, err = client.UpdateApplication(ctx, *id, properties, application.DefaultUpdateApplicationOperationOptions()); err != nil {
 				return fmt.Errorf("updating %s: %+v", id, err)
 			}
 

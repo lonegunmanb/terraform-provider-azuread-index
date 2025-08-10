@@ -3,10 +3,12 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
-	"net/http"
 
-	"github.com/hashicorp/go-azure-sdk/sdk/odata"
-	"github.com/manicminer/hamilton/msgraph"
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-helpers/lang/response"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/beta"
+	groupBeta "github.com/hashicorp/go-azure-sdk/microsoft-graph/groups/beta/group"
+	memberBeta "github.com/hashicorp/go-azure-sdk/microsoft-graph/groups/beta/member"
 )
 func groupDefaultMailNickname() string {
 	charSet := "0123456789abcdef"

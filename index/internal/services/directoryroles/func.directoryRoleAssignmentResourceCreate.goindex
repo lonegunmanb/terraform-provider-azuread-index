@@ -4,60 +4,53 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"net/http"
 	"time"
 
-	"github.com/hashicorp/go-azure-helpers/lang/pointer"
-	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/go-azure-helpers/lang/response"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/stable"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/rolemanagement/stable/directoryroleassignment"
+	"github.com/hashicorp/go-azure-sdk/sdk/nullable"
 	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
-	"github.com/manicminer/hamilton/msgraph"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/validation"
+	"github.com/hashicorp/terraform-provider-azuread/internal/services/directoryroles/migrations"
 )
 func directoryRoleAssignmentResourceCreate(ctx context.Context, d *pluginsdk.ResourceData, meta interface{}) pluginsdk.Diagnostics {
-	client := meta.(*clients.Client).DirectoryRoles.RoleAssignmentsClient
+	client := meta.(*clients.Client).DirectoryRoles.DirectoryRoleAssignmentClient
 
 	roleId := d.Get("role_id").(string)
 	principalId := d.Get("principal_object_id").(string)
 
-	properties := msgraph.UnifiedRoleAssignment{
-		PrincipalId:      &principalId,
-		RoleDefinitionId: &roleId,
+	properties := stable.UnifiedRoleAssignment{
+		PrincipalId:      nullable.Value(principalId),
+		RoleDefinitionId: nullable.Value(roleId),
 	}
 
-	var appScopeId, directoryScopeId string
-
-	if v, ok := d.GetOk("app_scope_id"); ok {
-		appScopeId = v.(string)
-	} else if v, ok = d.GetOk("app_scope_object_id"); ok {
-		appScopeId = v.(string)
-	}
-
-	if v, ok := d.GetOk("directory_scope_id"); ok {
-		directoryScopeId = v.(string)
-	} else if v, ok = d.GetOk("directory_scope_object_id"); ok {
-		directoryScopeId = v.(string)
-	}
+	appScopeId := d.Get("app_scope_id").(string)
+	directoryScopeId := d.Get("directory_scope_id").(string)
 
 	switch {
 	case appScopeId != "":
-		properties.AppScopeId = &appScopeId
+		properties.AppScopeId = nullable.Value(appScopeId)
 	case directoryScopeId != "":
-		properties.DirectoryScopeId = &directoryScopeId
+		properties.DirectoryScopeId = nullable.Value(directoryScopeId)
 	default:
-		properties.DirectoryScopeId = pointer.To("/")
+		properties.DirectoryScopeId = nullable.Value("/")
 	}
 
-	assignment, status, err := client.Create(ctx, properties)
+	resp, err := client.CreateDirectoryRoleAssignment(ctx, properties, directoryroleassignment.DefaultCreateDirectoryRoleAssignmentOperationOptions())
 	if err != nil {
-		return tf.ErrorDiagF(err, "Assigning directory role %q to directory principal %q, received %d with error: %+v", roleId, principalId, status, err)
+		return tf.ErrorDiagF(err, "Assigning directory role %q to directory principal %q: %v", roleId, principalId, err)
 	}
-	if assignment == nil || assignment.ID() == nil {
+
+	assignment := resp.Model
+	if assignment == nil || assignment.Id == nil {
 		return tf.ErrorDiagF(errors.New("returned role assignment ID was nil"), "API Error")
 	}
 
-	d.SetId(*assignment.ID())
+	id := stable.NewRoleManagementDirectoryRoleAssignmentID(*assignment.Id)
+	d.SetId(id.ID())
 
 	// Wait for role assignment to reflect
 	deadline, ok := ctx.Deadline()
@@ -72,9 +65,9 @@ func directoryRoleAssignmentResourceCreate(ctx context.Context, d *pluginsdk.Res
 		MinTimeout:                1 * time.Second,
 		ContinuousTargetOccurence: 3,
 		Refresh: func() (interface{}, string, error) {
-			_, status, err := client.Get(ctx, *assignment.ID(), odata.Query{})
+			resp, err := client.GetDirectoryRoleAssignment(ctx, id, directoryroleassignment.DefaultGetDirectoryRoleAssignmentOperationOptions())
 			if err != nil {
-				if status == http.StatusNotFound {
+				if response.WasNotFound(resp.HttpResponse) {
 					return "stub", "Waiting", nil
 				}
 				return nil, "Error", fmt.Errorf("retrieving role assignment")

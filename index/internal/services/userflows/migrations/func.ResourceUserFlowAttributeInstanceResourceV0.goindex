@@ -1,0 +1,37 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/userflows/migrations
+import (
+	"context"
+	"fmt"
+	"log"
+
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/stable"
+	"github.com/hashicorp/go-uuid"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/pluginsdk"
+)
+func ResourceUserFlowAttributeInstanceResourceV0() *pluginsdk.Resource {
+	return &pluginsdk.Resource{
+		Schema: map[string]*pluginsdk.Schema{
+			"display_name": {
+				Type:     pluginsdk.TypeString,
+				Required: true,
+				ForceNew: true,
+			},
+
+			"data_type": {
+				Type:     pluginsdk.TypeString,
+				Required: true,
+				ForceNew: true,
+			},
+
+			"description": {
+				Type:     pluginsdk.TypeString,
+				Required: true,
+			},
+
+			"attribute_type": {
+				Type:     pluginsdk.TypeString,
+				Computed: true,
+			},
+		},
+	}
+}

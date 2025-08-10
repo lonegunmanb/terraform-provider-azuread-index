@@ -1,0 +1,9 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/identitygovernance
+
+var possibleValuesForAccessReviewRecurrenceType = []string{
+	AccessReviewRecurrenceTypeAnnual,
+	AccessReviewRecurrenceTypeHalfYearly,
+	AccessReviewRecurrenceTypeMonthly,
+	AccessReviewRecurrenceTypeQuarterly,
+	AccessReviewRecurrenceTypeWeekly,
+}

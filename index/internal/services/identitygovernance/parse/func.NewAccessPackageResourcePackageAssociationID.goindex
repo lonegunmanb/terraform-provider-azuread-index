@@ -5,11 +5,11 @@ import (
 
 	"github.com/hashicorp/go-uuid"
 )
-func NewAccessPackageResourcePackageAssociationID(catalogId, resourcePackageAssociationId, originId, accessType string) AccessPackageResourcePackageAssociationId {
+func NewAccessPackageResourcePackageAssociationID(catalogId, resourceRoleScopeId, originId, accessType string) AccessPackageResourcePackageAssociationId {
 	return AccessPackageResourcePackageAssociationId{
-		AccessPackageId:              catalogId,
-		ResourcePackageAssociationId: resourcePackageAssociationId,
-		OriginId:                     originId,
-		AccessType:                   accessType,
+		AccessPackageId:     catalogId,
+		ResourceRoleScopeId: resourceRoleScopeId,
+		OriginId:            originId,
+		AccessType:          accessType,
 	}
 }

@@ -9,72 +9,108 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-helpers/lang/response"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/beta"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/stable"
+	serviceprincipalBeta "github.com/hashicorp/go-azure-sdk/microsoft-graph/serviceprincipals/beta/serviceprincipal"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/serviceprincipals/stable/owner"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/serviceprincipals/stable/serviceprincipal"
+	"github.com/hashicorp/go-azure-sdk/sdk/nullable"
 	"github.com/hashicorp/go-azure-sdk/sdk/odata"
 	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
-	"github.com/hashicorp/terraform-provider-azuread/internal/helpers"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
-	"github.com/manicminer/hamilton/msgraph"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/applications"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/consistency"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/validation"
+	"github.com/hashicorp/terraform-provider-azuread/internal/services/serviceprincipals/migrations"
 )
 func servicePrincipalResourceRead(ctx context.Context, d *pluginsdk.ResourceData, meta interface{}) pluginsdk.Diagnostics {
-	client := meta.(*clients.Client).ServicePrincipals.ServicePrincipalsClient
-	objectId := d.Id()
+	client := meta.(*clients.Client).ServicePrincipals.ServicePrincipalClient
+	clientBeta := meta.(*clients.Client).ServicePrincipals.ServicePrincipalClientBeta
+	ownerClient := meta.(*clients.Client).ServicePrincipals.ServicePrincipalOwnerClient
 
-	servicePrincipal, status, err := client.Get(ctx, objectId, odata.Query{})
+	id, err := stable.ParseServicePrincipalID(d.Id())
 	if err != nil {
-		if status == http.StatusNotFound {
-			log.Printf("[DEBUG] Service Principal with Object ID %q was not found - removing from state!", objectId)
+		return tf.ErrorDiagPathF(err, "id", "Parsing ID")
+	}
+
+	resp, err := client.GetServicePrincipal(ctx, *id, serviceprincipal.DefaultGetServicePrincipalOperationOptions())
+	if err != nil {
+		if response.WasNotFound(resp.HttpResponse) {
+			log.Printf("[DEBUG] %s was not found - removing from state!", id)
 			d.SetId("")
 			return nil
 		}
 
-		return tf.ErrorDiagF(err, "retrieving service principal with object ID: %q", d.Id())
+		return tf.ErrorDiagF(err, "Retrieving %s", id)
+	}
+
+	servicePrincipal := resp.Model
+	if servicePrincipal == nil {
+		return tf.ErrorDiagF(errors.New("model was nil"), "Retrieving %s", id)
+	}
+
+	// Retrieve from beta API to get samlMetadataUrl field
+	options := serviceprincipalBeta.GetServicePrincipalOperationOptions{
+		Select: pointer.To([]string{"samlMetadataUrl"}),
+	}
+	respBeta, err := clientBeta.GetServicePrincipal(ctx, beta.NewServicePrincipalID(id.ServicePrincipalId), options)
+	if err != nil {
+		return tf.ErrorDiagF(err, "Retrieving %s (beta API)", id)
+	}
+
+	servicePrincipalBeta := respBeta.Model
+	if servicePrincipalBeta == nil {
+		return tf.ErrorDiagF(errors.New("model was nil"), "Retrieving %s (beta API)", id)
 	}
 
 	servicePrincipalNames := make([]string, 0)
 	if servicePrincipal.ServicePrincipalNames != nil {
 		for _, name := range *servicePrincipal.ServicePrincipalNames {
 			// Exclude the app ID from the list of service principal names
-			if servicePrincipal.AppId == nil || name != *servicePrincipal.AppId {
+			if !strings.EqualFold(name, servicePrincipal.AppId.GetOrZero()) {
 				servicePrincipalNames = append(servicePrincipalNames, name)
 			}
 		}
 	}
 
-	tf.Set(d, "account_enabled", servicePrincipal.AccountEnabled)
+	tf.Set(d, "account_enabled", servicePrincipal.AccountEnabled.GetOrZero())
 	tf.Set(d, "alternative_names", tf.FlattenStringSlicePtr(servicePrincipal.AlternativeNames))
 	tf.Set(d, "app_role_assignment_required", servicePrincipal.AppRoleAssignmentRequired)
-	tf.Set(d, "app_role_ids", helpers.ApplicationFlattenAppRoleIDs(servicePrincipal.AppRoles))
-	tf.Set(d, "app_roles", helpers.ApplicationFlattenAppRoles(servicePrincipal.AppRoles))
-	tf.Set(d, "application_id", servicePrincipal.AppId)
-	tf.Set(d, "application_tenant_id", servicePrincipal.AppOwnerOrganizationId)
-	tf.Set(d, "client_id", servicePrincipal.AppId)
-	tf.Set(d, "description", servicePrincipal.Description)
-	tf.Set(d, "display_name", servicePrincipal.DisplayName)
-	tf.Set(d, "feature_tags", helpers.ApplicationFlattenFeatures(servicePrincipal.Tags, false))
-	tf.Set(d, "features", helpers.ApplicationFlattenFeatures(servicePrincipal.Tags, true))
-	tf.Set(d, "homepage_url", servicePrincipal.Homepage)
-	tf.Set(d, "logout_url", servicePrincipal.LogoutUrl)
-	tf.Set(d, "login_url", servicePrincipal.LoginUrl)
-	tf.Set(d, "notes", servicePrincipal.Notes)
+	tf.Set(d, "app_role_ids", applications.FlattenAppRoleIDs(servicePrincipal.AppRoles))
+	tf.Set(d, "app_roles", applications.FlattenAppRoles(servicePrincipal.AppRoles))
+	tf.Set(d, "application_tenant_id", servicePrincipal.AppOwnerOrganizationId.GetOrZero())
+	tf.Set(d, "client_id", servicePrincipal.AppId.GetOrZero())
+	tf.Set(d, "description", servicePrincipal.Description.GetOrZero())
+	tf.Set(d, "display_name", servicePrincipal.DisplayName.GetOrZero())
+	tf.Set(d, "feature_tags", applications.FlattenFeatures(servicePrincipal.Tags, false))
+	tf.Set(d, "features", applications.FlattenFeatures(servicePrincipal.Tags, true))
+	tf.Set(d, "homepage_url", servicePrincipal.Homepage.GetOrZero())
+	tf.Set(d, "logout_url", servicePrincipal.LogoutUrl.GetOrZero())
+	tf.Set(d, "login_url", servicePrincipal.LoginUrl.GetOrZero())
+	tf.Set(d, "notes", servicePrincipal.Notes.GetOrZero())
 	tf.Set(d, "notification_email_addresses", tf.FlattenStringSlicePtr(servicePrincipal.NotificationEmailAddresses))
-	tf.Set(d, "oauth2_permission_scope_ids", helpers.ApplicationFlattenOAuth2PermissionScopeIDs(servicePrincipal.OAuth2PermissionScopes))
-	tf.Set(d, "oauth2_permission_scopes", helpers.ApplicationFlattenOAuth2PermissionScopes(servicePrincipal.OAuth2PermissionScopes))
-	tf.Set(d, "object_id", servicePrincipal.ID())
-	tf.Set(d, "preferred_single_sign_on_mode", servicePrincipal.PreferredSingleSignOnMode)
+	tf.Set(d, "oauth2_permission_scope_ids", applications.FlattenOAuth2PermissionScopeIDs(servicePrincipal.OAuth2PermissionScopes))
+	tf.Set(d, "oauth2_permission_scopes", applications.FlattenOAuth2PermissionScopes(servicePrincipal.OAuth2PermissionScopes))
+	tf.Set(d, "object_id", pointer.From(servicePrincipal.Id))
+	tf.Set(d, "preferred_single_sign_on_mode", servicePrincipal.PreferredSingleSignOnMode.GetOrZero())
 	tf.Set(d, "redirect_uris", tf.FlattenStringSlicePtr(servicePrincipal.ReplyUrls))
-	tf.Set(d, "saml_metadata_url", servicePrincipal.SamlMetadataUrl)
+	tf.Set(d, "saml_metadata_url", servicePrincipalBeta.SamlMetadataUrl.GetOrZero())
 	tf.Set(d, "saml_single_sign_on", flattenSamlSingleSignOn(servicePrincipal.SamlSingleSignOnSettings))
 	tf.Set(d, "service_principal_names", servicePrincipalNames)
-	tf.Set(d, "sign_in_audience", servicePrincipal.SignInAudience)
-	tf.Set(d, "tags", servicePrincipal.Tags)
-	tf.Set(d, "type", servicePrincipal.ServicePrincipalType)
+	tf.Set(d, "sign_in_audience", servicePrincipal.SignInAudience.GetOrZero())
+	tf.Set(d, "tags", pointer.From(servicePrincipal.Tags))
+	tf.Set(d, "type", servicePrincipal.ServicePrincipalType.GetOrZero())
 
-	owners, _, err := client.ListOwners(ctx, *servicePrincipal.ID())
-	if err != nil {
-		return tf.ErrorDiagPathF(err, "owners", "Could not retrieve owners for service principal with object ID %q", d.Id())
+	owners := make([]interface{}, 0)
+	if resp, err := ownerClient.ListOwners(ctx, *id, owner.DefaultListOwnersOperationOptions()); err != nil {
+		return tf.ErrorDiagPathF(err, "owners", "Could not retrieve owners for %s", id)
+	} else if resp.Model != nil {
+		for _, obj := range *resp.Model {
+			owners = append(owners, pointer.From(obj.DirectoryObject().Id))
+		}
 	}
 	tf.Set(d, "owners", owners)
 

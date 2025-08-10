@@ -1,0 +1,22 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/helpers/applications
+import (
+	"context"
+	"fmt"
+	"strings"
+
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-helpers/lang/response"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/applications/stable/owner"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/stable"
+)
+func FlattenAppRoleIDs(in *[]stable.AppRole) map[string]string {
+	result := make(map[string]string)
+	if in != nil {
+		for _, role := range *in {
+			if value := role.Value.GetOrZero(); value != "" && role.Id != nil {
+				result[value] = *role.Id
+			}
+		}
+	}
+	return result
+}

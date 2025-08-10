@@ -1,36 +1,43 @@
 package github.com/hashicorp/terraform-provider-azuread/internal/services/identitygovernance
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
-	"net/http"
 	"time"
 
 	"github.com/hashicorp/go-azure-helpers/lang/pointer"
-	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/go-azure-helpers/lang/response"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/beta"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/identitygovernance/beta/entitlementmanagementaccesspackage"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/identitygovernance/beta/entitlementmanagementaccesspackageassignmentpolicy"
+	"github.com/hashicorp/go-azure-sdk/sdk/nullable"
 	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
-	"github.com/hashicorp/terraform-provider-azuread/internal/helpers"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
-	"github.com/manicminer/hamilton/msgraph"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/consistency"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/validation"
 )
 func accessPackageAssignmentPolicyResourceCreate(ctx context.Context, d *pluginsdk.ResourceData, meta interface{}) pluginsdk.Diagnostics {
 	client := meta.(*clients.Client).IdentityGovernance.AccessPackageAssignmentPolicyClient
 
-	var properties msgraph.AccessPackageAssignmentPolicy
-	var err error
-	if properties, err = buildAssignmentPolicyResourceData(ctx, d, meta); err != nil {
+	properties, err := buildAssignmentPolicyResourceData(ctx, d, meta)
+	if err != nil {
 		return tf.ErrorDiagF(err, "Building resource data from supplied parameters")
 	}
 
-	accessPackageAssignmentPolicy, _, err := client.Create(ctx, properties)
+	resp, err := client.CreateEntitlementManagementAccessPackageAssignmentPolicy(ctx, *properties, entitlementmanagementaccesspackageassignmentpolicy.DefaultCreateEntitlementManagementAccessPackageAssignmentPolicyOperationOptions())
 	if err != nil {
 		return tf.ErrorDiagF(err, "Creating access package assignment policy %q", d.Get("display_name").(string))
 	}
 
-	d.SetId(*accessPackageAssignmentPolicy.ID)
+	if resp.Model == nil {
+		return tf.ErrorDiagF(errors.New("model was nil"), "Creating access package assignment policy")
+	}
+
+	id := beta.NewIdentityGovernanceEntitlementManagementAccessPackageAssignmentPolicyID(*resp.Model.Id)
+	d.SetId(id.AccessPackageAssignmentPolicyId)
 
 	return accessPackageAssignmentPolicyResourceRead(ctx, d, meta)
 }

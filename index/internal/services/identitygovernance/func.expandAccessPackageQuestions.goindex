@@ -1,54 +1,61 @@
 package github.com/hashicorp/terraform-provider-azuread/internal/services/identitygovernance
 import (
+	"context"
 	"fmt"
-	"time"
+	"strings"
 
 	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/beta"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/identitygovernance/beta/entitlementmanagementaccesspackage"
+	"github.com/hashicorp/go-azure-sdk/sdk/nullable"
 	"github.com/hashicorp/go-azure-sdk/sdk/odata"
-	"github.com/manicminer/hamilton/msgraph"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
-func expandAccessPackageQuestions(questions []interface{}) *[]msgraph.AccessPackageQuestion {
-	result := make([]msgraph.AccessPackageQuestion, 0)
+func expandAccessPackageQuestions(input []interface{}) *[]beta.AccessPackageQuestion {
+	result := make([]beta.AccessPackageQuestion, 0)
 
-	for _, questionRaw := range questions {
-		question := questionRaw.(map[string]interface{})
-		textList := question["text"].([]interface{})
+	for _, raw := range input {
+		v := raw.(map[string]interface{})
 
+		textList := v["text"].([]interface{})
 		if len(textList) == 0 {
 			continue
 		}
-
 		text := textList[0].(map[string]interface{})
 
-		resultQuestion := msgraph.AccessPackageQuestion{
-			ODataType:  pointer.To(odata.TypeAccessPackageTextInputQuestion),
-			IsRequired: pointer.To(question["required"].(bool)),
-			Sequence:   pointer.To(int32(question["sequence"].(int))),
-			Text:       expandAccessPackageLocalizedContent(text),
-		}
+		var question beta.AccessPackageQuestion
 
-		if choicesRaw := question["choice"].([]interface{}); len(choicesRaw) > 0 {
-			resultQuestion.ODataType = pointer.To(odata.TypeAccessPackageMultipleChoiceQuestion)
-			choices := make([]msgraph.AccessPackageMultipleChoiceQuestions, 0)
-
+		if choicesRaw, ok := v["choice"].([]interface{}); ok && len(choicesRaw) > 0 {
+			choices := make([]beta.AccessPackageAnswerChoice, 0)
 			for _, choiceRaw := range choicesRaw {
 				choice := choiceRaw.(map[string]interface{})
 				displayValue := make(map[string]interface{})
 				if v := choice["display_value"].([]interface{}); len(v) > 0 {
 					displayValue = v[0].(map[string]interface{})
 				}
-				choices = append(choices, msgraph.AccessPackageMultipleChoiceQuestions{
-					ActualValue:  pointer.To(choice["actual_value"].(string)),
-					DisplayValue: expandAccessPackageLocalizedContent(displayValue),
+
+				choices = append(choices, beta.AccessPackageAnswerChoice{
+					ActualValue:  nullable.NoZero(choice["actual_value"].(string)),
+					DisplayValue: pointer.From(expandAccessPackageLocalizedContent(displayValue)),
 				})
 			}
 
-			if len(choices) > 0 {
-				resultQuestion.Choices = pointer.To(choices)
+			question = beta.AccessPackageMultipleChoiceQuestion{
+				Choices:    &choices,
+				IsRequired: nullable.Value(v["required"].(bool)),
+				Sequence:   nullable.Value(int64(v["sequence"].(int))),
+				Text:       expandAccessPackageLocalizedContent(text),
+			}
+		} else {
+			question = beta.AccessPackageTextInputQuestion{
+				IsRequired: nullable.Value(v["required"].(bool)),
+				Sequence:   nullable.Value(int64(v["sequence"].(int))),
+				Text:       expandAccessPackageLocalizedContent(text),
 			}
 		}
 
-		result = append(result, resultQuestion)
+		result = append(result, question)
 	}
 
 	return &result

@@ -1,21 +1,27 @@
 package github.com/hashicorp/terraform-provider-azuread/internal/services/conditionalaccess
 import (
+	"strings"
+
 	"github.com/hashicorp/go-azure-helpers/lang/pointer"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
-	"github.com/manicminer/hamilton/msgraph"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/stable"
+	"github.com/hashicorp/go-azure-sdk/sdk/nullable"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf"
 )
-func expandGuestsOrExternalUsers(in []interface{}) *msgraph.ConditionalAccessGuestsOrExternalUsers {
+func expandGuestsOrExternalUsers(in []interface{}) *stable.ConditionalAccessGuestsOrExternalUsers {
 	if len(in) == 0 || in[0] == nil {
 		return nil
 	}
 
-	result := msgraph.ConditionalAccessGuestsOrExternalUsers{}
-
 	config := in[0].(map[string]interface{})
+	result := stable.ConditionalAccessGuestsOrExternalUsers{}
 
-	types := config["guest_or_external_user_types"].([]interface{})
+	var guestOrExternalUserTypes *stable.ConditionalAccessGuestOrExternalUserTypes
+	if len(config["guest_or_external_user_types"].([]interface{})) > 0 {
+		values := strings.Join(tf.ExpandStringSlice(config["guest_or_external_user_types"].([]interface{})), ",")
+		guestOrExternalUserTypes = pointer.To(stable.ConditionalAccessGuestOrExternalUserTypes(values))
+	}
 
-	result.GuestOrExternalUserTypes = tf.ExpandStringSlicePtr(types)
+	result.GuestOrExternalUserTypes = guestOrExternalUserTypes
 	result.ExternalTenants = expandExternalTenants(config["external_tenants"].([]interface{}))
 
 	return &result

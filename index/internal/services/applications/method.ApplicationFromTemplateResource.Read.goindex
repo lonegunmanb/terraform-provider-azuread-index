@@ -2,50 +2,50 @@ package github.com/hashicorp/terraform-provider-azuread/internal/services/applic
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"time"
 
 	"github.com/hashicorp/go-azure-helpers/lang/pointer"
-	"github.com/hashicorp/go-azure-sdk/sdk/odata"
-	"github.com/hashicorp/terraform-provider-azuread/internal/helpers"
+	"github.com/hashicorp/go-azure-helpers/lang/response"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/applications/stable/application"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/applicationtemplates/stable/applicationtemplate"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/stable"
+	"github.com/hashicorp/go-azure-sdk/sdk/nullable"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/consistency"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/validation"
 	"github.com/hashicorp/terraform-provider-azuread/internal/sdk"
 	"github.com/hashicorp/terraform-provider-azuread/internal/services/applications/parse"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
-	"github.com/manicminer/hamilton/msgraph"
 )
 func (r ApplicationFromTemplateResource) Read() sdk.ResourceFunc {
 	return sdk.ResourceFunc{
 		Timeout: 5 * time.Minute,
 		Func: func(ctx context.Context, metadata sdk.ResourceMetaData) error {
-			client := metadata.Client.Applications.ApplicationsClient
-			client.BaseClient.DisableRetries = true
-			defer func() { client.BaseClient.DisableRetries = false }()
+			client := metadata.Client.Applications.ApplicationClient
 
 			id, err := parse.ParseFromTemplateID(metadata.ResourceData.Id())
 			if err != nil {
 				return err
 			}
 
+			applicationId := stable.NewApplicationID(id.ApplicationId)
+			servicePrincipalId := stable.NewServicePrincipalID(id.ServicePrincipalId)
+
 			// Check the application exists
-			result, status, err := client.Get(ctx, id.ApplicationId, odata.Query{})
+			resp, err := client.GetApplication(ctx, applicationId, application.DefaultGetApplicationOperationOptions())
 			if err != nil {
-				if status == http.StatusNotFound {
+				if response.WasNotFound(resp.HttpResponse) {
 					return metadata.MarkAsGone(id)
 				}
 				return fmt.Errorf("retrieving %s: %+v", id, err)
 			}
 
-			if result == nil {
-				return fmt.Errorf("retrieving %s: result was nil", id)
+			if resp.Model == nil {
+				return fmt.Errorf("retrieving %s: model was nil", applicationId)
 			}
 
-			applicationId := parse.NewApplicationID(id.ApplicationId)
-			servicePrincipalId := parse.NewServicePrincipalID(id.ServicePrincipalId)
-
 			state := ApplicationFromTemplateModel{
-				DisplayName:              pointer.From(result.DisplayName),
+				DisplayName:              resp.Model.DisplayName.GetOrZero(),
 				TemplateId:               id.TemplateId,
 				ApplicationId:            applicationId.ID(),
 				ApplicationObjectId:      applicationId.ApplicationId,

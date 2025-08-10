@@ -1,18 +1,20 @@
 package github.com/hashicorp/terraform-provider-azuread/internal/services/policies
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
-	"net/http"
 	"time"
 
-	"github.com/hashicorp/go-azure-helpers/lang/pointer"
-	"github.com/hashicorp/go-azure-sdk/sdk/odata"
-	"github.com/hashicorp/go-uuid"
+	"github.com/hashicorp/go-azure-helpers/lang/response"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/stable"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/policies/stable/claimsmappingpolicy"
+	"github.com/hashicorp/go-azure-sdk/sdk/nullable"
 	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
-	"github.com/manicminer/hamilton/msgraph"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/validation"
+	"github.com/hashicorp/terraform-provider-azuread/internal/services/policies/migrations"
 )
 func claimsMappingPolicyResource() *pluginsdk.Resource {
 	return &pluginsdk.Resource{
@@ -29,11 +31,24 @@ func claimsMappingPolicyResource() *pluginsdk.Resource {
 		},
 
 		Importer: pluginsdk.ImporterValidatingResourceId(func(id string) error {
-			if _, err := uuid.ParseUUID(id); err != nil {
-				return fmt.Errorf("specified ID (%q) is not valid: %s", id, err)
+			if _, errs := stable.ValidatePolicyClaimsMappingPolicyID(id, "id"); len(errs) > 0 {
+				out := ""
+				for _, err := range errs {
+					out += err.Error()
+				}
+				return fmt.Errorf(out)
 			}
 			return nil
 		}),
+
+		SchemaVersion: 1,
+		StateUpgraders: []pluginsdk.StateUpgrader{
+			{
+				Type:    migrations.ResourceClaimsMappingPolicyInstanceResourceV0().CoreConfigSchema().ImpliedType(),
+				Upgrade: migrations.ResourceClaimsMappingPolicyInstanceStateUpgradeV0,
+				Version: 0,
+			},
+		},
 
 		Schema: map[string]*pluginsdk.Schema{
 			"definition": {
@@ -41,14 +56,16 @@ func claimsMappingPolicyResource() *pluginsdk.Resource {
 				Type:        pluginsdk.TypeList,
 				Required:    true,
 				Elem: &pluginsdk.Schema{
-					Type: pluginsdk.TypeString,
+					Type:         pluginsdk.TypeString,
+					ValidateFunc: validation.StringIsNotEmpty,
 				},
 			},
 
 			"display_name": {
-				Description: "Display name for this policy",
-				Type:        pluginsdk.TypeString,
-				Required:    true,
+				Description:  "Display name for this policy",
+				Type:         pluginsdk.TypeString,
+				Required:     true,
+				ValidateFunc: validation.StringIsNotEmpty,
 			},
 		},
 	}

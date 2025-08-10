@@ -3,15 +3,18 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/http"
 	"time"
 
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-helpers/lang/response"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/stable"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/users/stable/manager"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/users/stable/user"
 	"github.com/hashicorp/go-azure-sdk/sdk/odata"
 	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
-	"github.com/manicminer/hamilton/msgraph"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/validation"
 )
 func userDataSource() *pluginsdk.Resource {
 	return &pluginsdk.Resource{
@@ -23,48 +26,48 @@ func userDataSource() *pluginsdk.Resource {
 
 		Schema: map[string]*pluginsdk.Schema{
 			"employee_id": {
-				Description:      "The employee identifier assigned to the user by the organisation",
-				Type:             pluginsdk.TypeString,
-				Optional:         true,
-				ExactlyOneOf:     []string{"employee_id", "mail", "mail_nickname", "object_id", "user_principal_name"},
-				Computed:         true,
-				ValidateDiagFunc: validation.ValidateDiag(validation.StringIsNotEmpty),
+				Description:  "The employee identifier assigned to the user by the organisation",
+				Type:         pluginsdk.TypeString,
+				Optional:     true,
+				ExactlyOneOf: []string{"employee_id", "mail", "mail_nickname", "object_id", "user_principal_name"},
+				Computed:     true,
+				ValidateFunc: validation.StringIsNotEmpty,
 			},
 
 			"mail": {
-				Description:      "The SMTP address for the user",
-				Type:             pluginsdk.TypeString,
-				Optional:         true,
-				ExactlyOneOf:     []string{"employee_id", "mail", "mail_nickname", "object_id", "user_principal_name"},
-				Computed:         true,
-				ValidateDiagFunc: validation.ValidateDiag(validation.StringIsNotEmpty),
+				Description:  "The SMTP address for the user",
+				Type:         pluginsdk.TypeString,
+				Optional:     true,
+				ExactlyOneOf: []string{"employee_id", "mail", "mail_nickname", "object_id", "user_principal_name"},
+				Computed:     true,
+				ValidateFunc: validation.StringIsNotEmpty,
 			},
 
 			"mail_nickname": {
-				Description:      "The email alias of the user",
-				Type:             pluginsdk.TypeString,
-				Optional:         true,
-				ExactlyOneOf:     []string{"employee_id", "mail", "mail_nickname", "object_id", "user_principal_name"},
-				Computed:         true,
-				ValidateDiagFunc: validation.ValidateDiag(validation.StringIsNotEmpty),
+				Description:  "The email alias of the user",
+				Type:         pluginsdk.TypeString,
+				Optional:     true,
+				ExactlyOneOf: []string{"employee_id", "mail", "mail_nickname", "object_id", "user_principal_name"},
+				Computed:     true,
+				ValidateFunc: validation.StringIsNotEmpty,
 			},
 
 			"object_id": {
-				Description:      "The object ID of the user",
-				Type:             pluginsdk.TypeString,
-				Optional:         true,
-				Computed:         true,
-				ExactlyOneOf:     []string{"employee_id", "mail", "mail_nickname", "object_id", "user_principal_name"},
-				ValidateDiagFunc: validation.ValidateDiag(validation.IsUUID),
+				Description:  "The object ID of the user",
+				Type:         pluginsdk.TypeString,
+				Optional:     true,
+				Computed:     true,
+				ExactlyOneOf: []string{"employee_id", "mail", "mail_nickname", "object_id", "user_principal_name"},
+				ValidateFunc: validation.IsUUID,
 			},
 
 			"user_principal_name": {
-				Description:      "The user principal name (UPN) of the user",
-				Type:             pluginsdk.TypeString,
-				Optional:         true,
-				Computed:         true,
-				ExactlyOneOf:     []string{"employee_id", "mail", "mail_nickname", "object_id", "user_principal_name"},
-				ValidateDiagFunc: validation.ValidateDiag(validation.StringIsNotEmpty),
+				Description:  "The user principal name (UPN) of the user",
+				Type:         pluginsdk.TypeString,
+				Optional:     true,
+				Computed:     true,
+				ExactlyOneOf: []string{"employee_id", "mail", "mail_nickname", "object_id", "user_principal_name"},
+				ValidateFunc: validation.StringIsNotEmpty,
 			},
 
 			"account_enabled": {

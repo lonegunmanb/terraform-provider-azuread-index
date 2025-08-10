@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/pluginsdk"
 	"github.com/hashicorp/terraform-provider-azuread/internal/sdk"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
 )
 func (id ClientConfigId) ID() string {
 	return fmt.Sprintf("%s-%s-%s", id.TenantId, id.ClientId, id.ObjectId)

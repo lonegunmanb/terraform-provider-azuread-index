@@ -9,31 +9,37 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-helpers/lang/response"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/applications/stable/application"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/stable"
+	"github.com/hashicorp/go-azure-sdk/sdk/client"
+	"github.com/hashicorp/go-azure-sdk/sdk/nullable"
 	"github.com/hashicorp/go-azure-sdk/sdk/odata"
-	"github.com/hashicorp/terraform-provider-azuread/internal/helpers"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
-	"github.com/manicminer/hamilton/msgraph"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/applications"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/credentials"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/pluginsdk"
 )
-func applicationDisableOauth2PermissionScopes(ctx context.Context, client *msgraph.ApplicationsClient, application *msgraph.Application, newScopes *[]msgraph.PermissionScope) error {
-	if application.ID() == nil {
-		return fmt.Errorf("cannot use Application model with nil ID")
-	}
-
+func applicationDisableOauth2PermissionScopes(ctx context.Context, client *application.ApplicationClient, applicationId stable.ApplicationId, newScopes *[]stable.PermissionScope) error {
 	if newScopes == nil {
-		newScopes = &[]msgraph.PermissionScope{}
+		newScopes = &[]stable.PermissionScope{}
 	}
 
-	app, status, err := client.Get(ctx, *application.ID(), odata.Query{})
+	resp, err := client.GetApplication(ctx, applicationId, application.DefaultGetApplicationOperationOptions())
 	if err != nil {
-		if status == http.StatusNotFound {
-			return fmt.Errorf("application with ID %q was not found", *application.ID())
+		if response.WasNotFound(resp.HttpResponse) {
+			return fmt.Errorf("%s was not found", applicationId)
 		}
 
-		return fmt.Errorf("retrieving Application with object ID %q: %+v", *application.ID(), err)
+		return fmt.Errorf("retrieving %s: %v", applicationId, err)
 	}
 
-	var existingScopes []msgraph.PermissionScope
+	app := resp.Model
+	if app == nil {
+		return fmt.Errorf("retrieving %s: model was nil", applicationId)
+	}
+
+	var existingScopes []stable.PermissionScope
 	if app.Api != nil && app.Api.OAuth2PermissionScopes != nil {
 		existingScopes = *app.Api.OAuth2PermissionScopes
 	}
@@ -45,13 +51,13 @@ func applicationDisableOauth2PermissionScopes(ctx context.Context, client *msgra
 
 	// Identify any scopes to be changed
 	var disable bool
-	for _, new := range *newScopes {
-		if new.ID == nil || *new.ID == "" {
+	for _, newScope := range *newScopes {
+		if newScope.Id == nil || *newScope.Id == "" {
 			return fmt.Errorf("new scope provided with nil or empty ID")
 		}
 		for i, existing := range existingScopes {
-			if existing.ID != nil && *existing.ID == *new.ID {
-				if existing.IsEnabled != nil && *existing.IsEnabled && !reflect.DeepEqual(existing, new) {
+			if existing.Id != nil && *existing.Id == *newScope.Id {
+				if existing.IsEnabled != nil && *existing.IsEnabled && !reflect.DeepEqual(existing, newScope) {
 					*existingScopes[i].IsEnabled = false
 					disable = true
 				}
@@ -63,8 +69,8 @@ func applicationDisableOauth2PermissionScopes(ctx context.Context, client *msgra
 	// Identify any scopes to be removed
 	for i, existing := range existingScopes {
 		found := false
-		for _, new := range *newScopes {
-			if existing.ID != nil && *new.ID == *existing.ID {
+		for _, newScope := range *newScopes {
+			if existing.Id != nil && *newScope.Id == *existing.Id {
 				found = true
 				break
 			}
@@ -77,16 +83,13 @@ func applicationDisableOauth2PermissionScopes(ctx context.Context, client *msgra
 
 	if disable {
 		// Disable any changed or removed scopes
-		properties := msgraph.Application{
-			DirectoryObject: msgraph.DirectoryObject{
-				Id: application.ID(),
-			},
-			Api: &msgraph.ApplicationApi{
+		properties := stable.Application{
+			Api: &stable.ApiApplication{
 				OAuth2PermissionScopes: &existingScopes,
 			},
 		}
-		if _, err := client.Update(ctx, properties); err != nil {
-			return fmt.Errorf("disabling OAuth2 Permission Scopes for Application with object ID %q: %+v", *application.ID(), err)
+		if _, err = client.UpdateApplication(ctx, applicationId, properties, application.DefaultUpdateApplicationOperationOptions()); err != nil {
+			return fmt.Errorf("disabling OAuth2 Permission Scopes for %s: %+v", applicationId, err)
 		}
 
 		// Wait for application manifest to reflect the disabled scopes
@@ -101,18 +104,19 @@ func applicationDisableOauth2PermissionScopes(ctx context.Context, client *msgra
 			Timeout:    timeout,
 			MinTimeout: 1 * time.Second,
 			Refresh: func() (interface{}, string, error) {
-				app, _, err := client.Get(ctx, *application.ID(), odata.Query{})
+				resp, err := client.GetApplication(ctx, applicationId, application.DefaultGetApplicationOperationOptions())
 				if err != nil {
-					return nil, "Error", fmt.Errorf("retrieving Application with object ID %q: %+v", *application.ID(), err)
+					return nil, "Error", fmt.Errorf("retrieving %s: %+v", applicationId, err)
 				}
+				app := resp.Model
 				if app == nil || app.Api == nil || app.Api.OAuth2PermissionScopes == nil {
-					return nil, "Error", fmt.Errorf("reading scopes for Application with object ID %q: %+v", *application.ID(), err)
+					return nil, "Error", fmt.Errorf("reading scopes for %s: %+v", applicationId, err)
 				}
 				actualScopes := *app.Api.OAuth2PermissionScopes
 				for _, expectedScope := range existingScopes {
 					if expectedScope.IsEnabled != nil && !*expectedScope.IsEnabled {
 						for _, actualScope := range actualScopes {
-							if expectedScope.ID != nil && actualScope.ID != nil && *expectedScope.ID == *actualScope.ID {
+							if expectedScope.Id != nil && actualScope.Id != nil && *expectedScope.Id == *actualScope.Id {
 								if actualScope.IsEnabled != nil && *actualScope.IsEnabled {
 									return actualScopes, "Waiting", nil
 								}
@@ -125,7 +129,7 @@ func applicationDisableOauth2PermissionScopes(ctx context.Context, client *msgra
 			},
 		}).WaitForStateContext(ctx)
 		if err != nil {
-			return fmt.Errorf("waiting for OAuth2 Permission Scopes to be disabled for Application with object ID %q: %+v", *application.ID(), err)
+			return fmt.Errorf("waiting for OAuth2 Permission Scopes to be disabled for %s: %+v", applicationId, err)
 		}
 	}
 

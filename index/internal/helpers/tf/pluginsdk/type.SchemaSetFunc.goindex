@@ -1,0 +1,3 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/pluginsdk
+import "github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
+	SchemaSetFunc = schema.SchemaSetFunc

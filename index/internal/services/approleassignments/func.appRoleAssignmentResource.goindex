@@ -8,13 +8,17 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-helpers/lang/response"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/stable"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/serviceprincipals/stable/approleassignedto"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/serviceprincipals/stable/serviceprincipal"
+	"github.com/hashicorp/go-azure-sdk/sdk/nullable"
 	"github.com/hashicorp/go-azure-sdk/sdk/odata"
 	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
-	"github.com/hashicorp/terraform-provider-azuread/internal/services/approleassignments/parse"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
-	"github.com/manicminer/hamilton/msgraph"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/validation"
+	"github.com/hashicorp/terraform-provider-azuread/internal/services/approleassignments/migrations"
 )
 func appRoleAssignmentResource() *pluginsdk.Resource {
 	return &pluginsdk.Resource{
@@ -29,33 +33,48 @@ func appRoleAssignmentResource() *pluginsdk.Resource {
 		},
 
 		Importer: pluginsdk.ImporterValidatingResourceId(func(id string) error {
-			_, err := parse.AppRoleAssignmentID(id)
-			return err
+			if _, errs := stable.ValidateServicePrincipalIdAppRoleAssignedToID(id, "id"); len(errs) > 0 {
+				out := ""
+				for _, err := range errs {
+					out += err.Error()
+				}
+				return fmt.Errorf(out)
+			}
+			return nil
 		}),
+
+		SchemaVersion: 1,
+		StateUpgraders: []pluginsdk.StateUpgrader{
+			{
+				Type:    migrations.ResourceAppRoleAssignmentInstanceResourceV0().CoreConfigSchema().ImpliedType(),
+				Upgrade: migrations.ResourceAppRoleAssignmentInstanceStateUpgradeV0,
+				Version: 0,
+			},
+		},
 
 		Schema: map[string]*pluginsdk.Schema{
 			"app_role_id": {
-				Description:      "The ID of the app role to be assigned",
-				Type:             pluginsdk.TypeString,
-				Required:         true,
-				ForceNew:         true,
-				ValidateDiagFunc: validation.ValidateDiag(validation.IsUUID),
+				Description:  "The ID of the app role to be assigned",
+				Type:         pluginsdk.TypeString,
+				Required:     true,
+				ForceNew:     true,
+				ValidateFunc: validation.IsUUID,
 			},
 
 			"principal_object_id": {
-				Description:      "The object ID of the user, group or service principal to be assigned this app role",
-				Type:             pluginsdk.TypeString,
-				Required:         true,
-				ForceNew:         true,
-				ValidateDiagFunc: validation.ValidateDiag(validation.IsUUID),
+				Description:  "The object ID of the user, group or service principal to be assigned this app role",
+				Type:         pluginsdk.TypeString,
+				Required:     true,
+				ForceNew:     true,
+				ValidateFunc: validation.IsUUID,
 			},
 
 			"resource_object_id": {
-				Description:      "The object ID of the service principal representing the resource",
-				Type:             pluginsdk.TypeString,
-				Required:         true,
-				ForceNew:         true,
-				ValidateDiagFunc: validation.ValidateDiag(validation.IsUUID),
+				Description:  "The object ID of the service principal representing the resource",
+				Type:         pluginsdk.TypeString,
+				Required:     true,
+				ForceNew:     true,
+				ValidateFunc: validation.IsUUID,
 			},
 
 			"principal_display_name": {

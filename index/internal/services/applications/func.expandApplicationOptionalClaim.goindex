@@ -9,14 +9,19 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-helpers/lang/response"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/applications/stable/application"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/stable"
+	"github.com/hashicorp/go-azure-sdk/sdk/client"
+	"github.com/hashicorp/go-azure-sdk/sdk/nullable"
 	"github.com/hashicorp/go-azure-sdk/sdk/odata"
-	"github.com/hashicorp/terraform-provider-azuread/internal/helpers"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
-	"github.com/manicminer/hamilton/msgraph"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/applications"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/credentials"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/pluginsdk"
 )
-func expandApplicationOptionalClaim(in []interface{}) *[]msgraph.OptionalClaim {
-	result := make([]msgraph.OptionalClaim, 0)
+func expandApplicationOptionalClaim(in []interface{}) *[]stable.OptionalClaim {
+	result := make([]stable.OptionalClaim, 0)
 
 	for _, optionalClaimRaw := range in {
 		if optionalClaimRaw == nil {
@@ -31,14 +36,14 @@ func expandApplicationOptionalClaim(in []interface{}) *[]msgraph.OptionalClaim {
 			}
 		}
 
-		newClaim := msgraph.OptionalClaim{
+		newClaim := stable.OptionalClaim{
 			Name:                 pointer.To(optionalClaim["name"].(string)),
 			Essential:            pointer.To(optionalClaim["essential"].(bool)),
 			AdditionalProperties: &additionalProps,
 		}
 
 		if source, ok := optionalClaim["source"].(string); ok && source != "" {
-			newClaim.Source = &source
+			newClaim.Source = nullable.Value(source)
 		}
 
 		result = append(result, newClaim)

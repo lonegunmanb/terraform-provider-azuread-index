@@ -2,34 +2,36 @@ package github.com/hashicorp/terraform-provider-azuread/internal/services/polici
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/hashicorp/go-azure-helpers/lang/pointer"
-	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/policies/stable/rolemanagementpolicyassignment"
 	"github.com/hashicorp/terraform-provider-azuread/internal/sdk"
 	"github.com/hashicorp/terraform-provider-azuread/internal/services/policies/parse"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
-	"github.com/manicminer/hamilton/msgraph"
 )
 func getPolicyId(ctx context.Context, metadata sdk.ResourceMetaData, scopeId, roleDefinitionId string) (*parse.RoleManagementPolicyId, error) {
 	client := metadata.Client.Policies.RoleManagementPolicyAssignmentClient
 
-	assignments, _, err := client.List(ctx, odata.Query{
-		Filter: fmt.Sprintf("scopeType eq 'Group' and scopeId eq '%s' and roleDefinitionId eq '%s'", scopeId, roleDefinitionId),
-	})
-	if err != nil {
-		return nil, fmt.Errorf("Could not list existing policy assignments, %+v", err)
-	}
-	if len(*assignments) != 1 {
-		return nil, fmt.Errorf("Got the wrong number of policy assignments, expected 1, got %d", len(*assignments))
+	options := rolemanagementpolicyassignment.ListRoleManagementPolicyAssignmentsOperationOptions{
+		Filter: pointer.To(fmt.Sprintf("scopeType eq 'Group' and scopeId eq '%s' and roleDefinitionId eq '%s'", scopeId, roleDefinitionId)),
 	}
 
-	assignmentId, err := parse.ParseRoleManagementPolicyAssignmentID(*(*assignments)[0].ID)
+	resp, err := client.ListRoleManagementPolicyAssignments(ctx, options)
 	if err != nil {
-		return nil, fmt.Errorf("Could not parse policy assignment ID, %+v", err)
+		return nil, fmt.Errorf("could not list existing policy assignments: %v", err)
+	}
+
+	assignments := resp.Model
+	if assignments == nil {
+		return nil, fmt.Errorf("could not list existing policy assignments: model was nil")
+	}
+	if len(*assignments) != 1 {
+		return nil, fmt.Errorf("got the wrong number of policy assignments: expected 1, got %d", len(*assignments))
+	}
+
+	assignmentId, err := parse.ParseRoleManagementPolicyAssignmentID(pointer.From((*assignments)[0].Id))
+	if err != nil {
+		return nil, fmt.Errorf("parsing policy assignment ID: %v", err)
 	}
 
 	return parse.NewRoleManagementPolicyID(assignmentId.ScopeType, assignmentId.ScopeId, assignmentId.PolicyId), nil
-
 }

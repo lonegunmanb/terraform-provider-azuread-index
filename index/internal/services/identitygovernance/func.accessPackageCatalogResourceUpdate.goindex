@@ -1,44 +1,46 @@
 package github.com/hashicorp/terraform-provider-azuread/internal/services/identitygovernance
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
-	"net/http"
 	"strings"
 	"time"
 
 	"github.com/hashicorp/go-azure-helpers/lang/pointer"
-	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/go-azure-helpers/lang/response"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/beta"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/identitygovernance/beta/entitlementmanagementaccesspackagecatalog"
+	"github.com/hashicorp/go-azure-sdk/sdk/nullable"
 	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
-	"github.com/hashicorp/terraform-provider-azuread/internal/helpers"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
-	"github.com/manicminer/hamilton/msgraph"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/consistency"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/validation"
 )
 func accessPackageCatalogResourceUpdate(ctx context.Context, d *pluginsdk.ResourceData, meta interface{}) pluginsdk.Diagnostics {
 	client := meta.(*clients.Client).IdentityGovernance.AccessPackageCatalogClient
 
-	objectId := d.Id()
-	tf.LockByName(accessPackageCatalogResourceName, objectId)
-	defer tf.UnlockByName(accessPackageCatalogResourceName, objectId)
+	id := beta.NewIdentityGovernanceEntitlementManagementAccessPackageCatalogID(d.Id())
 
-	state := msgraph.AccessPackageCatalogStateUnpublished
+	tf.LockByName(accessPackageCatalogResourceName, id.AccessPackageCatalogId)
+	defer tf.UnlockByName(accessPackageCatalogResourceName, id.AccessPackageCatalogId)
+
+	status := CatalogStatusUnpublished
 	if d.Get("published").(bool) {
-		state = msgraph.AccessPackageCatalogStatePublished
+		status = CatalogStatusPublished
 	}
 
-	properties := msgraph.AccessPackageCatalog{
-		ID:                  pointer.To(d.Id()),
-		DisplayName:         pointer.To(d.Get("display_name").(string)),
-		Description:         pointer.To(d.Get("description").(string)),
-		State:               state,
-		IsExternallyVisible: pointer.To(d.Get("externally_visible").(bool)),
+	properties := beta.AccessPackageCatalog{
+		DisplayName:         nullable.NoZero(d.Get("display_name").(string)),
+		Description:         nullable.NoZero(d.Get("description").(string)),
+		CatalogStatus:       nullable.Value(status),
+		IsExternallyVisible: nullable.Value(d.Get("externally_visible").(bool)),
 	}
 
-	if _, err := client.Update(ctx, properties); err != nil {
-		return tf.ErrorDiagF(err, "Could not update access package catalog with ID: %q", objectId)
+	if _, err := client.UpdateEntitlementManagementAccessPackageCatalog(ctx, id, properties, entitlementmanagementaccesspackagecatalog.DefaultUpdateEntitlementManagementAccessPackageCatalogOperationOptions()); err != nil {
+		return tf.ErrorDiagF(err, "Updating %s", id)
 	}
 
 	return accessPackageCatalogResourceRead(ctx, d, meta)

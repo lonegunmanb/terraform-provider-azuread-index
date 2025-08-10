@@ -1,3 +1,0 @@
-package github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk
-
-const PluginSdkUnknownValue = "74D93920-ED26-11E3-AC10-0800200C9A66"

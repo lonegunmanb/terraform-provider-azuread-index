@@ -1,22 +1,21 @@
 package github.com/hashicorp/terraform-provider-azuread/internal/services/conditionalaccess
 import (
-	"github.com/hashicorp/go-azure-helpers/lang/pointer"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
-	"github.com/manicminer/hamilton/msgraph"
-)
-func expandConditionalAccessDevices(in []interface{}) *msgraph.ConditionalAccessDevices {
-	result := msgraph.ConditionalAccessDevices{}
+	"strings"
 
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/stable"
+	"github.com/hashicorp/go-azure-sdk/sdk/nullable"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf"
+)
+func expandConditionalAccessDevices(in []interface{}) *stable.ConditionalAccessDevices {
 	if len(in) == 0 || in[0] == nil {
-		// The devices field cannot be empty on POST, and is currently totally ignored when empty on PATCH,
-		// so for now we'll just return nil here and revisit later.
 		return nil
 	}
 
+	result := stable.ConditionalAccessDevices{}
 	config := in[0].(map[string]interface{})
 
 	deviceFilter := config["filter"].([]interface{})
-
 	if len(deviceFilter) > 0 {
 		result.DeviceFilter = expandConditionalAccessFilter(deviceFilter)
 	}

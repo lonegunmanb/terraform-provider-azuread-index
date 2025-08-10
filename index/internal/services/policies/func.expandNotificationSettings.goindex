@@ -5,36 +5,29 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/stable"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/policies/stable/rolemanagementpolicy"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/policies/stable/rolemanagementpolicyassignment"
+	"github.com/hashicorp/go-azure-sdk/sdk/nullable"
 	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/validation"
 	"github.com/hashicorp/terraform-provider-azuread/internal/sdk"
 	"github.com/hashicorp/terraform-provider-azuread/internal/services/policies/parse"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
-	"github.com/manicminer/hamilton/msgraph"
 )
-func expandNotificationSettings(rule msgraph.UnifiedRoleManagementPolicyRule, data GroupRoleManagementPolicyNotificationSettings, recipientChange bool) msgraph.UnifiedRoleManagementPolicyRule {
-	level := rule.NotificationLevel
-	defaultRecipients := rule.IsDefaultRecipientsEnabled
-	additionalRecipients := rule.NotificationRecipients
-
-	if level != data.NotificationLevel {
-		level = data.NotificationLevel
-	}
-	if *defaultRecipients != data.DefaultRecipients {
-		defaultRecipients = pointer.To(data.DefaultRecipients)
-	}
-	if recipientChange {
-		additionalRecipients = pointer.To(data.AdditionalRecipients)
+func expandNotificationSettings(ruleId string, policyRules map[string]stable.UnifiedRoleManagementPolicyRule, data GroupRoleManagementPolicyNotificationSettings, recipientType string) stable.UnifiedRoleManagementPolicyNotificationRule {
+	rule := stable.UnifiedRoleManagementPolicyNotificationRule{
+		Id:                         pointer.To(ruleId),
+		IsDefaultRecipientsEnabled: nullable.Value(data.DefaultRecipients),
+		NotificationLevel:          nullable.Value(data.NotificationLevel),
+		NotificationRecipients:     pointer.To(data.AdditionalRecipients),
+		NotificationType:           nullable.Value("Email"),
+		RecipientType:              nullable.Value(recipientType),
 	}
 
-	return msgraph.UnifiedRoleManagementPolicyRule{
-		ID:                         rule.ID,
-		ODataType:                  rule.ODataType,
-		Target:                     rule.Target,
-		RecipientType:              rule.RecipientType,
-		NotificationType:           rule.NotificationType,
-		NotificationLevel:          level,
-		IsDefaultRecipientsEnabled: defaultRecipients,
-		NotificationRecipients:     additionalRecipients,
+	if existingRule, ok := policyRules[ruleId].(stable.UnifiedRoleManagementPolicyNotificationRule); ok {
+		rule.Target = existingRule.Target
 	}
+
+	return rule
 }

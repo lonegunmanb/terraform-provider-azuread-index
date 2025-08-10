@@ -1,39 +1,42 @@
 package github.com/hashicorp/terraform-provider-azuread/internal/services/identitygovernance
 import (
+	"context"
 	"fmt"
-	"time"
+	"strings"
 
 	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/beta"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/identitygovernance/beta/entitlementmanagementaccesspackage"
+	"github.com/hashicorp/go-azure-sdk/sdk/nullable"
 	"github.com/hashicorp/go-azure-sdk/sdk/odata"
-	"github.com/manicminer/hamilton/msgraph"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
-func flattenAccessPackageQuestions(input *[]msgraph.AccessPackageQuestion) []map[string]interface{} {
+func flattenAccessPackageQuestions(input *[]beta.AccessPackageQuestion) []map[string]interface{} {
 	if input == nil || len(*input) == 0 {
 		return nil
 	}
 
 	questions := make([]map[string]interface{}, 0)
 
-	for _, v := range *input {
+	for _, raw := range *input {
+		v := raw.AccessPackageQuestion()
+
 		question := map[string]interface{}{
-			"required": v.IsRequired,
-			"sequence": v.Sequence,
+			"required": v.IsRequired.GetOrZero(),
+			"sequence": int(v.Sequence.GetOrZero()),
 			"text":     flattenAccessPackageLocalizedContent(v.Text),
 		}
 
-		if c_array := v.Choices; c_array != nil && len(*c_array) > 0 {
+		if impl, ok := raw.(beta.AccessPackageMultipleChoiceQuestion); ok {
 			choices := make([]map[string]interface{}, 0)
-
-			for _, c := range *c_array {
-				choice := map[string]interface{}{
-					"actual_value":  c.ActualValue,
-					"display_value": flattenAccessPackageLocalizedContent(c.DisplayValue),
-				}
-
-				choices = append(choices, choice)
+			for _, choice := range pointer.From(impl.Choices) {
+				choices = append(choices, map[string]interface{}{
+					"actual_value":  choice.ActualValue.GetOrZero(),
+					"display_value": flattenAccessPackageLocalizedContent(&choice.DisplayValue),
+				})
 			}
-
-			question["choice"] = choices
+			question["choices"] = choices
 		}
 
 		questions = append(questions, question)

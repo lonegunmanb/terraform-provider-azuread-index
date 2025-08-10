@@ -1,0 +1,33 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/applications
+import (
+	"context"
+	"encoding/base64"
+	"fmt"
+	"net/http"
+	"reflect"
+	"strings"
+	"time"
+
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-helpers/lang/response"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/applications/stable/application"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/stable"
+	"github.com/hashicorp/go-azure-sdk/sdk/client"
+	"github.com/hashicorp/go-azure-sdk/sdk/nullable"
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/applications"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/credentials"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/pluginsdk"
+)
+func applicationUpdateRetryFunc() client.RequestRetryFunc {
+	return func(resp *http.Response, o *odata.OData) (bool, error) {
+		if response.WasNotFound(resp) {
+			return true, nil
+		} else if response.WasBadRequest(resp) && o != nil && o.Error != nil {
+			return o.Error.Match("Permission (scope or role) cannot be deleted or updated unless disabled first"), nil
+		}
+
+		return false, nil
+	}
+}

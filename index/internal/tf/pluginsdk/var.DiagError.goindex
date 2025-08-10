@@ -1,7 +1,0 @@
-package github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk
-import (
-	"fmt"
-
-	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
-)
-	DiagError   = diag.Error

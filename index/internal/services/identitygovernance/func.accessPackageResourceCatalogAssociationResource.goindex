@@ -1,18 +1,24 @@
 package github.com/hashicorp/terraform-provider-azuread/internal/services/identitygovernance
 import (
 	"context"
+	"errors"
+	"fmt"
 	"log"
-	"net/http"
 	"time"
 
 	"github.com/hashicorp/go-azure-helpers/lang/pointer"
-	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/beta"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/identitygovernance/beta/entitlementmanagementaccesspackagecatalog"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/identitygovernance/beta/entitlementmanagementaccesspackagecatalogaccesspackageresource"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/identitygovernance/beta/entitlementmanagementaccesspackageresourcerequest"
+	"github.com/hashicorp/go-azure-sdk/sdk/nullable"
 	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/consistency"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/validation"
 	"github.com/hashicorp/terraform-provider-azuread/internal/services/identitygovernance/parse"
 	"github.com/hashicorp/terraform-provider-azuread/internal/services/identitygovernance/validate"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
-	"github.com/manicminer/hamilton/msgraph"
 )
 func accessPackageResourceCatalogAssociationResource() *pluginsdk.Resource {
 	return &pluginsdk.Resource{
@@ -30,24 +36,27 @@ func accessPackageResourceCatalogAssociationResource() *pluginsdk.Resource {
 
 		Schema: map[string]*pluginsdk.Schema{
 			"resource_origin_id": {
-				Description: "The unique identifier of the resource in the origin system. In the case of an Azure AD group, this is the identifier of the group",
-				Type:        pluginsdk.TypeString,
-				Required:    true,
-				ForceNew:    true,
+				Description:  "The unique identifier of the resource in the origin system. In the case of an Azure AD group, this is the identifier of the group",
+				Type:         pluginsdk.TypeString,
+				Required:     true,
+				ForceNew:     true,
+				ValidateFunc: validation.StringIsNotEmpty,
 			},
 
 			"resource_origin_system": {
-				Description: "The type of the resource in the origin system, such as SharePointOnline, AadApplication or AadGroup",
-				Type:        pluginsdk.TypeString,
-				Required:    true,
-				ForceNew:    true,
+				Description:  "The type of the resource in the origin system, such as SharePointOnline, AadApplication or AadGroup",
+				Type:         pluginsdk.TypeString,
+				Required:     true,
+				ForceNew:     true,
+				ValidateFunc: validation.StringIsNotEmpty,
 			},
 
 			"catalog_id": {
-				Description: "The unique ID of the access package catalog",
-				Type:        pluginsdk.TypeString,
-				Required:    true,
-				ForceNew:    true,
+				Description:  "The unique ID of the access package catalog",
+				Type:         pluginsdk.TypeString,
+				Required:     true,
+				ForceNew:     true,
+				ValidateFunc: validation.IsUUID,
 			},
 		},
 	}

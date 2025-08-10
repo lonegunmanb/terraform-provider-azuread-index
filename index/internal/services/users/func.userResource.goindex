@@ -9,14 +9,20 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-helpers/lang/response"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/beta"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/stable"
+	userBeta "github.com/hashicorp/go-azure-sdk/microsoft-graph/users/beta/user"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/users/stable/manager"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/users/stable/user"
+	"github.com/hashicorp/go-azure-sdk/sdk/nullable"
 	"github.com/hashicorp/go-azure-sdk/sdk/odata"
-	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
-	"github.com/hashicorp/terraform-provider-azuread/internal/helpers"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
-	"github.com/manicminer/hamilton/msgraph"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/consistency"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/validation"
+	"github.com/hashicorp/terraform-provider-azuread/internal/services/users/migrations"
 )
 func userResource() *pluginsdk.Resource {
 	return &pluginsdk.Resource{
@@ -35,25 +41,38 @@ func userResource() *pluginsdk.Resource {
 		},
 
 		Importer: pluginsdk.ImporterValidatingResourceId(func(id string) error {
-			if _, err := uuid.ParseUUID(id); err != nil {
-				return fmt.Errorf("specified ID (%q) is not valid: %s", id, err)
+			if _, errs := stable.ValidateUserID(id, "id"); len(errs) > 0 {
+				out := ""
+				for _, err := range errs {
+					out += err.Error()
+				}
+				return fmt.Errorf(out)
 			}
 			return nil
 		}),
 
+		SchemaVersion: 1,
+		StateUpgraders: []pluginsdk.StateUpgrader{
+			{
+				Type:    migrations.ResourceUserInstanceResourceV0().CoreConfigSchema().ImpliedType(),
+				Upgrade: migrations.ResourceUserInstanceStateUpgradeV0,
+				Version: 0,
+			},
+		},
+
 		Schema: map[string]*pluginsdk.Schema{
 			"user_principal_name": {
-				Description:      "The user principal name (UPN) of the user",
-				Type:             pluginsdk.TypeString,
-				Required:         true,
-				ValidateDiagFunc: validation.StringIsEmailAddress,
+				Description:  "The user principal name (UPN) of the user",
+				Type:         pluginsdk.TypeString,
+				Required:     true,
+				ValidateFunc: validation.StringIsEmailAddress,
 			},
 
 			"display_name": {
-				Description:      "The name to display in the address book for the user",
-				Type:             pluginsdk.TypeString,
-				Required:         true,
-				ValidateDiagFunc: validation.ValidateDiag(validation.StringIsNotEmpty),
+				Description:  "The name to display in the address book for the user",
+				Type:         pluginsdk.TypeString,
+				Required:     true,
+				ValidateFunc: validation.StringIsNotEmpty,
 			},
 
 			"account_enabled": {
@@ -64,15 +83,10 @@ func userResource() *pluginsdk.Resource {
 			},
 
 			"age_group": {
-				Description: "The age group of the user",
-				Type:        pluginsdk.TypeString,
-				Optional:    true,
-				ValidateFunc: validation.StringInSlice([]string{
-					string(msgraph.AgeGroupNone),
-					string(msgraph.AgeGroupAdult),
-					string(msgraph.AgeGroupMinor),
-					string(msgraph.AgeGroupNotAdult),
-				}, false),
+				Description:  "The age group of the user",
+				Type:         pluginsdk.TypeString,
+				Optional:     true,
+				ValidateFunc: validation.StringInSlice(possibleValuesForAgeGroup, false),
 			},
 
 			"business_phones": {
@@ -98,15 +112,10 @@ func userResource() *pluginsdk.Resource {
 			},
 
 			"consent_provided_for_minor": {
-				Description: "Whether consent has been obtained for minors",
-				Type:        pluginsdk.TypeString,
-				Optional:    true,
-				ValidateFunc: validation.StringInSlice([]string{
-					string(msgraph.ConsentProvidedForMinorNone),
-					string(msgraph.ConsentProvidedForMinorDenied),
-					string(msgraph.ConsentProvidedForMinorGranted),
-					string(msgraph.ConsentProvidedForMinorNotRequired),
-				}, false),
+				Description:  "Whether consent has been obtained for minors",
+				Type:         pluginsdk.TypeString,
+				Optional:     true,
+				ValidateFunc: validation.StringInSlice(possibleValuesForConsentProvidedForMinor, false),
 			},
 
 			"cost_center": {
@@ -249,10 +258,10 @@ func userResource() *pluginsdk.Resource {
 			},
 
 			"preferred_language": {
-				Description:      "The user's preferred language, in ISO 639-1 notation",
-				Type:             pluginsdk.TypeString,
-				Optional:         true,
-				ValidateDiagFunc: validation.ISO639Language,
+				Description:  "The user's preferred language, in ISO 639-1 notation",
+				Type:         pluginsdk.TypeString,
+				Optional:     true,
+				ValidateFunc: validation.ISO639Language,
 			},
 
 			"show_in_address_list": {

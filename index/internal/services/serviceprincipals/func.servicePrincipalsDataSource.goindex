@@ -5,16 +5,21 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"net/http"
+	"log"
 	"strings"
 	"time"
 
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-helpers/lang/response"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/beta"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/stable"
+	serviceprincipalBeta "github.com/hashicorp/go-azure-sdk/microsoft-graph/serviceprincipals/beta/serviceprincipal"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/serviceprincipals/stable/serviceprincipal"
 	"github.com/hashicorp/go-azure-sdk/sdk/odata"
 	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
-	"github.com/manicminer/hamilton/msgraph"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/validation"
 )
 func servicePrincipalsDataSource() *pluginsdk.Resource {
 	return &pluginsdk.Resource{
@@ -30,24 +35,11 @@ func servicePrincipalsDataSource() *pluginsdk.Resource {
 				Type:         pluginsdk.TypeList,
 				Optional:     true,
 				Computed:     true,
-				ExactlyOneOf: []string{"client_ids", "application_ids", "display_names", "object_ids", "return_all"},
+				ExactlyOneOf: []string{"client_ids", "display_names", "object_ids", "return_all"},
 				Elem: &pluginsdk.Schema{
 					Type:         pluginsdk.TypeString,
 					ValidateFunc: validation.IsUUID,
 				},
-			},
-
-			"application_ids": {
-				Description:  "The application IDs (client IDs) of the applications associated with the service principals",
-				Type:         pluginsdk.TypeList,
-				Optional:     true,
-				Computed:     true,
-				ExactlyOneOf: []string{"client_ids", "application_ids", "display_names", "object_ids", "return_all"},
-				Elem: &pluginsdk.Schema{
-					Type:         pluginsdk.TypeString,
-					ValidateFunc: validation.IsUUID,
-				},
-				Deprecated: "The `application_ids` property has been replaced with the `client_ids` property and will be removed in version 3.0 of the AzureAD provider",
 			},
 
 			"display_names": {
@@ -55,7 +47,7 @@ func servicePrincipalsDataSource() *pluginsdk.Resource {
 				Type:         pluginsdk.TypeList,
 				Optional:     true,
 				Computed:     true,
-				ExactlyOneOf: []string{"client_ids", "application_ids", "display_names", "object_ids", "return_all"},
+				ExactlyOneOf: []string{"client_ids", "display_names", "object_ids", "return_all"},
 				Elem: &pluginsdk.Schema{
 					Type:         pluginsdk.TypeString,
 					ValidateFunc: validation.StringIsNotEmpty,
@@ -67,7 +59,7 @@ func servicePrincipalsDataSource() *pluginsdk.Resource {
 				Type:         pluginsdk.TypeList,
 				Optional:     true,
 				Computed:     true,
-				ExactlyOneOf: []string{"client_ids", "application_ids", "display_names", "object_ids", "return_all"},
+				ExactlyOneOf: []string{"client_ids", "display_names", "object_ids", "return_all"},
 				Elem: &pluginsdk.Schema{
 					Type:         pluginsdk.TypeString,
 					ValidateFunc: validation.IsUUID,
@@ -88,7 +80,7 @@ func servicePrincipalsDataSource() *pluginsdk.Resource {
 				Optional:      true,
 				Default:       false,
 				ConflictsWith: []string{"ignore_missing"},
-				ExactlyOneOf:  []string{"client_ids", "application_ids", "display_names", "object_ids", "return_all"},
+				ExactlyOneOf:  []string{"client_ids", "display_names", "object_ids", "return_all"},
 			},
 
 			"service_principals": {
@@ -107,13 +99,6 @@ func servicePrincipalsDataSource() *pluginsdk.Resource {
 							Description: "Whether this service principal requires an app role assignment to a user or group before Azure AD will issue a user or access token to the application",
 							Type:        pluginsdk.TypeBool,
 							Computed:    true,
-						},
-
-						"application_id": {
-							Description: "The application ID (client ID) for the associated application",
-							Type:        pluginsdk.TypeString,
-							Computed:    true,
-							Deprecated:  "The `application_id` attribute has been replaced by the `client_id` attribute and will be removed in version 3.0 of the AzureAD provider",
 						},
 
 						"application_tenant_id": {

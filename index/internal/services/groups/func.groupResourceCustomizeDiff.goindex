@@ -5,22 +5,34 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"reflect"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-helpers/lang/response"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/beta"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/stable"
+	administrativeunitmemberBeta "github.com/hashicorp/go-azure-sdk/microsoft-graph/directory/beta/administrativeunitmember"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/directoryobjects/stable/directoryobject"
+	groupBeta "github.com/hashicorp/go-azure-sdk/microsoft-graph/groups/beta/group"
+	memberBeta "github.com/hashicorp/go-azure-sdk/microsoft-graph/groups/beta/member"
+	memberofBeta "github.com/hashicorp/go-azure-sdk/microsoft-graph/groups/beta/memberof"
+	ownerBeta "github.com/hashicorp/go-azure-sdk/microsoft-graph/groups/beta/owner"
+	"github.com/hashicorp/go-azure-sdk/sdk/nullable"
 	"github.com/hashicorp/go-azure-sdk/sdk/odata"
 	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
-	"github.com/hashicorp/terraform-provider-azuread/internal/helpers"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
-	"github.com/manicminer/hamilton/msgraph"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/consistency"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/validation"
+	"github.com/hashicorp/terraform-provider-azuread/internal/services/groups/migrations"
 )
 func groupResourceCustomizeDiff(ctx context.Context, diff *pluginsdk.ResourceDiff, meta interface{}) error {
-	client := meta.(*clients.Client).Groups.GroupsClient
+	client := meta.(*clients.Client).Groups.GroupClientBeta
 
 	// Check for duplicate names
 	oldDisplayName, newDisplayName := diff.GetChange("display_name")
@@ -32,11 +44,11 @@ func groupResourceCustomizeDiff(ctx context.Context, diff *pluginsdk.ResourceDif
 		}
 		if result != nil && len(*result) > 0 {
 			for _, existingGroup := range *result {
-				if existingGroup.ID() == nil {
+				if existingGroup.Id == nil {
 					return fmt.Errorf("API error: group returned with nil object ID during duplicate name check")
 				}
-				if diff.Id() == "" || diff.Id() == *existingGroup.ID() {
-					return tf.ImportAsDuplicateError("azuread_group", *existingGroup.ID(), newDisplayName.(string))
+				if diff.Id() == "" || diff.Id() == *existingGroup.Id {
+					return tf.ImportAsDuplicateError("azuread_group", *existingGroup.Id, newDisplayName.(string))
 				}
 			}
 		}
@@ -44,20 +56,20 @@ func groupResourceCustomizeDiff(ctx context.Context, diff *pluginsdk.ResourceDif
 
 	mailEnabled := diff.Get("mail_enabled").(bool)
 	securityEnabled := diff.Get("security_enabled").(bool)
-	groupTypes := make([]msgraph.GroupType, 0)
+	groupTypes := make([]string, 0)
 	for _, v := range diff.Get("types").(*pluginsdk.Set).List() {
 		groupTypes = append(groupTypes, v.(string))
 	}
 
-	if hasGroupType(groupTypes, msgraph.GroupTypeDynamicMembership) && diff.Get("dynamic_membership.#").(int) == 0 {
-		return fmt.Errorf("`dynamic_membership` must be specified when `types` contains %q", msgraph.GroupTypeDynamicMembership)
+	if slices.Contains(groupTypes, GroupTypeDynamicMembership) && diff.Get("dynamic_membership.#").(int) == 0 {
+		return fmt.Errorf("`dynamic_membership` must be specified when `types` contains %q", GroupTypeDynamicMembership)
 	}
 
-	if mailEnabled && !hasGroupType(groupTypes, msgraph.GroupTypeUnified) {
-		return fmt.Errorf("`types` must contain %q for mail-enabled groups", msgraph.GroupTypeUnified)
+	if mailEnabled && !slices.Contains(groupTypes, GroupTypeUnified) {
+		return fmt.Errorf("`types` must contain %q for mail-enabled groups", GroupTypeUnified)
 	}
 
-	if !mailEnabled && hasGroupType(groupTypes, msgraph.GroupTypeUnified) {
+	if !mailEnabled && slices.Contains(groupTypes, GroupTypeUnified) {
 		return fmt.Errorf("`mail_enabled` must be true for unified groups")
 	}
 
@@ -71,7 +83,7 @@ func groupResourceCustomizeDiff(ctx context.Context, diff *pluginsdk.ResourceDif
 
 	visibilityOld, visibilityNew := diff.GetChange("visibility")
 
-	if !hasGroupType(groupTypes, msgraph.GroupTypeUnified) {
+	if !slices.Contains(groupTypes, GroupTypeUnified) {
 		if autoSubscribeNewMembers, ok := diff.GetOk("auto_subscribe_new_members"); ok && autoSubscribeNewMembers.(bool) {
 			return fmt.Errorf("`auto_subscribe_new_members` is only supported for unified groups")
 		}
@@ -100,13 +112,13 @@ func groupResourceCustomizeDiff(ctx context.Context, diff *pluginsdk.ResourceDif
 			return fmt.Errorf("`theme` is only supported for unified groups")
 		}
 
-		if visibilityNew.(string) == msgraph.GroupVisibilityHiddenMembership {
-			return fmt.Errorf("`visibility` can only be %q for unified groups", msgraph.GroupVisibilityHiddenMembership)
+		if visibilityNew.(string) == GroupVisibilityHiddenMembership {
+			return fmt.Errorf("`visibility` can only be %q for unified groups", GroupVisibilityHiddenMembership)
 		}
 	}
 
-	if (visibilityOld.(string) == msgraph.GroupVisibilityPrivate || visibilityOld.(string) == msgraph.GroupVisibilityPublic) &&
-		visibilityNew.(string) == msgraph.GroupVisibilityHiddenMembership {
+	if (visibilityOld.(string) == GroupVisibilityPrivate || visibilityOld.(string) == GroupVisibilityPublic) &&
+		visibilityNew.(string) == GroupVisibilityHiddenMembership {
 		diff.ForceNew("visibility")
 	}
 

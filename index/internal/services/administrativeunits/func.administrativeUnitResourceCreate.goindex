@@ -5,22 +5,29 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-helpers/lang/response"
+	administrativeunitBeta "github.com/hashicorp/go-azure-sdk/microsoft-graph/administrativeunits/beta/administrativeunit"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/beta"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/stable"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/directory/stable/administrativeunit"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/directory/stable/administrativeunitmember"
+	"github.com/hashicorp/go-azure-sdk/sdk/nullable"
 	"github.com/hashicorp/go-azure-sdk/sdk/odata"
 	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
-	"github.com/hashicorp/terraform-provider-azuread/internal/helpers"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
-	"github.com/manicminer/hamilton/msgraph"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/consistency"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/validation"
+	"github.com/hashicorp/terraform-provider-azuread/internal/services/administrativeunits/migrations"
 )
 func administrativeUnitResourceCreate(ctx context.Context, d *pluginsdk.ResourceData, meta interface{}) pluginsdk.Diagnostics {
-	client := meta.(*clients.Client).AdministrativeUnits.AdministrativeUnitsClient
-	directoryObjectsClient := meta.(*clients.Client).AdministrativeUnits.DirectoryObjectsClient
-	tenantId := meta.(*clients.Client).TenantID
+	client := meta.(*clients.Client).AdministrativeUnits.AdministrativeUnitClient
+	memberClient := meta.(*clients.Client).AdministrativeUnits.AdministrativeUnitMemberClient
 
 	displayName := d.Get("display_name").(string)
 
@@ -32,74 +39,93 @@ func administrativeUnitResourceCreate(ctx context.Context, d *pluginsdk.Resource
 		}
 		if result != nil && len(*result) > 0 {
 			existingAu := (*result)[0]
-			if existingAu.ID == nil {
+			if existingAu.Id == nil {
 				return tf.ErrorDiagF(errors.New("API returned administrative unit with nil object ID during duplicate name check"), "Bad API response")
 			}
-			return tf.ImportAsDuplicateDiag("azuread_administrative_unit", *existingAu.ID, displayName)
+			return tf.ImportAsDuplicateDiag("azuread_administrative_unit", *existingAu.Id, displayName)
 		}
 	}
 
-	// Set a temporary display name as we'll attempt to patch the AU with the correct name after creating it
-	uuid, err := uuid.GenerateUUID()
-	if err != nil {
-		return tf.ErrorDiagF(err, "Failed to generate a UUID")
+	properties := stable.AdministrativeUnit{
+		DisplayName: nullable.Value(displayName),
+		Visibility:  nullable.Value(administrativeUnitVisibilityPublic),
 	}
-	tempDisplayName := fmt.Sprintf("TERRAFORM_UPDATE_%s", uuid)
 
-	properties := msgraph.AdministrativeUnit{
-		Description: tf.NullableString(d.Get("description").(string)),
-		DisplayName: pointer.To(tempDisplayName),
-		Visibility:  pointer.To(msgraph.AdministrativeUnitVisibilityPublic),
+	if v := d.Get("description").(string); v != "" {
+		properties.Description = nullable.Value(v)
 	}
 
 	if d.Get("hidden_membership_enabled").(bool) {
-		properties.Visibility = pointer.To(msgraph.AdministrativeUnitVisibilityHiddenMembership)
+		properties.Visibility = nullable.Value(administrativeUnitVisibilityHiddenMembership)
 	}
 
-	administrativeUnit, _, err := client.Create(ctx, properties)
+	resp, err := client.CreateAdministrativeUnit(ctx, properties, administrativeunit.DefaultCreateAdministrativeUnitOperationOptions())
 	if err != nil {
 		return tf.ErrorDiagF(err, "Creating administrative unit %q", displayName)
 	}
 
-	if administrativeUnit.ID == nil {
+	administrativeUnit := resp.Model
+	if administrativeUnit == nil {
+		return tf.ErrorDiagF(errors.New("API returned nil administrative unit"), "Bad API Response")
+	}
+	if administrativeUnit.Id == nil {
 		return tf.ErrorDiagF(errors.New("API returned administrative unit with nil object ID"), "Bad API Response")
 	}
 
-	d.SetId(*administrativeUnit.ID)
+	id := stable.NewDirectoryAdministrativeUnitID(*administrativeUnit.Id)
+	d.SetId(id.ID())
 
-	// Attempt to patch the newly created administrative unit with the correct name, which will tell us whether it exists yet
+	// Set a temporary display name as we'll attempt to patch the AU with the correct name after creating it
+	uid, err := uuid.GenerateUUID()
+	if err != nil {
+		return tf.ErrorDiagF(err, "Failed to generate a UUID")
+	}
+	tempDisplayName := fmt.Sprintf("TERRAFORM_UPDATE_%s", uid)
+
+	// Attempt to patch the newly created administrative unit with a temporary name, which will tell us whether it
+	// exists yet. After, reset the name back to the correct name.
 	// The SDK handles retries for us here in the event of 404, 429 or 5xx, then returns after giving up
-	status, err := client.Update(ctx, msgraph.AdministrativeUnit{
-		ID:          administrativeUnit.ID,
-		DisplayName: pointer.To(displayName),
+	updateResp, err := client.UpdateAdministrativeUnit(ctx, id, stable.AdministrativeUnit{
+		DisplayName: nullable.Value(tempDisplayName),
+	}, administrativeunit.UpdateAdministrativeUnitOperationOptions{
+		RetryFunc: func(resp *http.Response, o *odata.OData) (bool, error) {
+			return response.WasNotFound(resp), nil
+		},
 	})
 	if err != nil {
-		if status == http.StatusNotFound {
-			return tf.ErrorDiagF(err, "Timed out whilst waiting for new administrative unit to be replicated in Azure AD")
+		if response.WasNotFound(updateResp.HttpResponse) {
+			return tf.ErrorDiagF(err, "Timed out whilst waiting for new %s to be replicated in Azure AD", id)
 		}
-		return tf.ErrorDiagF(err, "Failed to patch administrative unit after creating")
+		return tf.ErrorDiagF(err, "Failed to patch %s after creating", id)
+	}
+
+	// Set correct original display name
+	updateResp, err = client.UpdateAdministrativeUnit(ctx, id, stable.AdministrativeUnit{
+		DisplayName: nullable.Value(displayName),
+	}, administrativeunit.UpdateAdministrativeUnitOperationOptions{
+		RetryFunc: func(resp *http.Response, o *odata.OData) (bool, error) {
+			return response.WasNotFound(resp), nil
+		},
+	})
+	if err != nil {
+		if response.WasNotFound(updateResp.HttpResponse) {
+			return tf.ErrorDiagF(err, "Timed out whilst waiting for new %s to be replicated in Azure AD", id)
+		}
+		return tf.ErrorDiagF(err, "Failed to patch %s after creating", id)
 	}
 
 	// Add members after the administrative unit is created
-	members := make(msgraph.Members, 0)
 	if v, ok := d.GetOk("members"); ok {
-		for _, memberId := range v.(*pluginsdk.Set).List() {
-			memberObject, _, err := directoryObjectsClient.Get(ctx, memberId.(string), odata.Query{})
-			if err != nil {
-				return tf.ErrorDiagF(err, "Could not retrieve member principal object %q", memberId)
-			}
-			if memberObject == nil {
-				return tf.ErrorDiagF(errors.New("memberObject was nil"), "Could not retrieve member principal object %q", memberId)
-			}
-			memberObject.ODataId = (*odata.Id)(pointer.To(fmt.Sprintf("%s/v1.0/%s/directoryObjects/%s",
-				client.BaseClient.Endpoint, tenantId, memberId)))
+		for _, memberIdRaw := range v.(*pluginsdk.Set).List() {
+			memberId := stable.NewDirectoryObjectID(memberIdRaw.(string))
 
-			members = append(members, *memberObject)
-		}
-	}
-	if len(members) > 0 {
-		if _, err := client.AddMembers(ctx, d.Id(), &members); err != nil {
-			return tf.ErrorDiagF(err, "Could not add members to administrative unit with object ID: %q", d.Id())
+			addMemberProperties := stable.ReferenceCreate{
+				ODataId: pointer.To(client.Client.BaseUri + memberId.ID()),
+			}
+
+			if _, err = memberClient.AddAdministrativeUnitMemberRef(ctx, id, addMemberProperties, administrativeunitmember.DefaultAddAdministrativeUnitMemberRefOperationOptions()); err != nil {
+				return tf.ErrorDiagF(err, "Could not add member %q to %s", memberId, id)
+			}
 		}
 	}
 

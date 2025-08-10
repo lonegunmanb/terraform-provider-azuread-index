@@ -2,22 +2,20 @@ package github.com/hashicorp/terraform-provider-azuread/internal/services/applic
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log"
-	"net/http"
 	"strings"
 	"time"
 
 	"github.com/hashicorp/go-azure-helpers/lang/pointer"
-	"github.com/hashicorp/go-azure-sdk/sdk/odata"
-	"github.com/hashicorp/go-uuid"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/applications/stable/application"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/stable"
 	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
-	"github.com/hashicorp/terraform-provider-azuread/internal/helpers"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/consistency"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/credentials"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/validation"
 	"github.com/hashicorp/terraform-provider-azuread/internal/services/applications/parse"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
-	"github.com/manicminer/hamilton/msgraph"
 )
 func applicationCertificateResource() *pluginsdk.Resource {
 	return &pluginsdk.Resource{
@@ -41,36 +39,9 @@ func applicationCertificateResource() *pluginsdk.Resource {
 			"application_id": {
 				Description:  "The resource ID of the application for which this certificate should be created",
 				Type:         pluginsdk.TypeString,
-				Optional:     true,
-				Computed:     true, // TODO remove Computed in v3.0
+				Required:     true,
 				ForceNew:     true,
-				ExactlyOneOf: []string{"application_id", "application_object_id"},
-				ValidateFunc: parse.ValidateApplicationID,
-			},
-
-			"application_object_id": {
-				Description:  "The object ID of the application for which this certificate should be created",
-				Type:         pluginsdk.TypeString,
-				Optional:     true,
-				Computed:     true,
-				ForceNew:     true,
-				ExactlyOneOf: []string{"application_id", "application_object_id"},
-				Deprecated:   "The `application_object_id` property has been replaced with the `application_id` property and will be removed in version 3.0 of the AzureAD provider",
-				ValidateFunc: validation.Any(validation.IsUUID, parse.ValidateApplicationID),
-				DiffSuppressFunc: func(_, oldValue, newValue string, _ *pluginsdk.ResourceData) bool {
-					// Where oldValue is a UUID (i.e. the bare object ID), and newValue is a properly formed application
-					// resource ID, we'll ignore a diff where these point to the same application resource.
-					// This maintains compatibility with configurations mixing the ID attributes, e.g.
-					//     application_object_id = azuread_application.example.id
-					if _, err := uuid.ParseUUID(oldValue); err == nil {
-						if applicationId, err := parse.ParseApplicationID(newValue); err == nil {
-							if applicationId.ApplicationId == oldValue {
-								return true
-							}
-						}
-					}
-					return false
-				},
+				ValidateFunc: stable.ValidateApplicationID,
 			},
 
 			"encoding": {
@@ -121,6 +92,7 @@ func applicationCertificateResource() *pluginsdk.Resource {
 				ForceNew:      true,
 				ConflictsWith: []string{"end_date"},
 				ValidateFunc:  validation.StringIsNotEmpty,
+				Deprecated:    "The `end_date_relative` property is deprecated and will be removed in a future version of the AzureAD provider. Please instead use the Terraform `timeadd()` function to calculate a value for the `end_date` property.",
 			},
 
 			"type": {

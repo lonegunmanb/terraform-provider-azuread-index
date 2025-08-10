@@ -3,7 +3,7 @@ import (
 	"fmt"
 
 	"github.com/hashicorp/go-azure-helpers/resourcemanager/resourceids"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/validation"
 )
 func (id *ApiAccessId) String() string {
 	return fmt.Sprintf("Application API Access (Application ID: %q, API Client ID: %q)", id.ApplicationId, id.ApiClientId)

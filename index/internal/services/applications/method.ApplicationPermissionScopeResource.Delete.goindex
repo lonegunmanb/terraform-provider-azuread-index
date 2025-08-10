@@ -2,27 +2,26 @@ package github.com/hashicorp/terraform-provider-azuread/internal/services/applic
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"strings"
 	"time"
 
 	"github.com/hashicorp/go-azure-helpers/lang/pointer"
-	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/go-azure-helpers/lang/response"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/applications/stable/application"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/stable"
+	"github.com/hashicorp/go-azure-sdk/sdk/nullable"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/validation"
 	"github.com/hashicorp/terraform-provider-azuread/internal/sdk"
 	"github.com/hashicorp/terraform-provider-azuread/internal/services/applications/parse"
 	applicationsValidate "github.com/hashicorp/terraform-provider-azuread/internal/services/applications/validate"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
-	"github.com/manicminer/hamilton/msgraph"
 )
 func (r ApplicationPermissionScopeResource) Delete() sdk.ResourceFunc {
 	return sdk.ResourceFunc{
 		Timeout: 5 * time.Minute,
 		Func: func(ctx context.Context, metadata sdk.ResourceMetaData) error {
-			client := metadata.Client.Applications.ApplicationsClient
-			client.BaseClient.DisableRetries = true
-			defer func() { client.BaseClient.DisableRetries = false }()
+			client := metadata.Client.Applications.ApplicationClient
 
 			id, err := parse.ParsePermissionScopeID(metadata.ResourceData.Id())
 			if err != nil {
@@ -37,20 +36,22 @@ func (r ApplicationPermissionScopeResource) Delete() sdk.ResourceFunc {
 			tf.LockByName(applicationResourceName, id.ApplicationId)
 			defer tf.UnlockByName(applicationResourceName, id.ApplicationId)
 
-			applicationId := parse.NewApplicationID(id.ApplicationId)
-			result, _, err := client.Get(ctx, applicationId.ApplicationId, odata.Query{})
+			applicationId := stable.NewApplicationID(id.ApplicationId)
+			resp, err := client.GetApplication(ctx, applicationId, application.DefaultGetApplicationOperationOptions())
 			if err != nil {
 				return fmt.Errorf("retrieving %s: %+v", applicationId, err)
 			}
-			if result == nil || result.Api == nil || result.Api.OAuth2PermissionScopes == nil {
+
+			app := resp.Model
+			if app == nil || app.Api == nil || app.Api.OAuth2PermissionScopes == nil {
 				return fmt.Errorf("retrieving %s: api.oauth2PermissionScopes was nil", applicationId)
 			}
 
 			// Look for a scope to remove, matching by ID
-			newScopes := make([]msgraph.PermissionScope, 0)
+			newScopes := make([]stable.PermissionScope, 0)
 			found := false
-			for _, existingScope := range *result.Api.OAuth2PermissionScopes {
-				if strings.EqualFold(*existingScope.ID, id.ScopeID) {
+			for _, existingScope := range *app.Api.OAuth2PermissionScopes {
+				if strings.EqualFold(*existingScope.Id, id.ScopeID) {
 					found = true
 				} else {
 					newScopes = append(newScopes, existingScope)
@@ -61,22 +62,18 @@ func (r ApplicationPermissionScopeResource) Delete() sdk.ResourceFunc {
 			}
 
 			// Disable the existing scope prior to update
-			if err = applicationDisableOauth2PermissionScopes(ctx, client, result, &newScopes); err != nil {
+			if err = applicationDisableOauth2PermissionScopes(ctx, client, applicationId, &newScopes); err != nil {
 				return fmt.Errorf("disabling %s in preparation for deletion: %+v", id, err)
 			}
 
-			properties := msgraph.Application{
-				DirectoryObject: msgraph.DirectoryObject{
-					Id: &applicationId.ApplicationId,
-				},
-				Api: &msgraph.ApplicationApi{
+			properties := stable.Application{
+				Api: &stable.ApiApplication{
 					OAuth2PermissionScopes: &newScopes,
 				},
 			}
 
 			// Patch the application with the new set of scopes
-			_, err = client.Update(ctx, properties)
-			if err != nil {
+			if _, err = client.UpdateApplication(ctx, applicationId, properties, application.DefaultUpdateApplicationOperationOptions()); err != nil {
 				return fmt.Errorf("deleting %s: %+v", id, err)
 			}
 

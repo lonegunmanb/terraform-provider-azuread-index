@@ -1,0 +1,34 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/identitygovernance
+import (
+	"context"
+	"errors"
+	"fmt"
+	"log"
+	"time"
+
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-helpers/lang/response"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/beta"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/identitygovernance/beta/entitlementmanagementaccesspackage"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/identitygovernance/beta/entitlementmanagementaccesspackageassignmentpolicy"
+	"github.com/hashicorp/go-azure-sdk/sdk/nullable"
+	"github.com/hashicorp/go-uuid"
+	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/consistency"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/validation"
+)
+func assignmentPolicyCustomizeDiff(ctx context.Context, diff *pluginsdk.ResourceDiff, meta interface{}) error {
+	if reviewSettings := diff.Get("assignment_review_settings").([]interface{}); len(reviewSettings) > 0 {
+		reviewSetting := reviewSettings[0].(map[string]interface{})
+		if reviewSetting["enabled"].(bool) &&
+			(reviewSetting["duration_in_days"] == 0 ||
+				len(reviewSetting["review_frequency"].(string)) == 0 ||
+				len(reviewSetting["access_review_timeout_behavior"].(string)) == 0) {
+			return fmt.Errorf("`duration_in_days`, `review_frequency`, `access_review_timeout_behavior` must be set when review is enabled")
+		}
+	}
+
+	return nil
+}

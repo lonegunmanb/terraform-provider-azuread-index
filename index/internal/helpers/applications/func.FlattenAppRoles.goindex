@@ -1,0 +1,46 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/helpers/applications
+import (
+	"context"
+	"fmt"
+	"strings"
+
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-helpers/lang/response"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/applications/stable/owner"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/stable"
+)
+func FlattenAppRoles(in *[]stable.AppRole) (result []map[string]interface{}) {
+	if in == nil {
+		return //nolint:nakedret
+	}
+
+	for _, role := range *in {
+		roleId := ""
+		if role.Id != nil {
+			roleId = *role.Id
+		}
+
+		allowedMemberTypes := make([]interface{}, 0)
+		if v := role.AllowedMemberTypes; v != nil {
+			for _, m := range *v {
+				allowedMemberTypes = append(allowedMemberTypes, m)
+			}
+		}
+
+		enabled := false
+		if role.IsEnabled != nil && *role.IsEnabled {
+			enabled = true
+		}
+
+		result = append(result, map[string]interface{}{
+			"id":                   roleId,
+			"allowed_member_types": allowedMemberTypes,
+			"description":          role.Description.GetOrZero(),
+			"display_name":         role.DisplayName.GetOrZero(),
+			"enabled":              enabled,
+			"value":                role.Value.GetOrZero(),
+		})
+	}
+
+	return //nolint:nakedret
+}

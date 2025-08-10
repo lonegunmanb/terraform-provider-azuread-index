@@ -1,0 +1,9 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf
+
+func FlattenStringSlice(input []string) []interface{} {
+	result := make([]interface{}, 0)
+	for _, item := range input {
+		result = append(result, item)
+	}
+	return result
+}

@@ -1,10 +1,20 @@
 package github.com/hashicorp/terraform-provider-azuread/internal/services/groups/client
 import (
+	administrativeunitmemberBeta "github.com/hashicorp/go-azure-sdk/microsoft-graph/directory/beta/administrativeunitmember"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/directoryobjects/stable/directoryobject"
+	groupBeta "github.com/hashicorp/go-azure-sdk/microsoft-graph/groups/beta/group"
+	memberBeta "github.com/hashicorp/go-azure-sdk/microsoft-graph/groups/beta/member"
+	memberofBeta "github.com/hashicorp/go-azure-sdk/microsoft-graph/groups/beta/memberof"
+	ownerBeta "github.com/hashicorp/go-azure-sdk/microsoft-graph/groups/beta/owner"
+	transitivememberBeta "github.com/hashicorp/go-azure-sdk/microsoft-graph/groups/beta/transitivemember"
 	"github.com/hashicorp/terraform-provider-azuread/internal/common"
-	"github.com/manicminer/hamilton/msgraph"
 )
 type Client struct {
-	AdministrativeUnitsClient *msgraph.AdministrativeUnitsClient
-	DirectoryObjectsClient    *msgraph.DirectoryObjectsClient
-	GroupsClient              *msgraph.GroupsClient
+	AdministrativeUnitMemberClientBeta *administrativeunitmemberBeta.AdministrativeUnitMemberClient
+	DirectoryObjectClient              *directoryobject.DirectoryObjectClient
+	GroupClientBeta                    *groupBeta.GroupClient
+	GroupMemberClientBeta              *memberBeta.MemberClient
+	GroupMemberOfClientBeta            *memberofBeta.MemberOfClient
+	GroupOwnerClientBeta               *ownerBeta.OwnerClient
+	GroupTransitiveMemberClientBeta    *transitivememberBeta.TransitiveMemberClient
 }

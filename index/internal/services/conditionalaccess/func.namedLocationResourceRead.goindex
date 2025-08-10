@@ -4,53 +4,57 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"net/http"
 	"reflect"
 	"time"
 
 	"github.com/hashicorp/go-azure-helpers/lang/pointer"
-	"github.com/hashicorp/go-azure-sdk/sdk/odata"
-	"github.com/hashicorp/go-uuid"
+	"github.com/hashicorp/go-azure-helpers/lang/response"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/stable"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/identity/stable/conditionalaccessnamedlocation"
 	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
-	"github.com/hashicorp/terraform-provider-azuread/internal/helpers"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
-	"github.com/manicminer/hamilton/msgraph"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/consistency"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/validation"
+	"github.com/hashicorp/terraform-provider-azuread/internal/services/conditionalaccess/migrations"
 )
 func namedLocationResourceRead(ctx context.Context, d *pluginsdk.ResourceData, meta interface{}) pluginsdk.Diagnostics {
-	client := meta.(*clients.Client).ConditionalAccess.NamedLocationsClient
+	client := meta.(*clients.Client).ConditionalAccess.NamedLocationClient
 
-	result, status, err := client.Get(ctx, d.Id(), odata.Query{})
+	id, err := stable.ParseIdentityConditionalAccessNamedLocationID(d.Id())
 	if err != nil {
-		if status == http.StatusNotFound {
-			log.Printf("[DEBUG] Named Location with Object ID %q was not found - removing from state", d.Id())
+		return tf.ErrorDiagPathF(err, "id", "Parsing Named Location ID")
+	}
+
+	resp, err := client.GetConditionalAccessNamedLocation(ctx, *id, conditionalaccessnamedlocation.DefaultGetConditionalAccessNamedLocationOperationOptions())
+	if err != nil {
+		if response.WasNotFound(resp.HttpResponse) {
+			log.Printf("[DEBUG] %s was not found - removing from state", id)
 			d.SetId("")
 			return nil
 		}
 	}
-	if result == nil {
-		return tf.ErrorDiagF(errors.New("Bad API response"), "Result is nil")
+
+	if resp.Model == nil {
+		return tf.ErrorDiagF(errors.New("returned model was nil"), "Bad API Response")
 	}
 
-	location := *result
-
-	if ipnl, ok := location.(msgraph.IPNamedLocation); ok {
-		if ipnl.ID == nil {
-			return tf.ErrorDiagF(errors.New("Bad API response"), "ID is nil for returned IP Named Location")
+	switch namedLocation := resp.Model.(type) {
+	case stable.IPNamedLocation:
+		if namedLocation.Id == nil {
+			return tf.ErrorDiagF(errors.New("ID is nil for returned IP Named Location"), "Bad API response")
 		}
-		d.SetId(*ipnl.ID)
-		tf.Set(d, "display_name", ipnl.DisplayName)
-		tf.Set(d, "ip", flattenIPNamedLocation(&ipnl))
-	}
 
-	if cnl, ok := location.(msgraph.CountryNamedLocation); ok {
-		if cnl.ID == nil {
-			return tf.ErrorDiagF(errors.New("Bad API response"), "ID is nil for returned Country Named Location")
+		tf.Set(d, "display_name", pointer.From(namedLocation.DisplayName))
+		tf.Set(d, "ip", flattenIPNamedLocation(&namedLocation))
+
+	case stable.CountryNamedLocation:
+		if namedLocation.Id == nil {
+			return tf.ErrorDiagF(errors.New("ID is nil for returned Country Named Location"), "Bad API response")
 		}
-		d.SetId(*cnl.ID)
-		tf.Set(d, "display_name", cnl.DisplayName)
-		tf.Set(d, "country", flattenCountryNamedLocation(&cnl))
+
+		tf.Set(d, "display_name", pointer.From(namedLocation.DisplayName))
+		tf.Set(d, "country", flattenCountryNamedLocation(&namedLocation))
 	}
 
 	return nil

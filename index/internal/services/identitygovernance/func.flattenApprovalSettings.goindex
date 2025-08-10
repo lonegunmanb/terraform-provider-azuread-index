@@ -1,36 +1,46 @@
 package github.com/hashicorp/terraform-provider-azuread/internal/services/identitygovernance
 import (
+	"context"
 	"fmt"
-	"time"
+	"strings"
 
 	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/beta"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/identitygovernance/beta/entitlementmanagementaccesspackage"
+	"github.com/hashicorp/go-azure-sdk/sdk/nullable"
 	"github.com/hashicorp/go-azure-sdk/sdk/odata"
-	"github.com/manicminer/hamilton/msgraph"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
-func flattenApprovalSettings(input *msgraph.ApprovalSettings) []map[string]interface{} {
+func flattenApprovalSettings(input *beta.ApprovalSettings) []map[string]interface{} {
 	if input == nil {
 		return nil
 	}
 
 	result := []map[string]interface{}{{
-		"approval_required":                input.IsApprovalRequired,
-		"approval_required_for_extension":  input.IsApprovalRequiredForExtension,
-		"requestor_justification_required": input.IsRequestorJustificationRequired,
+		"approval_required":                input.IsApprovalRequired.GetOrZero(),
+		"approval_required_for_extension":  input.IsApprovalRequiredForExtension.GetOrZero(),
+		"requestor_justification_required": input.IsRequestorJustificationRequired.GetOrZero(),
 	}}
 
 	approvalStages := make([]interface{}, 0)
 	for _, v := range *input.ApprovalStages {
+		var alternativeApprovalInDays int
+		if w := v.EscalationTimeInMinutes.GetOrZero(); w > 0 {
+			alternativeApprovalInDays = int(w) / 60 / 24
+		}
 		approvalStage := map[string]interface{}{
-			"approval_timeout_in_days":            v.ApprovalStageTimeOutInDays,
-			"approver_justification_required":     v.IsApproverJustificationRequired,
-			"alternative_approval_enabled":        v.IsEscalationEnabled,
-			"enable_alternative_approval_in_days": *v.EscalationTimeInMinutes / 60 / 24,
+			"approval_timeout_in_days":            int(v.ApprovalStageTimeOutInDays.GetOrZero()),
+			"approver_justification_required":     v.IsApproverJustificationRequired.GetOrZero(),
+			"alternative_approval_enabled":        v.IsEscalationEnabled.GetOrZero(),
+			"enable_alternative_approval_in_days": alternativeApprovalInDays,
 			"primary_approver":                    flattenUserSets(v.PrimaryApprovers),
 			"alternative_approver":                flattenUserSets(v.EscalationApprovers),
 		}
 
 		approvalStages = append(approvalStages, approvalStage)
 	}
+
 	result[0]["approval_stage"] = approvalStages
 
 	return result

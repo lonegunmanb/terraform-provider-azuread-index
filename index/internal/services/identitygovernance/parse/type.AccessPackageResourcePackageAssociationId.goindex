@@ -6,8 +6,8 @@ import (
 	"github.com/hashicorp/go-uuid"
 )
 type AccessPackageResourcePackageAssociationId struct {
-	AccessPackageId              string
-	ResourcePackageAssociationId string
-	OriginId                     string
-	AccessType                   string
+	AccessPackageId     string
+	ResourceRoleScopeId string
+	OriginId            string
+	AccessType          string
 }

@@ -4,25 +4,25 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"net/http"
 	"time"
 
 	"github.com/hashicorp/go-azure-helpers/lang/pointer"
-	"github.com/hashicorp/go-azure-sdk/sdk/odata"
-	"github.com/hashicorp/go-uuid"
+	"github.com/hashicorp/go-azure-helpers/lang/response"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/stable"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/identity/stable/conditionalaccesspolicy"
 	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
-	"github.com/hashicorp/terraform-provider-azuread/internal/helpers"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
-	"github.com/manicminer/hamilton/msgraph"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/consistency"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/validation"
+	"github.com/hashicorp/terraform-provider-azuread/internal/services/conditionalaccess/migrations"
 )
 func conditionalAccessPolicyResourceCreate(ctx context.Context, d *pluginsdk.ResourceData, meta interface{}) pluginsdk.Diagnostics {
-	client := meta.(*clients.Client).ConditionalAccess.PoliciesClient
+	client := meta.(*clients.Client).ConditionalAccess.PolicyClient
 
-	properties := msgraph.ConditionalAccessPolicy{
+	properties := stable.ConditionalAccessPolicy{
 		DisplayName: pointer.To(d.Get("display_name").(string)),
-		State:       pointer.To(d.Get("state").(string)),
+		State:       pointer.To(stable.ConditionalAccessPolicyState(d.Get("state").(string))),
 		Conditions:  expandConditionalAccessConditionSet(d.Get("conditions").([]interface{})),
 	}
 
@@ -34,16 +34,22 @@ func conditionalAccessPolicyResourceCreate(ctx context.Context, d *pluginsdk.Res
 		properties.SessionControls = expandConditionalAccessSessionControls(v.([]interface{}))
 	}
 
-	policy, _, err := client.Create(ctx, properties)
+	resp, err := client.CreateConditionalAccessPolicy(ctx, properties, conditionalaccesspolicy.DefaultCreateConditionalAccessPolicyOperationOptions())
 	if err != nil {
 		return tf.ErrorDiagF(err, "Could not create conditional access policy")
 	}
 
-	if policy.ID == nil || *policy.ID == "" {
+	policy := resp.Model
+	if policy == nil {
+		return tf.ErrorDiagF(errors.New("model was nil"), "Could not create conditional access policy")
+	}
+
+	if policy.Id == nil || *policy.Id == "" {
 		return tf.ErrorDiagF(errors.New("Bad API response"), "Object ID returned for conditional access policy is nil/empty")
 	}
 
-	d.SetId(*policy.ID)
+	id := stable.NewIdentityConditionalAccessPolicyID(pointer.From(policy.Id))
+	d.SetId(id.ID())
 
 	return conditionalAccessPolicyResourceRead(ctx, d, meta)
 }

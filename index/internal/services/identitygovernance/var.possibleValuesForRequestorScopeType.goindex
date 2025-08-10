@@ -1,0 +1,12 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/identitygovernance
+
+var possibleValuesForRequestorScopeType = []string{
+	RequestorScopeTypeAllConfiguredConnectedOrganizationSubjects,
+	RequestorScopeTypeAllExistingConnectedOrganizationSubjects,
+	RequestorScopeTypeAllExistingDirectoryMemberUsers,
+	RequestorScopeTypeAllExistingDirectorySubjects,
+	RequestorScopeTypeAllExternalSubjects,
+	RequestorScopeTypeNoSubjects,
+	RequestorScopeTypeSpecificConnectedOrganizationSubjects,
+	RequestorScopeTypeSpecificDirectorySubjects,
+}

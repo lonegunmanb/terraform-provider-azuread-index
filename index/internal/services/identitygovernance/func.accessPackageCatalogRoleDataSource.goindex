@@ -3,14 +3,17 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/http"
 	"time"
 
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-helpers/lang/response"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/beta"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/rolemanagement/beta/entitlementmanagementroledefinition"
 	"github.com/hashicorp/go-azure-sdk/sdk/odata"
 	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
-	"github.com/manicminer/hamilton/msgraph"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/validation"
 )
 func accessPackageCatalogRoleDataSource() *pluginsdk.Resource {
 	return &pluginsdk.Resource{
@@ -27,6 +30,7 @@ func accessPackageCatalogRoleDataSource() *pluginsdk.Resource {
 				Optional:     true,
 				Computed:     true,
 				ExactlyOneOf: []string{"display_name", "object_id"},
+				ValidateFunc: validation.StringIsNotEmpty,
 			},
 
 			"object_id": {
@@ -35,6 +39,7 @@ func accessPackageCatalogRoleDataSource() *pluginsdk.Resource {
 				Optional:     true,
 				Computed:     true,
 				ExactlyOneOf: []string{"display_name", "object_id"},
+				ValidateFunc: validation.IsUUID,
 			},
 
 			"description": {

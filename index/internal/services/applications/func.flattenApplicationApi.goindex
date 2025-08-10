@@ -9,21 +9,23 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-helpers/lang/response"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/applications/stable/application"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/stable"
+	"github.com/hashicorp/go-azure-sdk/sdk/client"
+	"github.com/hashicorp/go-azure-sdk/sdk/nullable"
 	"github.com/hashicorp/go-azure-sdk/sdk/odata"
-	"github.com/hashicorp/terraform-provider-azuread/internal/helpers"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
-	"github.com/manicminer/hamilton/msgraph"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/applications"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/credentials"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/pluginsdk"
 )
-func flattenApplicationApi(in *msgraph.ApplicationApi, dataSource bool) []map[string]interface{} {
+func flattenApplicationApi(in *stable.ApiApplication, dataSource bool) []map[string]interface{} {
 	if in == nil {
 		return []map[string]interface{}{}
 	}
 
-	mappedClaims := false
-	if in.AcceptMappedClaims != nil {
-		mappedClaims = *in.AcceptMappedClaims
-	}
+	mappedClaims := in.AcceptMappedClaims.GetOrZero()
 
 	scopesKey := "oauth2_permission_scope"
 	if dataSource {
@@ -31,14 +33,14 @@ func flattenApplicationApi(in *msgraph.ApplicationApi, dataSource bool) []map[st
 	}
 
 	accessTokenVersion := 1
-	if in.RequestedAccessTokenVersion != nil {
-		accessTokenVersion = int(*in.RequestedAccessTokenVersion)
+	if !in.RequestedAccessTokenVersion.IsNull() {
+		accessTokenVersion = int(in.RequestedAccessTokenVersion.GetOrZero())
 	}
 
 	return []map[string]interface{}{{
 		"known_client_applications":      tf.FlattenStringSlicePtr(in.KnownClientApplications),
 		"mapped_claims_enabled":          mappedClaims,
-		scopesKey:                        flattenApplicationOAuth2PermissionScopes(in.OAuth2PermissionScopes),
+		scopesKey:                        applications.FlattenOAuth2PermissionScopes(in.OAuth2PermissionScopes),
 		"requested_access_token_version": accessTokenVersion,
 	}}
 }

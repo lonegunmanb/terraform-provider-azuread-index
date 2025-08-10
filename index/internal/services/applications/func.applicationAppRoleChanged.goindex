@@ -9,31 +9,34 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-helpers/lang/response"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/applications/stable/application"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/stable"
+	"github.com/hashicorp/go-azure-sdk/sdk/client"
+	"github.com/hashicorp/go-azure-sdk/sdk/nullable"
 	"github.com/hashicorp/go-azure-sdk/sdk/odata"
-	"github.com/hashicorp/terraform-provider-azuread/internal/helpers"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
-	"github.com/manicminer/hamilton/msgraph"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/applications"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/credentials"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/pluginsdk"
 )
-func applicationAppRoleChanged(existing msgraph.AppRole, new msgraph.AppRole) bool {
-	if !reflect.DeepEqual(existing.AllowedMemberTypes, new.AllowedMemberTypes) {
+func applicationAppRoleChanged(existingRole stable.AppRole, newRole stable.AppRole) bool {
+	if !reflect.DeepEqual(existingRole.AllowedMemberTypes, newRole.AllowedMemberTypes) {
 		return true
 	}
-	if !reflect.DeepEqual(existing.Description, new.Description) {
+	if !reflect.DeepEqual(existingRole.Description, newRole.Description) {
 		return true
 	}
-	if !reflect.DeepEqual(existing.DisplayName, new.DisplayName) {
+	if !reflect.DeepEqual(existingRole.DisplayName, newRole.DisplayName) {
 		return true
 	}
 
-	// The following order is important; we must check for nil, and we consider nil and "" to be equivalent Values
-	if reflect.DeepEqual(existing.Value, new.Value) {
+	if reflect.DeepEqual(existingRole.Value, newRole.Value) {
 		return false
 	}
-	if existing.Value == nil && new.Value != nil && *new.Value == "" {
-		return false
-	}
-	if existing.Value != nil && *existing.Value == "" && new.Value == nil {
+
+	// We consider unset/null to be equivalent to the zero value
+	if existingRole.Value.GetOrZero() == newRole.Value.GetOrZero() {
 		return false
 	}
 

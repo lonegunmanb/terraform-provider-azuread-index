@@ -5,12 +5,15 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/stable"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/policies/stable/rolemanagementpolicy"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/policies/stable/rolemanagementpolicyassignment"
+	"github.com/hashicorp/go-azure-sdk/sdk/nullable"
 	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/validation"
 	"github.com/hashicorp/terraform-provider-azuread/internal/sdk"
 	"github.com/hashicorp/terraform-provider-azuread/internal/services/policies/parse"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
-	"github.com/manicminer/hamilton/msgraph"
 )
 func (r GroupRoleManagementPolicyResource) Update() sdk.ResourceFunc {
 	return sdk.ResourceFunc{
@@ -18,36 +21,50 @@ func (r GroupRoleManagementPolicyResource) Update() sdk.ResourceFunc {
 		Func: func(ctx context.Context, metadata sdk.ResourceMetaData) error {
 			client := metadata.Client.Policies.RoleManagementPolicyClient
 
-			id, err := parse.ParseRoleManagementPolicyID(metadata.ResourceData.Id())
+			policyId, err := parse.ParseRoleManagementPolicyID(metadata.ResourceData.Id())
 			if err != nil {
-				return fmt.Errorf("Could not parse policy ID, %+v", err)
+				return fmt.Errorf("parsing policy ID: %v", err)
 			}
-			metadata.SetID(id)
 
-			policy, _, err := client.Get(ctx, id.ID())
-			if err != nil {
-				return fmt.Errorf("Could not retrieve existing policy, %+v", err)
+			var model GroupRoleManagementPolicyModel
+			if err = metadata.Decode(&model); err != nil {
+				return fmt.Errorf("decoding: %+v", err)
 			}
+
+			id := stable.NewPolicyRoleManagementPolicyID(policyId.ID())
+
+			policyOptions := rolemanagementpolicy.GetRoleManagementPolicyOperationOptions{
+				Expand: &odata.Expand{
+					Relationship: "*",
+				},
+			}
+
+			policyResp, err := client.GetRoleManagementPolicy(ctx, id, policyOptions)
+			if err != nil {
+				return fmt.Errorf("retrieving %s: %v", id, err)
+			}
+
+			policy := policyResp.Model
 			if policy == nil {
-				return fmt.Errorf("retrieving %s: API error, result was nil", id)
+				return fmt.Errorf("retrieving %s: API error, model was nil", id)
 			}
 
 			policyUpdate, err := buildPolicyForUpdate(pointer.To(metadata), policy)
 			if err != nil {
-				return fmt.Errorf("Could not build update request, %+v", err)
+				return fmt.Errorf("building update request: %v", err)
 			}
 
-			_, err = client.Update(ctx, *policyUpdate)
-			if err != nil {
-				return fmt.Errorf("Could not create assignment schedule request, %+v", err)
+			if _, err = client.UpdateRoleManagementPolicy(ctx, id, *policyUpdate, rolemanagementpolicy.DefaultUpdateRoleManagementPolicyOperationOptions()); err != nil {
+				return fmt.Errorf("updating %s: %v", id, err)
 			}
 
 			// Update the ID as it changes on modification
-			id, err = getPolicyId(ctx, metadata, metadata.ResourceData.Get("group_id").(string), metadata.ResourceData.Get("role_id").(string))
+			policyId, err = getPolicyId(ctx, metadata, model.GroupId, model.RoleId)
 			if err != nil {
-				return fmt.Errorf("Could not parse policy assignment ID, %+v", err)
+				return fmt.Errorf("parsing policy ID: %v", err)
 			}
-			metadata.SetID(id)
+
+			metadata.SetID(policyId)
 
 			return nil
 		},

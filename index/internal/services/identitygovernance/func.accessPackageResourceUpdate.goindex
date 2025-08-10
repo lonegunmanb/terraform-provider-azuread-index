@@ -1,47 +1,55 @@
 package github.com/hashicorp/terraform-provider-azuread/internal/services/identitygovernance
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
-	"net/http"
 	"time"
 
 	"github.com/hashicorp/go-azure-helpers/lang/pointer"
-	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/go-azure-helpers/lang/response"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/beta"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/identitygovernance/beta/entitlementmanagementaccesspackage"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/identitygovernance/beta/entitlementmanagementaccesspackagecatalog"
+	"github.com/hashicorp/go-azure-sdk/sdk/nullable"
 	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
-	"github.com/hashicorp/terraform-provider-azuread/internal/helpers"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
-	"github.com/manicminer/hamilton/msgraph"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/consistency"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/validation"
 )
 func accessPackageResourceUpdate(ctx context.Context, d *pluginsdk.ResourceData, meta interface{}) pluginsdk.Diagnostics {
 	client := meta.(*clients.Client).IdentityGovernance.AccessPackageClient
 	accessPackageCatalogClient := meta.(*clients.Client).IdentityGovernance.AccessPackageCatalogClient
 
-	objectId := d.Id()
-	catalogId := d.Get("catalog_id").(string)
+	id := beta.NewIdentityGovernanceEntitlementManagementAccessPackageID(d.Id())
+	catalogId := beta.NewIdentityGovernanceEntitlementManagementAccessPackageCatalogID(d.Get("catalog_id").(string))
 
-	accessPackageCatalog, _, err := accessPackageCatalogClient.Get(ctx, catalogId, odata.Query{})
+	catalogResp, err := accessPackageCatalogClient.GetEntitlementManagementAccessPackageCatalog(ctx, catalogId, entitlementmanagementaccesspackagecatalog.DefaultGetEntitlementManagementAccessPackageCatalogOperationOptions())
 	if err != nil {
-		return tf.ErrorDiagF(err, "Retrieving access package catalog with ID: %q", catalogId)
+		return tf.ErrorDiagF(err, "Retrieving access package catalog with object ID: %q", catalogId)
 	}
 
-	tf.LockByName(accessPackageResourceName, objectId)
-	defer tf.UnlockByName(accessPackageResourceName, objectId)
-
-	properties := msgraph.AccessPackage{
-		ID:          pointer.To(objectId),
-		DisplayName: pointer.To(d.Get("display_name").(string)),
-		Description: pointer.To(d.Get("description").(string)),
-		IsHidden:    pointer.To(d.Get("hidden").(bool)),
-		Catalog:     accessPackageCatalog,
-		CatalogId:   accessPackageCatalog.ID,
+	catalog := catalogResp.Model
+	if catalog == nil {
+		return tf.ErrorDiagF(errors.New("model was nil"), "Retrieving %s", catalogId)
 	}
 
-	if _, err := client.Update(ctx, properties); err != nil {
-		return tf.ErrorDiagF(err, "Could not update access package with ID: %q", objectId)
+	tf.LockByName(accessPackageResourceName, id.AccessPackageId)
+	defer tf.UnlockByName(accessPackageResourceName, id.AccessPackageId)
+
+	properties := beta.AccessPackage{
+		DisplayName: nullable.Value(d.Get("display_name").(string)),
+		Description: nullable.NoZero(d.Get("description").(string)),
+		IsHidden:    nullable.Value(d.Get("hidden").(bool)),
+
+		AccessPackageCatalog: catalog,
+		CatalogId:            nullable.Value(pointer.From(catalog.Id)),
+	}
+
+	if _, err := client.UpdateEntitlementManagementAccessPackage(ctx, id, properties, entitlementmanagementaccesspackage.DefaultUpdateEntitlementManagementAccessPackageOperationOptions()); err != nil {
+		return tf.ErrorDiagF(err, "Updating %s", id)
 	}
 
 	return accessPackageResourceRead(ctx, d, meta)

@@ -1,9 +1,0 @@
-package github.com/hashicorp/terraform-provider-azuread/internal/tf/suppress
-import (
-	"strings"
-
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
-)
-func CaseDifference(_, old, new string, _ *pluginsdk.ResourceData) bool {
-	return strings.EqualFold(old, new)
-}

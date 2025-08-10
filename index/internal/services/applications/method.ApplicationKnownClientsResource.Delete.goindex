@@ -2,47 +2,41 @@ package github.com/hashicorp/terraform-provider-azuread/internal/services/applic
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"time"
 
 	"github.com/hashicorp/go-azure-helpers/lang/pointer"
-	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/go-azure-helpers/lang/response"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/applications/stable/application"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/stable"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/validation"
 	"github.com/hashicorp/terraform-provider-azuread/internal/sdk"
 	"github.com/hashicorp/terraform-provider-azuread/internal/services/applications/parse"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
-	"github.com/manicminer/hamilton/msgraph"
 )
 func (r ApplicationKnownClientsResource) Delete() sdk.ResourceFunc {
 	return sdk.ResourceFunc{
 		Timeout: 5 * time.Minute,
 		Func: func(ctx context.Context, metadata sdk.ResourceMetaData) error {
-			client := metadata.Client.Applications.ApplicationsClient
-			client.BaseClient.DisableRetries = true
-			defer func() { client.BaseClient.DisableRetries = false }()
+			client := metadata.Client.Applications.ApplicationClient
 
 			id, err := parse.ParseKnownClientsID(metadata.ResourceData.Id())
 			if err != nil {
 				return err
 			}
 
-			applicationId := parse.NewApplicationID(id.ApplicationId)
+			applicationId := stable.NewApplicationID(id.ApplicationId)
 
 			tf.LockByName(applicationResourceName, id.ApplicationId)
 			defer tf.UnlockByName(applicationResourceName, id.ApplicationId)
 
-			properties := msgraph.Application{
-				DirectoryObject: msgraph.DirectoryObject{
-					Id: &applicationId.ApplicationId,
-				},
-				Api: &msgraph.ApplicationApi{
+			properties := stable.Application{
+				Api: &stable.ApiApplication{
 					KnownClientApplications: &[]string{},
 				},
 			}
 
-			_, err = client.Update(ctx, properties)
-			if err != nil {
+			if _, err = client.UpdateApplication(ctx, applicationId, properties, application.DefaultUpdateApplicationOperationOptions()); err != nil {
 				return fmt.Errorf("deleting %s: %+v", id, err)
 			}
 

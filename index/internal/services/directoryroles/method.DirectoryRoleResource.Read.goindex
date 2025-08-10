@@ -2,48 +2,55 @@ package github.com/hashicorp/terraform-provider-azuread/internal/services/direct
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"strings"
 	"time"
 
 	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-helpers/lang/response"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/stable"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/directoryroles/stable/directoryrole"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/directoryroletemplates/stable/directoryroletemplate"
+	"github.com/hashicorp/go-azure-sdk/sdk/nullable"
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/suppress"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/validation"
 	"github.com/hashicorp/terraform-provider-azuread/internal/sdk"
-	"github.com/hashicorp/terraform-provider-azuread/internal/services/directoryroles/parse"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/suppress"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
-	"github.com/manicminer/hamilton/msgraph"
+	"github.com/hashicorp/terraform-provider-azuread/internal/services/directoryroles/migrations"
 )
 func (r DirectoryRoleResource) Read() sdk.ResourceFunc {
 	return sdk.ResourceFunc{
 		Timeout: 5 * time.Minute,
 		Func: func(ctx context.Context, metadata sdk.ResourceMetaData) error {
-			client := metadata.Client.DirectoryRoles.DirectoryRolesClient
-			client.BaseClient.DisableRetries = true
-			defer func() { client.BaseClient.DisableRetries = false }()
+			client := metadata.Client.DirectoryRoles.DirectoryRoleClient
 
-			id := parse.NewDirectoryRoleID(metadata.ResourceData.Id())
+			id, err := stable.ParseDirectoryRoleID(metadata.ResourceData.Id())
+			if err != nil {
+				return err
+			}
 
 			var state DirectoryRoleModel
 			if err := metadata.Decode(&state); err != nil {
 				return fmt.Errorf("decoding: %+v", err)
 			}
 
-			directoryRole, status, err := client.Get(ctx, id.ID())
+			resp, err := client.GetDirectoryRole(ctx, *id, directoryrole.DefaultGetDirectoryRoleOperationOptions())
 			if err != nil {
-				if status == http.StatusNotFound {
+				if response.WasNotFound(resp.HttpResponse) {
 					return metadata.MarkAsGone(id)
 				}
 				return fmt.Errorf("retrieving %s: %+v", id, err)
 			}
+
+			directoryRole := resp.Model
 			if directoryRole == nil {
 				return fmt.Errorf("retrieving %s: API error, result was nil", id)
 			}
 
-			state.Description = pointer.From(directoryRole.Description)
-			state.DisplayName = pointer.From(directoryRole.DisplayName)
-			state.ObjectId = pointer.From(directoryRole.ID())
-			state.TemplateId = pointer.From(directoryRole.RoleTemplateId)
+			state.Description = directoryRole.Description.GetOrZero()
+			state.DisplayName = directoryRole.DisplayName.GetOrZero()
+			state.ObjectId = pointer.From(directoryRole.Id)
+			state.TemplateId = directoryRole.RoleTemplateId.GetOrZero()
 
 			return metadata.Encode(&state)
 		},

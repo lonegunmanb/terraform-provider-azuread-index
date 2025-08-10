@@ -4,16 +4,17 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"net/http"
 	"time"
 
-	"github.com/hashicorp/go-azure-helpers/lang/pointer"
-	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/go-azure-helpers/lang/response"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/stable"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/rolemanagement/stable/directoryroleassignment"
+	"github.com/hashicorp/go-azure-sdk/sdk/nullable"
 	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
-	"github.com/manicminer/hamilton/msgraph"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/validation"
+	"github.com/hashicorp/terraform-provider-azuread/internal/services/directoryroles/migrations"
 )
 func directoryRoleAssignmentResource() *pluginsdk.Resource {
 	return &pluginsdk.Resource{
@@ -28,68 +29,60 @@ func directoryRoleAssignmentResource() *pluginsdk.Resource {
 		},
 
 		Importer: pluginsdk.ImporterValidatingResourceId(func(id string) error {
-			if id == "" {
-				return errors.New("id was empty")
+			if _, errs := stable.ValidateRoleManagementDirectoryRoleAssignmentID(id, "id"); len(errs) > 0 {
+				out := ""
+				for _, err := range errs {
+					out += err.Error()
+				}
+				return fmt.Errorf(out)
 			}
 			return nil
 		}),
 
+		SchemaVersion: 1,
+		StateUpgraders: []pluginsdk.StateUpgrader{
+			{
+				Type:    migrations.ResourceDirectoryRoleAssignmentInstanceResourceV0().CoreConfigSchema().ImpliedType(),
+				Upgrade: migrations.ResourceDirectoryRoleAssignmentInstanceStateUpgradeV0,
+				Version: 0,
+			},
+		},
+
 		Schema: map[string]*pluginsdk.Schema{
 			"role_id": {
-				Description:      "The object ID of the directory role for this assignment",
-				Type:             pluginsdk.TypeString,
-				Required:         true,
-				ForceNew:         true,
-				ValidateDiagFunc: validation.ValidateDiag(validation.IsUUID),
+				Description:  "The object ID of the directory role for this assignment",
+				Type:         pluginsdk.TypeString,
+				Required:     true,
+				ForceNew:     true,
+				ValidateFunc: validation.IsUUID,
 			},
 
 			"principal_object_id": {
-				Description:      "The object ID of the member principal",
-				Type:             pluginsdk.TypeString,
-				Required:         true,
-				ForceNew:         true,
-				ValidateDiagFunc: validation.ValidateDiag(validation.IsUUID),
+				Description:  "The object ID of the member principal",
+				Type:         pluginsdk.TypeString,
+				Required:     true,
+				ForceNew:     true,
+				ValidateFunc: validation.IsUUID,
 			},
 
 			"app_scope_id": {
-				Description:      "Identifier of the app-specific scope when the assignment scope is app-specific",
-				Type:             pluginsdk.TypeString,
-				Optional:         true,
-				Computed:         true,
-				ForceNew:         true,
-				ConflictsWith:    []string{"app_scope_object_id", "directory_scope_id", "directory_scope_object_id"},
-				ValidateDiagFunc: validation.ValidateDiag(validation.StringIsNotEmpty),
-			},
-
-			"app_scope_object_id": {
-				Deprecated:       "`app_scope_object_id` has been renamed to `app_scope_id` and will be removed in version 3.0 or the AzureAD Provider",
-				Description:      "Identifier of the app-specific scope when the assignment scope is app-specific",
-				Type:             pluginsdk.TypeString,
-				Optional:         true,
-				Computed:         true,
-				ForceNew:         true,
-				ConflictsWith:    []string{"app_scope_id", "directory_scope_id", "directory_scope_object_id"},
-				ValidateDiagFunc: validation.ValidateDiag(validation.StringIsNotEmpty),
+				Description:   "Identifier of the app-specific scope when the assignment scope is app-specific",
+				Type:          pluginsdk.TypeString,
+				Optional:      true,
+				Computed:      true,
+				ForceNew:      true,
+				ConflictsWith: []string{"directory_scope_id"},
+				ValidateFunc:  validation.StringIsNotEmpty,
 			},
 
 			"directory_scope_id": {
-				Description:      "Identifier of the directory object representing the scope of the assignment",
-				Type:             pluginsdk.TypeString,
-				Optional:         true,
-				Computed:         true,
-				ForceNew:         true,
-				ConflictsWith:    []string{"app_scope_id", "app_scope_object_id", "directory_scope_object_id"},
-				ValidateDiagFunc: validation.ValidateDiag(validation.StringIsNotEmpty),
-			},
-
-			"directory_scope_object_id": {
-				Description:      "Identifier of the directory object representing the scope of the assignment",
-				Type:             pluginsdk.TypeString,
-				Optional:         true,
-				Computed:         true,
-				ForceNew:         true,
-				ConflictsWith:    []string{"app_scope_id", "app_scope_object_id", "directory_scope_id"},
-				ValidateDiagFunc: validation.ValidateDiag(validation.StringIsNotEmpty),
+				Description:   "Identifier of the directory object representing the scope of the assignment",
+				Type:          pluginsdk.TypeString,
+				Optional:      true,
+				Computed:      true,
+				ForceNew:      true,
+				ConflictsWith: []string{"app_scope_id"},
+				ValidateFunc:  validation.StringIsNotEmpty,
 			},
 		},
 	}

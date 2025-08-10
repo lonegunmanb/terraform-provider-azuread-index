@@ -1,0 +1,14 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/pluginsdk
+import (
+	"fmt"
+
+	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
+)
+func DiagErrorf(format string, a ...interface{}) Diagnostics {
+	return Diagnostics{
+		Diagnostic{
+			Severity: DiagError,
+			Summary:  fmt.Sprintf(format, a...),
+		},
+	}
+}

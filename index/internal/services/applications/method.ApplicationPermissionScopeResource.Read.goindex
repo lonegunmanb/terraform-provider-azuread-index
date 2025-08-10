@@ -2,56 +2,57 @@ package github.com/hashicorp/terraform-provider-azuread/internal/services/applic
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"strings"
 	"time"
 
 	"github.com/hashicorp/go-azure-helpers/lang/pointer"
-	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/go-azure-helpers/lang/response"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/applications/stable/application"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/stable"
+	"github.com/hashicorp/go-azure-sdk/sdk/nullable"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/validation"
 	"github.com/hashicorp/terraform-provider-azuread/internal/sdk"
 	"github.com/hashicorp/terraform-provider-azuread/internal/services/applications/parse"
 	applicationsValidate "github.com/hashicorp/terraform-provider-azuread/internal/services/applications/validate"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
-	"github.com/manicminer/hamilton/msgraph"
 )
 func (r ApplicationPermissionScopeResource) Read() sdk.ResourceFunc {
 	return sdk.ResourceFunc{
 		Timeout: 5 * time.Minute,
 		Func: func(ctx context.Context, metadata sdk.ResourceMetaData) error {
-			client := metadata.Client.Applications.ApplicationsClient
-			client.BaseClient.DisableRetries = true
-			defer func() { client.BaseClient.DisableRetries = false }()
+			client := metadata.Client.Applications.ApplicationClient
 
 			id, err := parse.ParsePermissionScopeID(metadata.ResourceData.Id())
 			if err != nil {
 				return err
 			}
 
-			applicationId := parse.NewApplicationID(id.ApplicationId)
+			applicationId := stable.NewApplicationID(id.ApplicationId)
 
 			tf.LockByName(applicationResourceName, id.ApplicationId)
 			defer tf.UnlockByName(applicationResourceName, id.ApplicationId)
 
-			result, status, err := client.Get(ctx, id.ApplicationId, odata.Query{})
+			resp, err := client.GetApplication(ctx, applicationId, application.DefaultGetApplicationOperationOptions())
 			if err != nil {
-				if status == http.StatusNotFound {
+				if response.WasNotFound(resp.HttpResponse) {
 					return metadata.MarkAsGone(id)
 				}
 				return fmt.Errorf("retrieving %s: %+v", id, err)
 			}
-			if result == nil {
-				return fmt.Errorf("retrieving %s: result was nil", id)
+
+			app := resp.Model
+			if app == nil {
+				return fmt.Errorf("retrieving %s: model was nil", id)
 			}
-			if result.Api == nil || result.Api.OAuth2PermissionScopes == nil {
+			if app.Api == nil || app.Api.OAuth2PermissionScopes == nil {
 				return metadata.MarkAsGone(id)
 			}
 
 			// Identify the scope by ID
-			var scope *msgraph.PermissionScope
-			for _, existingScope := range *result.Api.OAuth2PermissionScopes {
-				if strings.EqualFold(*existingScope.ID, id.ScopeID) {
+			var scope *stable.PermissionScope
+			for _, existingScope := range *app.Api.OAuth2PermissionScopes {
+				if strings.EqualFold(*existingScope.Id, id.ScopeID) {
 					scope = &existingScope
 					break
 				}
@@ -64,12 +65,12 @@ func (r ApplicationPermissionScopeResource) Read() sdk.ResourceFunc {
 			state := ApplicationPermissionScopeModel{
 				ApplicationId:           applicationId.ID(),
 				ScopeId:                 id.ScopeID,
-				AdminConsentDescription: pointer.From(scope.AdminConsentDescription),
-				AdminConsentDisplayName: pointer.From(scope.AdminConsentDisplayName),
-				Type:                    scope.Type,
-				UserConsentDescription:  pointer.From(scope.UserConsentDescription),
-				UserConsentDisplayName:  pointer.From(scope.UserConsentDisplayName),
-				Value:                   pointer.From(scope.Value),
+				AdminConsentDescription: scope.AdminConsentDescription.GetOrZero(),
+				AdminConsentDisplayName: scope.AdminConsentDisplayName.GetOrZero(),
+				Type:                    scope.Type.GetOrZero(),
+				UserConsentDescription:  scope.UserConsentDescription.GetOrZero(),
+				UserConsentDisplayName:  scope.UserConsentDisplayName.GetOrZero(),
+				Value:                   scope.Value.GetOrZero(),
 			}
 
 			return metadata.Encode(&state)

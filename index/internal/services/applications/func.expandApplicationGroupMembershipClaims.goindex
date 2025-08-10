@@ -9,19 +9,26 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-helpers/lang/response"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/applications/stable/application"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/stable"
+	"github.com/hashicorp/go-azure-sdk/sdk/client"
+	"github.com/hashicorp/go-azure-sdk/sdk/nullable"
 	"github.com/hashicorp/go-azure-sdk/sdk/odata"
-	"github.com/hashicorp/terraform-provider-azuread/internal/helpers"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
-	"github.com/manicminer/hamilton/msgraph"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/applications"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/credentials"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/pluginsdk"
 )
-func expandApplicationGroupMembershipClaims(in []interface{}) *[]msgraph.GroupMembershipClaim {
-	result := make([]msgraph.GroupMembershipClaim, 0)
+func expandApplicationGroupMembershipClaims(in []interface{}) nullable.Type[string] {
 	if len(in) == 0 {
-		return &result
+		return nullable.NoZero("")
 	}
+
+	ret := make([]string, 0)
 	for _, claimRaw := range in {
-		result = append(result, claimRaw.(string))
+		ret = append(ret, strings.TrimSpace(claimRaw.(string)))
 	}
-	return &result
+
+	return nullable.NoZero(strings.Join(ret, ","))
 }

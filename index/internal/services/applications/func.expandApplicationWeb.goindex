@@ -9,17 +9,22 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-helpers/lang/response"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/applications/stable/application"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/stable"
+	"github.com/hashicorp/go-azure-sdk/sdk/client"
+	"github.com/hashicorp/go-azure-sdk/sdk/nullable"
 	"github.com/hashicorp/go-azure-sdk/sdk/odata"
-	"github.com/hashicorp/terraform-provider-azuread/internal/helpers"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
-	"github.com/manicminer/hamilton/msgraph"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/applications"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/credentials"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/pluginsdk"
 )
-func expandApplicationWeb(input []interface{}) (result *msgraph.ApplicationWeb) {
-	result = &msgraph.ApplicationWeb{
-		HomePageUrl:           tf.NullableString(""),
+func expandApplicationWeb(input []interface{}) (result *stable.WebApplication) {
+	result = &stable.WebApplication{
+		HomePageUrl:           nullable.NoZero(""),
 		ImplicitGrantSettings: expandApplicationImplicitGrantSettings(nil),
-		LogoutUrl:             tf.NullableString(""),
+		LogoutUrl:             nullable.NoZero(""),
 		RedirectUris:          &[]string{},
 	}
 
@@ -28,8 +33,8 @@ func expandApplicationWeb(input []interface{}) (result *msgraph.ApplicationWeb) 
 	}
 
 	in := input[0].(map[string]interface{})
-	result.HomePageUrl = tf.NullableString(in["homepage_url"].(string))
-	result.LogoutUrl = tf.NullableString(in["logout_url"].(string))
+	result.HomePageUrl = nullable.NoZero(in["homepage_url"].(string))
+	result.LogoutUrl = nullable.NoZero(in["logout_url"].(string))
 	result.ImplicitGrantSettings = expandApplicationImplicitGrantSettings(in["implicit_grant"].([]interface{}))
 	result.RedirectUris = tf.ExpandStringSlicePtr(in["redirect_uris"].(*pluginsdk.Set).List())
 

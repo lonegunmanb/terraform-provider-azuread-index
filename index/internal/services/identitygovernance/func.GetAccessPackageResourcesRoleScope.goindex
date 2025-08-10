@@ -1,0 +1,43 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/identitygovernance
+import (
+	"context"
+	"fmt"
+	"strings"
+
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/beta"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/identitygovernance/beta/entitlementmanagementaccesspackage"
+	"github.com/hashicorp/go-azure-sdk/sdk/nullable"
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
+)
+func GetAccessPackageResourcesRoleScope(ctx context.Context, client *entitlementmanagementaccesspackage.EntitlementManagementAccessPackageClient, id beta.IdentityGovernanceEntitlementManagementAccessPackageIdAccessPackageResourceRoleScopeId) (*beta.AccessPackageResourceRoleScope, error) {
+	accessPackageId := beta.NewIdentityGovernanceEntitlementManagementAccessPackageID(id.AccessPackageId)
+	options := entitlementmanagementaccesspackage.GetEntitlementManagementAccessPackageOperationOptions{
+		Expand: &odata.Expand{
+			Relationship: "accessPackageResourceRoleScopes($expand=accessPackageResourceRole,accessPackageResourceScope)",
+		},
+	}
+	resp, err := client.GetEntitlementManagementAccessPackage(ctx, accessPackageId, options)
+	if err != nil {
+		return nil, fmt.Errorf("retrieving %s: %v", accessPackageId, err)
+	}
+
+	if resp.Model == nil {
+		return nil, fmt.Errorf("retrieving %s: model was nil", accessPackageId)
+	}
+
+	if resp.Model.AccessPackageResourceRoleScopes == nil {
+		return nil, fmt.Errorf("retrieving %s: AccessPackageResourceRoleScopes was nil", accessPackageId)
+	}
+
+	// There is only a select and expand method on this endpoint, we iterate the result to find the RoleScope
+	for _, roleScope := range *resp.Model.AccessPackageResourceRoleScopes {
+		if roleScope.Id != nil && *roleScope.Id == id.AccessPackageResourceRoleScopeId {
+			return &roleScope, nil
+		}
+	}
+
+	return nil, nil
+}

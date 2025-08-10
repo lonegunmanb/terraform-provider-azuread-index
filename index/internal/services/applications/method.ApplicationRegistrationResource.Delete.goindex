@@ -1,43 +1,40 @@
 package github.com/hashicorp/terraform-provider-azuread/internal/services/applications
 import (
 	"context"
+	"errors"
 	"fmt"
-	"net/http"
 	"time"
 
 	"github.com/hashicorp/go-azure-helpers/lang/pointer"
-	"github.com/hashicorp/go-azure-sdk/sdk/odata"
-	"github.com/hashicorp/terraform-provider-azuread/internal/helpers"
+	"github.com/hashicorp/go-azure-helpers/lang/response"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/applications/stable/application"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/stable"
+	"github.com/hashicorp/go-azure-sdk/sdk/nullable"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/consistency"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/validation"
 	"github.com/hashicorp/terraform-provider-azuread/internal/sdk"
-	"github.com/hashicorp/terraform-provider-azuread/internal/services/applications/parse"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
-	"github.com/manicminer/hamilton/msgraph"
 )
 func (r ApplicationRegistrationResource) Delete() sdk.ResourceFunc {
 	return sdk.ResourceFunc{
 		Timeout: 5 * time.Minute,
 		Func: func(ctx context.Context, metadata sdk.ResourceMetaData) error {
-			client := metadata.Client.Applications.ApplicationsClient
-			client.BaseClient.DisableRetries = true
-			defer func() { client.BaseClient.DisableRetries = false }()
+			client := metadata.Client.Applications.ApplicationClient
 
-			id, err := parse.ParseApplicationID(metadata.ResourceData.Id())
+			id, err := stable.ParseApplicationID(metadata.ResourceData.Id())
 			if err != nil {
 				return err
 			}
 
-			if _, err := client.Delete(ctx, id.ApplicationId); err != nil {
+			if _, err = client.DeleteApplication(ctx, *id, application.DefaultDeleteApplicationOperationOptions()); err != nil {
 				return fmt.Errorf("deleting %s: %+v", id, err)
 			}
 
 			// Wait for application object to be deleted
-			if err = helpers.WaitForDeletion(ctx, func(ctx context.Context) (*bool, error) {
-				defer func() { client.BaseClient.DisableRetries = false }()
-				client.BaseClient.DisableRetries = true
-				if _, status, err := client.Get(ctx, id.ApplicationId, odata.Query{}); err != nil {
-					if status == http.StatusNotFound {
+			if err = consistency.WaitForDeletion(ctx, func(ctx context.Context) (*bool, error) {
+				if resp, err := client.GetApplication(ctx, *id, application.DefaultGetApplicationOperationOptions()); err != nil {
+					if response.WasNotFound(resp.HttpResponse) {
 						return pointer.To(false), nil
 					}
 					return nil, err

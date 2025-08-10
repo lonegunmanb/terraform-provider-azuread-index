@@ -1,22 +1,32 @@
 package github.com/hashicorp/terraform-provider-azuread/internal/services/conditionalaccess
 import (
+	"strings"
+
 	"github.com/hashicorp/go-azure-helpers/lang/pointer"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
-	"github.com/manicminer/hamilton/msgraph"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/stable"
+	"github.com/hashicorp/go-azure-sdk/sdk/nullable"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf"
 )
-func expandConditionalAccessPlatforms(in []interface{}) *msgraph.ConditionalAccessPlatforms {
-	result := msgraph.ConditionalAccessPlatforms{}
+func expandConditionalAccessPlatforms(in []interface{}) *stable.ConditionalAccessPlatforms {
 	if len(in) == 0 || in[0] == nil {
 		return nil
 	}
 
+	result := stable.ConditionalAccessPlatforms{}
 	config := in[0].(map[string]interface{})
 
-	includePlatforms := config["included_platforms"].([]interface{})
-	excludePlatforms := config["excluded_platforms"].([]interface{})
+	includePlatforms := make([]stable.ConditionalAccessDevicePlatform, 0)
+	for _, elem := range config["included_platforms"].([]interface{}) {
+		includePlatforms = append(includePlatforms, stable.ConditionalAccessDevicePlatform(elem.(string)))
+	}
 
-	result.IncludePlatforms = tf.ExpandStringSlicePtr(includePlatforms)
-	result.ExcludePlatforms = tf.ExpandStringSlicePtr(excludePlatforms)
+	excludePlatforms := make([]stable.ConditionalAccessDevicePlatform, 0)
+	for _, elem := range config["excluded_platforms"].([]interface{}) {
+		excludePlatforms = append(excludePlatforms, stable.ConditionalAccessDevicePlatform(elem.(string)))
+	}
+
+	result.IncludePlatforms = &includePlatforms
+	result.ExcludePlatforms = &excludePlatforms
 
 	return &result
 }

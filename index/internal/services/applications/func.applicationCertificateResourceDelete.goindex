@@ -2,25 +2,23 @@ package github.com/hashicorp/terraform-provider-azuread/internal/services/applic
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log"
-	"net/http"
 	"strings"
 	"time"
 
 	"github.com/hashicorp/go-azure-helpers/lang/pointer"
-	"github.com/hashicorp/go-azure-sdk/sdk/odata"
-	"github.com/hashicorp/go-uuid"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/applications/stable/application"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/stable"
 	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
-	"github.com/hashicorp/terraform-provider-azuread/internal/helpers"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/consistency"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/credentials"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/validation"
 	"github.com/hashicorp/terraform-provider-azuread/internal/services/applications/parse"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
-	"github.com/manicminer/hamilton/msgraph"
 )
 func applicationCertificateResourceDelete(ctx context.Context, d *pluginsdk.ResourceData, meta interface{}) pluginsdk.Diagnostics {
-	client := meta.(*clients.Client).Applications.ApplicationsClientBeta
+	client := meta.(*clients.Client).Applications.ApplicationClient
 
 	id, err := parse.CertificateID(d.Id())
 	if err != nil {
@@ -30,44 +28,47 @@ func applicationCertificateResourceDelete(ctx context.Context, d *pluginsdk.Reso
 	tf.LockByName(applicationResourceName, id.ObjectId)
 	defer tf.UnlockByName(applicationResourceName, id.ObjectId)
 
-	app, status, err := client.Get(ctx, id.ObjectId, odata.Query{})
+	applicationId := stable.NewApplicationID(id.ObjectId)
+
+	resp, err := client.GetApplication(ctx, applicationId, application.DefaultGetApplicationOperationOptions())
 	if err != nil {
-		if status == http.StatusNotFound {
-			return tf.ErrorDiagPathF(fmt.Errorf("Application was not found"), "application_object_id", "Retrieving Application with ID %q", id.ObjectId)
-		}
-		return tf.ErrorDiagPathF(err, "application_object_id", "Retrieving application with object ID %q", id.ObjectId)
+		return tf.ErrorDiagPathF(err, "application_id", "Retrieving %s", applicationId)
 	}
 
-	newCredentials := make([]msgraph.KeyCredential, 0)
+	app := resp.Model
+	if app == nil {
+		return tf.ErrorDiagF(errors.New("model was nil"), "Retrieving %s", applicationId)
+	}
+
+	newCredentials := make([]stable.KeyCredential, 0)
 	if app.KeyCredentials != nil {
 		for _, cred := range *app.KeyCredentials {
-			if cred.KeyId != nil && !strings.EqualFold(*cred.KeyId, id.KeyId) {
+			if !strings.EqualFold(cred.KeyId.GetOrZero(), id.KeyId) {
 				newCredentials = append(newCredentials, cred)
 			}
 		}
 	}
 
-	properties := msgraph.Application{
-		DirectoryObject: msgraph.DirectoryObject{
-			Id: &id.ObjectId,
-		},
+	properties := stable.Application{
+		Id:             &id.ObjectId,
 		KeyCredentials: &newCredentials,
 	}
-	if _, err := client.Update(ctx, properties); err != nil {
+	if _, err = client.UpdateApplication(ctx, applicationId, properties, application.DefaultUpdateApplicationOperationOptions()); err != nil {
 		return tf.ErrorDiagF(err, "Removing certificate credential %q from application with object ID %q", id.KeyId, id.ObjectId)
 	}
 
 	// Wait for application certificate to be deleted
-	if err := helpers.WaitForDeletion(ctx, func(ctx context.Context) (*bool, error) {
-		defer func() { client.BaseClient.DisableRetries = false }()
-		client.BaseClient.DisableRetries = true
-
-		app, _, err := client.Get(ctx, id.ObjectId, odata.Query{})
+	if err := consistency.WaitForDeletion(ctx, func(ctx context.Context) (*bool, error) {
+		resp, err := client.GetApplication(ctx, applicationId, application.DefaultGetApplicationOperationOptions())
 		if err != nil {
 			return nil, err
 		}
+		app := resp.Model
+		if app == nil {
+			return nil, errors.New("model was nil")
+		}
 
-		credential := helpers.GetKeyCredential(app.KeyCredentials, id.KeyId)
+		credential := credentials.GetKeyCredential(app.KeyCredentials, id.KeyId)
 		if credential == nil {
 			return pointer.To(false), nil
 		}

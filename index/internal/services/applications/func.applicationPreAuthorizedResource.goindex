@@ -4,19 +4,18 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"net/http"
 	"strings"
 	"time"
 
-	"github.com/hashicorp/go-azure-helpers/lang/pointer"
-	"github.com/hashicorp/go-azure-sdk/sdk/odata"
-	"github.com/hashicorp/go-uuid"
+	"github.com/hashicorp/go-azure-helpers/lang/response"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/applications/stable/application"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/stable"
+	"github.com/hashicorp/go-azure-sdk/sdk/nullable"
 	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/validation"
 	"github.com/hashicorp/terraform-provider-azuread/internal/services/applications/parse"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
-	"github.com/manicminer/hamilton/msgraph"
 )
 func applicationPreAuthorizedResource() *pluginsdk.Resource {
 	return &pluginsdk.Resource{
@@ -41,56 +40,16 @@ func applicationPreAuthorizedResource() *pluginsdk.Resource {
 			"application_id": {
 				Description:  "The resource ID of the application to which this pre-authorized application should be added",
 				Type:         pluginsdk.TypeString,
-				Optional:     true,
-				Computed:     true, // TODO remove Computed in v3.0
+				Required:     true,
 				ForceNew:     true,
-				ExactlyOneOf: []string{"application_id", "application_object_id"},
-				ValidateFunc: parse.ValidateApplicationID,
-			},
-
-			"application_object_id": {
-				Description:  "The object ID of the application to which this pre-authorized application should be added",
-				Type:         pluginsdk.TypeString,
-				Optional:     true,
-				Computed:     true,
-				ForceNew:     true,
-				ExactlyOneOf: []string{"application_id", "application_object_id"},
-				Deprecated:   "The `application_object_id` property has been replaced with the `application_id` property and will be removed in version 3.0 of the AzureAD provider",
-				ValidateFunc: validation.Any(validation.IsUUID, parse.ValidateApplicationID),
-				DiffSuppressFunc: func(_, oldValue, newValue string, _ *pluginsdk.ResourceData) bool {
-					// Where oldValue is a UUID (i.e. the bare object ID), and newValue is a properly formed application
-					// resource ID, we'll ignore a diff where these point to the same application resource.
-					// This maintains compatibility with configurations mixing the ID attributes, e.g.
-					//     application_object_id = azuread_application.example.id
-					if _, err := uuid.ParseUUID(oldValue); err == nil {
-						if applicationId, err := parse.ParseApplicationID(newValue); err == nil {
-							if applicationId.ApplicationId == oldValue {
-								return true
-							}
-						}
-					}
-					return false
-				},
-			},
-
-			"authorized_app_id": {
-				Description:  "The application ID of the pre-authorized application",
-				Type:         pluginsdk.TypeString,
-				Optional:     true,
-				Computed:     true,
-				ForceNew:     true,
-				ExactlyOneOf: []string{"authorized_app_id", "authorized_client_id"},
-				Deprecated:   "The `authorized_app_id` property has been replaced with the `authorized_client_id` property and will be removed in version 3.0 of the AzureAD provider",
-				ValidateFunc: validation.IsUUID,
+				ValidateFunc: stable.ValidateApplicationID,
 			},
 
 			"authorized_client_id": {
 				Description:  "The client ID of the pre-authorized application",
 				Type:         pluginsdk.TypeString,
-				Optional:     true,
-				Computed:     true, // TODO remove Computed in v3.0
+				Required:     true,
 				ForceNew:     true,
-				ExactlyOneOf: []string{"authorized_app_id", "authorized_client_id"},
 				ValidateFunc: validation.IsUUID,
 			},
 

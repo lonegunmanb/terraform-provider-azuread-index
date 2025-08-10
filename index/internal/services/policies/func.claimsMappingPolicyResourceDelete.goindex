@@ -1,35 +1,31 @@
 package github.com/hashicorp/terraform-provider-azuread/internal/services/policies
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
-	"net/http"
 	"time"
 
-	"github.com/hashicorp/go-azure-helpers/lang/pointer"
-	"github.com/hashicorp/go-azure-sdk/sdk/odata"
-	"github.com/hashicorp/go-uuid"
+	"github.com/hashicorp/go-azure-helpers/lang/response"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/stable"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/policies/stable/claimsmappingpolicy"
+	"github.com/hashicorp/go-azure-sdk/sdk/nullable"
 	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
-	"github.com/manicminer/hamilton/msgraph"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/validation"
+	"github.com/hashicorp/terraform-provider-azuread/internal/services/policies/migrations"
 )
 func claimsMappingPolicyResourceDelete(ctx context.Context, d *pluginsdk.ResourceData, meta interface{}) pluginsdk.Diagnostics {
 	client := meta.(*clients.Client).Policies.ClaimsMappingPolicyClient
-	objectId := d.Id()
 
-	_, status, err := client.Get(ctx, objectId, odata.Query{})
+	id, err := stable.ParsePolicyClaimsMappingPolicyID(d.Id())
 	if err != nil {
-		if status == http.StatusNotFound {
-			return tf.ErrorDiagPathF(fmt.Errorf("Claims Mapping Policy was not found"), "id", "Retrieving Claims Mapping Policy with object ID %q", objectId)
-		}
-
-		return tf.ErrorDiagPathF(err, "id", "Retrieving Claims Mapping Policy with object ID %q", objectId)
+		return tf.ErrorDiagPathF(err, "id", "Parsing ID")
 	}
 
-	status, err = client.Delete(ctx, objectId)
-	if err != nil {
-		return tf.ErrorDiagF(err, "Deleting Claims Mapping Policy with object ID %q, received status %d", objectId, status)
+	if _, err := client.DeleteClaimsMappingPolicy(ctx, *id, claimsmappingpolicy.DefaultDeleteClaimsMappingPolicyOperationOptions()); err != nil {
+		return tf.ErrorDiagF(err, "Deleting %s", id)
 	}
 
 	return nil

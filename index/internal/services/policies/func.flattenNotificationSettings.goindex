@@ -5,17 +5,20 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/stable"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/policies/stable/rolemanagementpolicy"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/policies/stable/rolemanagementpolicyassignment"
+	"github.com/hashicorp/go-azure-sdk/sdk/nullable"
 	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/validation"
 	"github.com/hashicorp/terraform-provider-azuread/internal/sdk"
 	"github.com/hashicorp/terraform-provider-azuread/internal/services/policies/parse"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
-	"github.com/manicminer/hamilton/msgraph"
 )
-func flattenNotificationSettings(rule msgraph.UnifiedRoleManagementPolicyRule) GroupRoleManagementPolicyNotificationSettings {
+func flattenNotificationSettings(rule stable.UnifiedRoleManagementPolicyNotificationRule) GroupRoleManagementPolicyNotificationSettings {
 	return GroupRoleManagementPolicyNotificationSettings{
-		NotificationLevel:    rule.NotificationLevel,
-		DefaultRecipients:    pointer.From(rule.IsDefaultRecipientsEnabled),
+		NotificationLevel:    rule.NotificationLevel.GetOrZero(),
+		DefaultRecipients:    rule.IsDefaultRecipientsEnabled.GetOrZero(),
 		AdditionalRecipients: pointer.From(rule.NotificationRecipients),
 	}
 }

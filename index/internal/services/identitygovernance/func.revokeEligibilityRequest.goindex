@@ -2,32 +2,34 @@ package github.com/hashicorp/terraform-provider-azuread/internal/services/identi
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"time"
 
 	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-helpers/lang/response"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/stable"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/identitygovernance/stable/privilegedaccessgroupeligibilityschedule"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/identitygovernance/stable/privilegedaccessgroupeligibilityschedulerequest"
+	"github.com/hashicorp/go-azure-sdk/sdk/nullable"
 	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/pluginsdk"
 	"github.com/hashicorp/terraform-provider-azuread/internal/sdk"
 	"github.com/hashicorp/terraform-provider-azuread/internal/services/identitygovernance/parse"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
-	"github.com/manicminer/hamilton/msgraph"
 )
-func revokeEligibilityRequest(ctx context.Context, metadata sdk.ResourceMetaData, client *msgraph.PrivilegedAccessGroupEligibilityScheduleRequestsClient, id *parse.PrivilegedAccessGroupScheduleId, model *PrivilegedAccessGroupScheduleModel) error {
-	result, status, err := client.Create(ctx, msgraph.PrivilegedAccessGroupEligibilityScheduleRequest{
-		ID:          pointer.To(id.ID()),
-		AccessId:    model.AssignmentType,
-		PrincipalId: &model.PrincipalId,
-		GroupId:     &model.GroupId,
-		Action:      msgraph.PrivilegedAccessGroupActionAdminRemove,
-	})
-	if err != nil {
-		if status == http.StatusNotFound {
-			return metadata.MarkAsGone(id)
+func revokeEligibilityRequest(ctx context.Context, metadata sdk.ResourceMetaData, client *privilegedaccessgroupeligibilityschedulerequest.PrivilegedAccessGroupEligibilityScheduleRequestClient, id parse.PrivilegedAccessGroupScheduleId, model PrivilegedAccessGroupScheduleModel) error {
+	request := stable.PrivilegedAccessGroupEligibilityScheduleRequest{
+		AccessId:    stable.PrivilegedAccessGroupRelationships(id.Relationship),
+		PrincipalId: nullable.Value(model.PrincipalId),
+		GroupId:     nullable.Value(id.GroupId),
+		Action:      pointer.To(stable.ScheduleRequestActions_AdminRemove),
+	}
+
+	if resp, err := client.CreatePrivilegedAccessGroupEligibilityScheduleRequest(ctx, request, privilegedaccessgroupeligibilityschedulerequest.DefaultCreatePrivilegedAccessGroupEligibilityScheduleRequestOperationOptions()); err != nil {
+		if response.WasNotFound(resp.HttpResponse) {
+			return metadata.MarkAsGone(&id)
 		}
-		return fmt.Errorf("retrieving %s: %+v", id, err)
+
+		return fmt.Errorf("creating schedule removal request: %v", err)
 	}
-	if result == nil {
-		return fmt.Errorf("retrieving %s: API error, result was nil", id)
-	}
+
 	return nil
 }

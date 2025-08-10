@@ -1,13 +1,20 @@
 package github.com/hashicorp/terraform-provider-azuread/internal/services/invitations
-import "github.com/manicminer/hamilton/msgraph"
-func expandRecipients(in []interface{}) *[]msgraph.Recipient {
-	recipients := make([]msgraph.Recipient, 0, len(in))
+import (
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/stable"
+	"github.com/hashicorp/go-azure-sdk/sdk/nullable"
+)
+func expandRecipients(in []interface{}) *[]stable.Recipient {
+	if len(in) == 0 {
+		return nil
+	}
+
+	recipients := make([]stable.Recipient, 0, len(in))
 	for _, recipientRaw := range in {
 		recipient := recipientRaw.(string)
 
-		newRecipient := msgraph.Recipient{
-			EmailAddress: &msgraph.EmailAddress{
-				Address: &recipient,
+		newRecipient := stable.BaseRecipientImpl{
+			EmailAddress: &stable.EmailAddress{
+				Address: nullable.Value(recipient),
 			},
 		}
 

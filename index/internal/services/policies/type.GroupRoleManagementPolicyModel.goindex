@@ -5,18 +5,21 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/stable"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/policies/stable/rolemanagementpolicy"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/policies/stable/rolemanagementpolicyassignment"
+	"github.com/hashicorp/go-azure-sdk/sdk/nullable"
 	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/validation"
 	"github.com/hashicorp/terraform-provider-azuread/internal/sdk"
 	"github.com/hashicorp/terraform-provider-azuread/internal/services/policies/parse"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
-	"github.com/manicminer/hamilton/msgraph"
 )
 type GroupRoleManagementPolicyModel struct {
 	Description             string                                             `tfschema:"description"`
 	DisplayName             string                                             `tfschema:"display_name"`
 	GroupId                 string                                             `tfschema:"group_id"`
-	RoleId                  msgraph.UnifiedRoleManagementPolicyScope           `tfschema:"role_id"`
+	RoleId                  string                                             `tfschema:"role_id"`
 	ActiveAssignmentRules   []GroupRoleManagementPolicyActiveAssignmentRules   `tfschema:"active_assignment_rules"`
 	EligibleAssignmentRules []GroupRoleManagementPolicyEligibleAssignmentRules `tfschema:"eligible_assignment_rules"`
 	ActivationRules         []GroupRoleManagementPolicyActivationRules         `tfschema:"activation_rules"`

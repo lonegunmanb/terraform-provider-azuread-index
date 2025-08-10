@@ -9,18 +9,23 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-helpers/lang/response"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/applications/stable/application"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/stable"
+	"github.com/hashicorp/go-azure-sdk/sdk/client"
+	"github.com/hashicorp/go-azure-sdk/sdk/nullable"
 	"github.com/hashicorp/go-azure-sdk/sdk/odata"
-	"github.com/hashicorp/terraform-provider-azuread/internal/helpers"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
-	"github.com/manicminer/hamilton/msgraph"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/applications"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/credentials"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/pluginsdk"
 )
-func expandApplicationApi(input []interface{}) (result *msgraph.ApplicationApi) {
-	result = &msgraph.ApplicationApi{
-		AcceptMappedClaims:          pointer.To(false),
+func expandApplicationApi(input []interface{}) (result *stable.ApiApplication) {
+	result = &stable.ApiApplication{
+		AcceptMappedClaims:          nullable.Value(false),
 		KnownClientApplications:     &[]string{},
-		OAuth2PermissionScopes:      &[]msgraph.PermissionScope{},
-		RequestedAccessTokenVersion: pointer.To(int32(1)),
+		OAuth2PermissionScopes:      &[]stable.PermissionScope{},
+		RequestedAccessTokenVersion: nullable.Value(int64(1)),
 	}
 
 	if len(input) == 0 || input[0] == nil {
@@ -29,14 +34,14 @@ func expandApplicationApi(input []interface{}) (result *msgraph.ApplicationApi) 
 
 	in := input[0].(map[string]interface{})
 	if v, ok := in["mapped_claims_enabled"]; ok {
-		result.AcceptMappedClaims = pointer.To(v.(bool))
+		result.AcceptMappedClaims.Set(v.(bool))
 	}
 	if v, ok := in["known_client_applications"]; ok {
 		result.KnownClientApplications = tf.ExpandStringSlicePtr(v.(*pluginsdk.Set).List())
 	}
 	result.OAuth2PermissionScopes = expandApplicationOAuth2PermissionScope(in["oauth2_permission_scope"].(*pluginsdk.Set).List())
 	if v, ok := in["requested_access_token_version"]; ok {
-		result.RequestedAccessTokenVersion = pointer.To(int32(v.(int)))
+		result.RequestedAccessTokenVersion.Set(int64(v.(int)))
 	}
 
 	return

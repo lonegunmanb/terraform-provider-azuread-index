@@ -4,53 +4,50 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"net/http"
 	"net/url"
 	"strings"
 	"time"
 
 	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-helpers/lang/response"
+	applicationBeta "github.com/hashicorp/go-azure-sdk/microsoft-graph/applications/beta/application"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/applications/stable/application"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/applications/stable/logo"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/applications/stable/owner"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/applicationtemplates/stable/applicationtemplate"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/beta"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/stable"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/serviceprincipals/stable/serviceprincipal"
+	"github.com/hashicorp/go-azure-sdk/sdk/nullable"
 	"github.com/hashicorp/go-azure-sdk/sdk/odata"
 	"github.com/hashicorp/go-cty/cty"
 	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
-	"github.com/hashicorp/terraform-provider-azuread/internal/helpers"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/applications"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/consistency"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/credentials"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/validation"
 	"github.com/hashicorp/terraform-provider-azuread/internal/services/applications/migrations"
-	"github.com/hashicorp/terraform-provider-azuread/internal/services/applications/parse"
 	applicationsValidate "github.com/hashicorp/terraform-provider-azuread/internal/services/applications/validate"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
-	"github.com/manicminer/hamilton/msgraph"
 )
 func applicationResourceDelete(ctx context.Context, d *pluginsdk.ResourceData, meta interface{}) pluginsdk.Diagnostics {
-	client := meta.(*clients.Client).Applications.ApplicationsClientBeta
+	client := meta.(*clients.Client).Applications.ApplicationClient
 
-	id, err := parse.ParseApplicationID(d.Id())
+	id, err := stable.ParseApplicationID(d.Id())
 	if err != nil {
 		return tf.ErrorDiagPathF(err, "id", "Parsing ID")
 	}
 
-	_, status, err := client.Get(ctx, id.ApplicationId, odata.Query{})
-	if err != nil {
-		if status == http.StatusNotFound {
-			return tf.ErrorDiagPathF(fmt.Errorf("Application was not found"), "id", "Retrieving Application with object ID %q", id.ApplicationId)
-		}
-
-		return tf.ErrorDiagPathF(err, "id", "Retrieving application with object ID %q", id.ApplicationId)
-	}
-
-	status, err = client.Delete(ctx, id.ApplicationId)
-	if err != nil {
-		return tf.ErrorDiagPathF(err, "id", "Deleting application with object ID %q, got status %d", id.ApplicationId, status)
+	if _, err = client.DeleteApplication(ctx, *id, application.DefaultDeleteApplicationOperationOptions()); err != nil {
+		return tf.ErrorDiagPathF(err, "id", "deleting %s: %v", id, err)
 	}
 
 	// Wait for application object to be deleted
-	if err := helpers.WaitForDeletion(ctx, func(ctx context.Context) (*bool, error) {
-		defer func() { client.BaseClient.DisableRetries = false }()
-		client.BaseClient.DisableRetries = true
-		if _, status, err := client.Get(ctx, id.ApplicationId, odata.Query{}); err != nil {
-			if status == http.StatusNotFound {
+	if err := consistency.WaitForDeletion(ctx, func(ctx context.Context) (*bool, error) {
+		if resp, err := client.GetApplication(ctx, *id, application.DefaultGetApplicationOperationOptions()); err != nil {
+			if response.WasNotFound(resp.HttpResponse) {
 				return pointer.To(false), nil
 			}
 			return nil, err

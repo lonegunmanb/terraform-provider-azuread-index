@@ -1,0 +1,9 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/serviceprincipals
+
+var possibleValuesForPreferredSingleSignOnMode = []string{
+	PreferredSingleSignOnModeNone,
+	PreferredSingleSignOnModeNotSupported,
+	PreferredSingleSignOnModeOidc,
+	PreferredSingleSignOnModePassword,
+	PreferredSingleSignOnModeSaml,
+}

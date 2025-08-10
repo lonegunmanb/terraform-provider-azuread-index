@@ -9,14 +9,19 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-helpers/lang/response"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/applications/stable/application"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/stable"
+	"github.com/hashicorp/go-azure-sdk/sdk/client"
+	"github.com/hashicorp/go-azure-sdk/sdk/nullable"
 	"github.com/hashicorp/go-azure-sdk/sdk/odata"
-	"github.com/hashicorp/terraform-provider-azuread/internal/helpers"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
-	"github.com/manicminer/hamilton/msgraph"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/applications"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/credentials"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/pluginsdk"
 )
-func expandApplicationAppRoles(input []interface{}) *[]msgraph.AppRole {
-	result := make([]msgraph.AppRole, 0)
+func expandApplicationAppRoles(input []interface{}) *[]stable.AppRole {
+	result := make([]stable.AppRole, 0)
 
 	if len(input) == 0 {
 		return &result
@@ -28,21 +33,21 @@ func expandApplicationAppRoles(input []interface{}) *[]msgraph.AppRole {
 		}
 		appRole := appRoleRaw.(map[string]interface{})
 
-		var allowedMemberTypes []msgraph.AppRoleAllowedMemberType
+		allowedMemberTypes := make([]string, 0)
 		for _, allowedMemberType := range appRole["allowed_member_types"].(*pluginsdk.Set).List() {
 			allowedMemberTypes = append(allowedMemberTypes, allowedMemberType.(string))
 		}
 
-		newAppRole := msgraph.AppRole{
-			ID:                 pointer.To(appRole["id"].(string)),
+		newAppRole := stable.AppRole{
+			Id:                 pointer.To(appRole["id"].(string)),
 			AllowedMemberTypes: &allowedMemberTypes,
-			Description:        pointer.To(appRole["description"].(string)),
-			DisplayName:        pointer.To(appRole["display_name"].(string)),
+			Description:        nullable.Value(appRole["description"].(string)),
+			DisplayName:        nullable.Value(appRole["display_name"].(string)),
 			IsEnabled:          pointer.To(appRole["enabled"].(bool)),
 		}
 
 		if v, ok := appRole["value"]; ok {
-			newAppRole.Value = pointer.To(v.(string))
+			newAppRole.Value = nullable.Value(v.(string))
 		}
 
 		result = append(result, newAppRole)

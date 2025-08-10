@@ -5,16 +5,18 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"net/http"
 	"strings"
 	"time"
 
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-helpers/lang/response"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/beta"
+	groupBeta "github.com/hashicorp/go-azure-sdk/microsoft-graph/groups/beta/group"
 	"github.com/hashicorp/go-azure-sdk/sdk/odata"
 	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
-	"github.com/manicminer/hamilton/msgraph"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/validation"
 )
 func groupsDataSource() *pluginsdk.Resource {
 	return &pluginsdk.Resource{
@@ -32,8 +34,8 @@ func groupsDataSource() *pluginsdk.Resource {
 				Computed:     true,
 				ExactlyOneOf: []string{"display_names", "display_name_prefix", "object_ids", "return_all"},
 				Elem: &pluginsdk.Schema{
-					Type:             pluginsdk.TypeString,
-					ValidateDiagFunc: validation.ValidateDiag(validation.IsUUID),
+					Type:         pluginsdk.TypeString,
+					ValidateFunc: validation.IsUUID,
 				},
 			},
 
@@ -44,18 +46,18 @@ func groupsDataSource() *pluginsdk.Resource {
 				Computed:     true,
 				ExactlyOneOf: []string{"display_names", "display_name_prefix", "object_ids", "return_all"},
 				Elem: &pluginsdk.Schema{
-					Type:             pluginsdk.TypeString,
-					ValidateDiagFunc: validation.ValidateDiag(validation.StringIsNotEmpty),
+					Type:         pluginsdk.TypeString,
+					ValidateFunc: validation.StringIsNotEmpty,
 				},
 			},
 
 			"display_name_prefix": {
-				Description:      "Common display name prefix of the groups",
-				Type:             pluginsdk.TypeString,
-				Optional:         true,
-				Computed:         true,
-				ExactlyOneOf:     []string{"display_names", "display_name_prefix", "object_ids", "return_all"},
-				ValidateDiagFunc: validation.ValidateDiag(validation.StringIsNotEmpty),
+				Description:  "Common display name prefix of the groups",
+				Type:         pluginsdk.TypeString,
+				Optional:     true,
+				Computed:     true,
+				ExactlyOneOf: []string{"display_names", "display_name_prefix", "object_ids", "return_all"},
+				ValidateFunc: validation.StringIsNotEmpty,
 			},
 
 			"ignore_missing": {

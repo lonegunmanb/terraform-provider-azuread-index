@@ -4,41 +4,53 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"net/http"
 	"strings"
 	"time"
 
 	"github.com/hashicorp/go-azure-helpers/lang/pointer"
-	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/go-azure-helpers/lang/response"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/beta"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/rolemanagement/beta/entitlementmanagementroleassignment"
+	"github.com/hashicorp/go-azure-sdk/sdk/nullable"
 	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
-	"github.com/manicminer/hamilton/msgraph"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/validation"
 )
 func accessPackageCatalogRoleAssignmentResourceCreate(ctx context.Context, d *pluginsdk.ResourceData, meta interface{}) pluginsdk.Diagnostics {
-	client := meta.(*clients.Client).IdentityGovernance.AccessPackageCatalogRoleAssignmentsClient
+	client := meta.(*clients.Client).IdentityGovernance.RoleAssignmentClient
 
 	catalogId := d.Get("catalog_id").(string)
 	principalId := d.Get("principal_object_id").(string)
-	roleId := d.Get("role_id").(string)
 
-	properties := msgraph.UnifiedRoleAssignment{
-		DirectoryScopeId: pointer.To("/"),
-		PrincipalId:      pointer.To(principalId),
-		RoleDefinitionId: pointer.To(roleId),
-		AppScopeId:       pointer.To("/AccessPackageCatalog/" + catalogId),
+	roleId := beta.NewRoleManagementEntitlementManagementRoleDefinitionID(d.Get("role_id").(string))
+
+	properties := beta.UnifiedRoleAssignment{
+		DirectoryScopeId: nullable.Value("/"),
+		PrincipalId:      nullable.Value(principalId),
+		RoleDefinitionId: nullable.Value(roleId.UnifiedRoleDefinitionId),
+		AppScopeId:       nullable.Value(fmt.Sprintf("/AccessPackageCatalog/%s", catalogId)),
+
+		OmitDiscriminatedValue: true,
 	}
 
-	assignment, status, err := client.Create(ctx, properties)
+	createMsg := fmt.Sprintf("Assigning catalog role %q to directory principal %q on catalog %q", roleId, principalId, catalogId)
+	resp, err := client.CreateEntitlementManagementRoleAssignment(ctx, properties, entitlementmanagementroleassignment.DefaultCreateEntitlementManagementRoleAssignmentOperationOptions())
 	if err != nil {
-		return tf.ErrorDiagF(err, "Assigning catalog role %q to directory principal %q on catalog %q, received %d with error: %+v", roleId, principalId, catalogId, status, err)
-	}
-	if assignment == nil || assignment.ID() == nil {
-		return tf.ErrorDiagF(errors.New("returned role assignment ID was nil"), "API Error")
+		return tf.ErrorDiagF(err, createMsg)
 	}
 
-	d.SetId(*assignment.ID())
+	assignment := resp.Model
+	if assignment == nil {
+		return tf.ErrorDiagF(errors.New("model was nil"), createMsg)
+	}
+	if assignment.Id == nil {
+		return tf.ErrorDiagF(errors.New("model has nil ID"), createMsg)
+	}
+
+	id := beta.NewRoleManagementEntitlementManagementRoleAssignmentID(*assignment.Id)
+	d.SetId(id.UnifiedRoleAssignmentId)
+
 	return accessPackageCatalogRoleAssignmentResourceRead(ctx, d, meta)
 }

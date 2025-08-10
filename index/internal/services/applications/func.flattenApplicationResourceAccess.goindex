@@ -9,13 +9,18 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-helpers/lang/response"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/applications/stable/application"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/stable"
+	"github.com/hashicorp/go-azure-sdk/sdk/client"
+	"github.com/hashicorp/go-azure-sdk/sdk/nullable"
 	"github.com/hashicorp/go-azure-sdk/sdk/odata"
-	"github.com/hashicorp/terraform-provider-azuread/internal/helpers"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
-	"github.com/manicminer/hamilton/msgraph"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/applications"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/credentials"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/pluginsdk"
 )
-func flattenApplicationResourceAccess(in *[]msgraph.ResourceAccess) []interface{} {
+func flattenApplicationResourceAccess(in *[]stable.ResourceAccess) []interface{} {
 	if in == nil {
 		return []interface{}{}
 	}
@@ -23,10 +28,10 @@ func flattenApplicationResourceAccess(in *[]msgraph.ResourceAccess) []interface{
 	accesses := make([]interface{}, 0)
 	for _, resourceAccess := range *in {
 		access := make(map[string]interface{})
-		if resourceAccess.ID != nil {
-			access["id"] = *resourceAccess.ID
+		if resourceAccess.Id != nil {
+			access["id"] = *resourceAccess.Id
 		}
-		access["type"] = resourceAccess.Type
+		access["type"] = resourceAccess.Type.GetOrZero()
 		accesses = append(accesses, access)
 	}
 

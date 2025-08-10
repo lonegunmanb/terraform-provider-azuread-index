@@ -1,6 +1,0 @@
-package github.com/hashicorp/terraform-provider-azuread/internal/tf
-import (
-	"log"
-	"sync"
-)
-var mutex = NewMutexKV()

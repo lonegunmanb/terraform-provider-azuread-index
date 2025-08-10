@@ -5,26 +5,41 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"reflect"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-helpers/lang/response"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/beta"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/stable"
+	administrativeunitmemberBeta "github.com/hashicorp/go-azure-sdk/microsoft-graph/directory/beta/administrativeunitmember"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/directoryobjects/stable/directoryobject"
+	groupBeta "github.com/hashicorp/go-azure-sdk/microsoft-graph/groups/beta/group"
+	memberBeta "github.com/hashicorp/go-azure-sdk/microsoft-graph/groups/beta/member"
+	memberofBeta "github.com/hashicorp/go-azure-sdk/microsoft-graph/groups/beta/memberof"
+	ownerBeta "github.com/hashicorp/go-azure-sdk/microsoft-graph/groups/beta/owner"
+	"github.com/hashicorp/go-azure-sdk/sdk/nullable"
 	"github.com/hashicorp/go-azure-sdk/sdk/odata"
 	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
-	"github.com/hashicorp/terraform-provider-azuread/internal/helpers"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
-	"github.com/manicminer/hamilton/msgraph"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/consistency"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/validation"
+	"github.com/hashicorp/terraform-provider-azuread/internal/services/groups/migrations"
 )
 func groupResourceCreate(ctx context.Context, d *pluginsdk.ResourceData, meta interface{}) pluginsdk.Diagnostics {
-	client := meta.(*clients.Client).Groups.GroupsClient
-	directoryObjectsClient := meta.(*clients.Client).Groups.DirectoryObjectsClient
-	administrativeUnitsClient := meta.(*clients.Client).Groups.AdministrativeUnitsClient
+	client := meta.(*clients.Client).Groups.GroupClientBeta
+	ownerClient := meta.(*clients.Client).Groups.GroupOwnerClientBeta
+	memberClient := meta.(*clients.Client).Groups.GroupMemberClientBeta
+	directoryObjectClient := meta.(*clients.Client).Groups.DirectoryObjectClient
+	administrativeUnitMemberClient := meta.(*clients.Client).Groups.AdministrativeUnitMemberClientBeta
+
 	callerId := meta.(*clients.Client).ObjectID
-	tenantId := meta.(*clients.Client).TenantID
+	callerODataId := fmt.Sprintf("%s%s", client.Client.BaseUri, beta.NewDirectoryObjectID(callerId).ID())
 
 	displayName := d.Get("display_name").(string)
 
@@ -36,14 +51,14 @@ func groupResourceCreate(ctx context.Context, d *pluginsdk.ResourceData, meta in
 		}
 		if result != nil && len(*result) > 0 {
 			existingGroup := (*result)[0]
-			if existingGroup.ID() == nil {
+			if existingGroup.Id == nil {
 				return tf.ErrorDiagF(errors.New("API returned group with nil object ID during duplicate name check"), "Bad API response")
 			}
-			return tf.ImportAsDuplicateDiag("azuread_group", *existingGroup.ID(), displayName)
+			return tf.ImportAsDuplicateDiag("azuread_group", *existingGroup.Id, displayName)
 		}
 	}
 
-	groupTypes := make([]msgraph.GroupType, 0)
+	groupTypes := make([]string, 0)
 	for _, v := range d.Get("types").(*pluginsdk.Set).List() {
 		groupTypes = append(groupTypes, v.(string))
 	}
@@ -57,124 +72,110 @@ func groupResourceCreate(ctx context.Context, d *pluginsdk.ResourceData, meta in
 		mailNickname = v.(string)
 	}
 
-	behaviorOptions := make([]msgraph.GroupResourceBehaviorOption, 0)
+	behaviorOptions := make([]string, 0)
 	for _, v := range d.Get("behaviors").(*pluginsdk.Set).List() {
 		behaviorOptions = append(behaviorOptions, v.(string))
 	}
 
-	provisioningOptions := make([]msgraph.GroupResourceProvisioningOption, 0)
+	provisioningOptions := make([]string, 0)
 	for _, v := range d.Get("provisioning_options").(*pluginsdk.Set).List() {
 		provisioningOptions = append(provisioningOptions, v.(string))
 	}
 
-	var writebackConfiguration *msgraph.GroupWritebackConfiguration
+	var writebackConfiguration *beta.GroupWritebackConfiguration
 	if v := d.Get("writeback_enabled").(bool); v {
-		writebackConfiguration = &msgraph.GroupWritebackConfiguration{
-			IsEnabled: pointer.To(d.Get("writeback_enabled").(bool)),
+		writebackConfiguration = &beta.GroupWritebackConfiguration{
+			IsEnabled:              nullable.Value(d.Get("writeback_enabled").(bool)),
+			OmitDiscriminatedValue: true,
 		}
 		if onPremisesGroupType := d.Get("onpremises_group_type").(string); onPremisesGroupType != "" {
-			writebackConfiguration.OnPremisesGroupType = pointer.To(onPremisesGroupType)
+			writebackConfiguration.OnPremisesGroupType = nullable.Value(onPremisesGroupType)
 		}
 	}
 
 	description := d.Get("description").(string)
-	odataType := odata.TypeGroup
 
-	properties := msgraph.Group{
-		DirectoryObject: msgraph.DirectoryObject{
-			ODataType: &odataType,
-		},
-		Description:                 tf.NullableString(description),
-		DisplayName:                 pointer.To(displayName),
+	properties := beta.Group{
+		Description:                 nullable.NoZero(description),
+		DisplayName:                 nullable.Value(displayName),
 		GroupTypes:                  &groupTypes,
-		IsAssignableToRole:          pointer.To(d.Get("assignable_to_role").(bool)),
-		MailEnabled:                 pointer.To(mailEnabled),
-		MailNickname:                pointer.To(mailNickname),
-		MembershipRule:              tf.NullableString(""),
+		IsAssignableToRole:          nullable.Value(d.Get("assignable_to_role").(bool)),
+		MailEnabled:                 nullable.Value(mailEnabled),
+		MailNickname:                nullable.Value(mailNickname),
+		MembershipRule:              nullable.NoZero(""),
 		ResourceBehaviorOptions:     &behaviorOptions,
 		ResourceProvisioningOptions: &provisioningOptions,
-		SecurityEnabled:             pointer.To(securityEnabled),
+		SecurityEnabled:             nullable.Value(securityEnabled),
 		WritebackConfiguration:      writebackConfiguration,
 	}
 
 	if v, ok := d.GetOk("dynamic_membership"); ok && len(v.([]interface{})) > 0 {
 		if d.Get("dynamic_membership.0.enabled").(bool) {
-			properties.MembershipRuleProcessingState = pointer.To("On")
+			properties.MembershipRuleProcessingState = nullable.Value("On")
 		} else {
-			properties.MembershipRuleProcessingState = pointer.To("Paused")
+			properties.MembershipRuleProcessingState = nullable.Value("Paused")
 		}
 
-		properties.MembershipRule = tf.NullableString(d.Get("dynamic_membership.0.rule").(string))
+		properties.MembershipRule = nullable.Value(d.Get("dynamic_membership.0.rule").(string))
 	}
 
 	if theme := d.Get("theme").(string); theme != "" {
-		properties.Theme = tf.NullableString(theme)
+		properties.Theme = nullable.Value(theme)
 	}
 
 	if visibility := d.Get("visibility").(string); visibility != "" {
-		properties.Visibility = pointer.To(visibility)
+		properties.Visibility = nullable.Value(visibility)
 	}
 
 	// Sort the owners into two slices, the first containing up to 20 and the rest overflowing to the second slice
-	var ownersFirst20, ownersExtra msgraph.Owners
-
-	// getOwnerObject retrieves and validates a DirectoryObject for a given object ID
-	getOwnerObject := func(ctx context.Context, id string) (*msgraph.DirectoryObject, error) {
-		ownerObject, _, err := directoryObjectsClient.Get(ctx, id, odata.Query{})
-		if err != nil {
-			return nil, err
-		}
-		if ownerObject == nil {
-			return nil, errors.New("ownerObject was nil")
-		}
-		if ownerObject.ID() == nil {
-			return nil, errors.New("ownerObject ID was nil")
-		}
-		ownerObject.ODataId = (*odata.Id)(pointer.To(fmt.Sprintf("%s/v1.0/%s/directoryObjects/%s",
-			client.BaseClient.Endpoint, tenantId, id)))
-
-		if ownerObject.ODataType == nil {
-			return nil, errors.New("ownerObject ODataType was nil")
-		}
-		return ownerObject, nil
-	}
+	var ownersFirst20 []string
+	var ownersExtra []beta.ReferenceCreate
 
 	// Retrieve and set the initial owners, which can be up to 20 in total when creating the group.
-	// First look for the calling principal, then prefer users, followed by service principals, to try and avoid
-	// ownership-related API validation errors for Microsoft 365 groups.
+	// First look for the calling principal, then prefer users, followed by service principals, and lastly groups,
+	// to try and avoid ownership-related API validation errors for Microsoft 365 groups, which require that a User
+	// be an explicit owner for new groups.
 	if v, ok := d.GetOk("owners"); ok {
 		owners := v.(*pluginsdk.Set).List()
 		ownerCount := 0
 
-		// First look for the calling principal in the specified owners; it should always be included in the initial
-		// owners to avoid orphaning a group when the caller doesn't have the Groups.ReadWrite.All scope.
+		// First look for the calling principal in the specified owners; when specified it should always be included in
+		// the initial owners to avoid orphaning a group when the caller doesn't have the Groups.ReadWrite.All scope.
 		for _, ownerId := range owners {
-			ownerObject, err := getOwnerObject(ctx, ownerId.(string))
-			if err != nil {
-				return tf.ErrorDiagF(err, "Could not retrieve owner principal object %q", ownerId)
-			}
-			if strings.EqualFold(*ownerObject.ID(), callerId) {
-				if ownerCount < 20 {
-					ownersFirst20 = append(ownersFirst20, *ownerObject)
-				} else {
-					ownersExtra = append(ownersExtra, *ownerObject)
-				}
+			if strings.EqualFold(ownerId.(string), callerId) {
+				ownersFirst20 = append(ownersFirst20, callerODataId)
 				ownerCount++
 			}
 		}
 
 		// Then look for users, and finally service principals
-		for _, t := range []odata.Type{odata.TypeUser, odata.TypeServicePrincipal} {
-			for _, ownerId := range owners {
-				ownerObject, err := getOwnerObject(ctx, ownerId.(string))
+		for _, t := range []stable.DirectoryObject{stable.User{}, stable.ServicePrincipal{}, stable.Group{}} {
+			for _, ownerIdRaw := range owners {
+				ownerId := ownerIdRaw.(string)
+
+				// We already added the caller above
+				if strings.EqualFold(ownerId, callerId) {
+					continue
+				}
+
+				resp, err := directoryObjectClient.GetDirectoryObject(ctx, stable.NewDirectoryObjectID(ownerId), directoryobject.DefaultGetDirectoryObjectOperationOptions())
 				if err != nil {
 					return tf.ErrorDiagF(err, "Could not retrieve owner principal object %q", ownerId)
 				}
-				if *ownerObject.ODataType == t && !strings.EqualFold(*ownerObject.ID(), callerId) {
+
+				ownerObject := resp.Model
+				if ownerObject == nil {
+					return tf.ErrorDiagF(errors.New("ownerObject model was nil"), "Could not retrieve owner principal object %q", ownerId)
+				}
+
+				if reflect.TypeOf(ownerObject) == reflect.TypeOf(t) {
 					if ownerCount < 20 {
-						ownersFirst20 = append(ownersFirst20, *ownerObject)
+						ownersFirst20 = append(ownersFirst20, fmt.Sprintf("%s%s", client.Client.BaseUri, beta.NewDirectoryObjectID(ownerId).ID()))
 					} else {
-						ownersExtra = append(ownersExtra, *ownerObject)
+						ownerRef := beta.ReferenceCreate{
+							ODataId: pointer.To(client.Client.BaseUri + beta.NewDirectoryObjectID(ownerId).ID()),
+						}
+						ownersExtra = append(ownersExtra, ownerRef)
 					}
 					ownerCount++
 				}
@@ -185,75 +186,105 @@ func groupResourceCreate(ctx context.Context, d *pluginsdk.ResourceData, meta in
 	if len(ownersFirst20) == 0 {
 		// The calling principal is the default owner if no others are specified. This is the default API behaviour, so
 		// we're being explicit about this in order to minimise confusion and avoid inconsistent API behaviours.
-		callerObject, err := getOwnerObject(ctx, callerId)
-		if err != nil {
-			return tf.ErrorDiagF(err, "Could not retrieve calling principal object %q", callerId)
-		}
-		ownersFirst20 = msgraph.Owners{*callerObject}
+		ownersFirst20 = []string{fmt.Sprintf("%s%s", client.Client.BaseUri, beta.NewDirectoryObjectID(callerId).ID())}
 	}
 
 	// Set the initial owners, which either be the calling principal, or up to 20 of the owners specified in configuration
-	properties.Owners = &ownersFirst20
+	properties.Owners_ODataBind = &ownersFirst20
 
-	var group *msgraph.Group
-	var status int
-	var err error
+	var groupObjectId string
 
 	if v, ok := d.GetOk("administrative_unit_ids"); ok {
 		administrativeUnitIds := tf.ExpandStringSlice(v.(*pluginsdk.Set).List())
-		for i, administrativeUnitId := range administrativeUnitIds {
+
+		for i, auId := range administrativeUnitIds {
+			administrativeUnitId := beta.NewDirectoryAdministrativeUnitID(auId)
+
 			// Create the group in the first administrative unit, as this requires fewer permissions than creating it at tenant level
 			if i == 0 {
-				group, status, err = administrativeUnitsClient.CreateGroup(ctx, administrativeUnitId, &properties)
+				resp, err := administrativeUnitMemberClient.CreateAdministrativeUnitMember(ctx, administrativeUnitId, &properties, administrativeunitmemberBeta.DefaultCreateAdministrativeUnitMemberOperationOptions())
 				if err != nil {
-					if status == http.StatusBadRequest && regexp.MustCompile(groupDuplicateValueError).MatchString(err.Error()) {
-						// Retry the request, without the calling principal as owner
-						newOwners := make(msgraph.Owners, 0)
-						for _, o := range *properties.Owners {
-							if id := o.ID(); id != nil && *id != callerId {
-								newOwners = append(newOwners, o)
+					if response.WasBadRequest(resp.HttpResponse) && regexp.MustCompile(groupDuplicateValueError).MatchString(err.Error()) {
+						// Retry the group creation, without the calling principal as owner
+						ownersWithoutCallingPrincipal := make([]string, 0)
+						for _, o := range *properties.Owners_ODataBind {
+							if o != callerODataId {
+								ownersWithoutCallingPrincipal = append(ownersWithoutCallingPrincipal, o)
 							}
 						}
 
-						// No point in retrying if the caller wasn't specified
-						if len(newOwners) == len(*properties.Owners) {
-							log.Printf("[DEBUG] Not retrying group creation for %q within AU %q as owner was not specified", displayName, administrativeUnitId)
-							return tf.ErrorDiagF(err, "Creating group in administrative unit with ID %q, %q", administrativeUnitId, displayName)
+						// No point in retrying if the caller wasn't specified as an owner
+						if len(ownersWithoutCallingPrincipal) == len(*properties.Owners) {
+							log.Printf("[DEBUG] Not retrying group creation for %q within %s as owner was not specified", displayName, administrativeUnitId)
+							return tf.ErrorDiagF(err, "Creating group in %s", administrativeUnitId)
 						}
 
 						// If the API is refusing the calling principal as owner, it will typically automatically append the caller in the background,
 						// and subsequent GETs for the group will include the calling principal as owner, as if it were specified when creating.
-						log.Printf("[DEBUG] Retrying group creation for %q within AU %q without calling principal as owner", displayName, administrativeUnitId)
-						properties.Owners = &newOwners
-						group, _, err = administrativeUnitsClient.CreateGroup(ctx, administrativeUnitId, &properties)
+						log.Printf("[DEBUG] Retrying group creation for %q within %s without calling principal as owner", displayName, administrativeUnitId)
+						if len(ownersWithoutCallingPrincipal) == 0 {
+							properties.Owners_ODataBind = nil
+						} else {
+							properties.Owners_ODataBind = &ownersWithoutCallingPrincipal
+						}
+
+						resp, err = administrativeUnitMemberClient.CreateAdministrativeUnitMember(ctx, administrativeUnitId, &properties, administrativeunitmemberBeta.DefaultCreateAdministrativeUnitMemberOperationOptions())
 						if err != nil {
-							return tf.ErrorDiagF(err, "Creating group in administrative unit with ID %q, %q", administrativeUnitId, displayName)
+							return tf.ErrorDiagF(err, "Creating group in %s", administrativeUnitId)
 						}
 					} else {
-						return tf.ErrorDiagF(err, "Creating group in administrative unit with ID %q, %q", administrativeUnitId, displayName)
-					}
-				}
-			} else {
-				err = addGroupToAdministrativeUnit(ctx, administrativeUnitsClient, tenantId, administrativeUnitId, group)
-				if err != nil {
-					return tf.ErrorDiagF(err, "Adding group %q to administrative unit with object ID: %q", *group.ID(), administrativeUnitId)
-				}
-			}
-		}
-	} else {
-		group, status, err = client.Create(ctx, properties)
-		if err != nil {
-			if status == http.StatusBadRequest && regexp.MustCompile(groupDuplicateValueError).MatchString(err.Error()) {
-				// Retry the request, without the calling principal as owner
-				newOwners := make(msgraph.Owners, 0)
-				for _, o := range *properties.Owners {
-					if id := o.ID(); id != nil && *id != callerId {
-						newOwners = append(newOwners, o)
+						return tf.ErrorDiagF(err, "Creating group in %s", administrativeUnitId)
 					}
 				}
 
-				// No point in retrying if the caller wasn't specified
-				if len(newOwners) == len(*properties.Owners) {
+				if resp.Model == nil {
+					return tf.ErrorDiagF(errors.New("returned model was nil"), "Creating group in %s", administrativeUnitId)
+				}
+
+				// Obtain the new group ID
+				newGroup, ok := resp.Model.(beta.Group)
+				if !ok {
+					return tf.ErrorDiagF(errors.New("returned model was not a group"), "Creating group in %s", administrativeUnitId)
+				}
+				groupObjectId = pointer.From(newGroup.Id)
+
+			} else {
+				ref := beta.ReferenceCreate{
+					ODataId: pointer.To(fmt.Sprintf("%s%s", client.Client.BaseUri, beta.NewDirectoryObjectID(groupObjectId).ID())),
+				}
+				if _, err := administrativeUnitMemberClient.AddAdministrativeUnitMemberRef(ctx, administrativeUnitId, ref, administrativeunitmemberBeta.DefaultAddAdministrativeUnitMemberRefOperationOptions()); err != nil {
+					return tf.ErrorDiagF(err, "Adding group %q to %s", groupObjectId, administrativeUnitId)
+				}
+			}
+		}
+
+	} else {
+		options := groupBeta.CreateGroupOperationOptions{
+			RetryFunc: func(resp *http.Response, o *odata.OData) (bool, error) {
+				if response.WasNotFound(resp) {
+					return true, nil
+				} else if response.WasBadRequest(resp) && o != nil && o.Error != nil {
+					return o.Error.Match("One or more property values specified are invalid") ||
+						o.Error.Match("does not exist or one of its queried reference-property objects are not present"), nil
+				}
+				return false, nil
+			},
+		}
+
+		// Create the group at the tenant level
+		resp, err := client.CreateGroup(ctx, properties, options)
+		if err != nil {
+			if response.WasBadRequest(resp.HttpResponse) && regexp.MustCompile(groupDuplicateValueError).MatchString(err.Error()) {
+				// Retry the group creation, without the calling principal as owner
+				ownersWithoutCallingPrincipal := make([]string, 0)
+				for _, o := range *properties.Owners_ODataBind {
+					if o != callerODataId {
+						ownersWithoutCallingPrincipal = append(ownersWithoutCallingPrincipal, o)
+					}
+				}
+
+				// No point in retrying if the caller wasn't specified as an owner
+				if len(ownersWithoutCallingPrincipal) == len(*properties.Owners) {
 					log.Printf("[DEBUG] Not retrying group creation for %q as owner was not specified", displayName)
 					return tf.ErrorDiagF(err, "Creating group %q", displayName)
 				}
@@ -261,13 +292,13 @@ func groupResourceCreate(ctx context.Context, d *pluginsdk.ResourceData, meta in
 				// If the API is refusing the calling principal as owner, it will typically automatically append the caller in the background,
 				// and subsequent GETs for the group will include the calling principal as owner, as if it were specified when creating.
 				log.Printf("[DEBUG] Retrying group creation for %q without calling principal as owner", displayName)
-				if len(newOwners) == 0 {
-					properties.Owners = nil
+				if len(ownersWithoutCallingPrincipal) == 0 {
+					properties.Owners_ODataBind = nil
 				} else {
-					properties.Owners = &newOwners
+					properties.Owners_ODataBind = &ownersWithoutCallingPrincipal
 				}
 
-				group, _, err = client.Create(ctx, properties)
+				resp, err = client.CreateGroup(ctx, properties, groupBeta.DefaultCreateGroupOperationOptions())
 				if err != nil {
 					return tf.ErrorDiagF(err, "Creating group %q", displayName)
 				}
@@ -275,239 +306,213 @@ func groupResourceCreate(ctx context.Context, d *pluginsdk.ResourceData, meta in
 				return tf.ErrorDiagF(err, "Creating group %q", displayName)
 			}
 		}
+
+		if resp.Model == nil {
+			return tf.ErrorDiagF(errors.New("returned model was nil"), "Creating group %q", displayName)
+		}
+
+		groupObjectId = pointer.From(resp.Model.Id)
 	}
 
-	if group.ID() == nil {
-		return tf.ErrorDiagF(errors.New("API returned group with nil object ID"), "Bad API Response")
+	if groupObjectId == "" {
+		return tf.ErrorDiagF(errors.New("unable to obtain group object ID"), "Creating group %q", displayName)
 	}
 
-	d.SetId(*group.ID())
+	id := beta.NewGroupID(groupObjectId)
+	d.SetId(id.ID())
 
 	// Attempt to patch the newly created group and set the display name, which will tell us whether it exists yet, then set it back to the desired value.
 	// The SDK handles retries for us here in the event of 404, 429 or 5xx, then returns after giving up.
-	uuid, err := uuid.GenerateUUID()
+	uid, err := uuid.GenerateUUID()
 	if err != nil {
 		return tf.ErrorDiagF(err, "Failed to generate a UUID")
 	}
-	tempDisplayName := fmt.Sprintf("TERRAFORM_UPDATE_%s", uuid)
+	tempDisplayName := fmt.Sprintf("TERRAFORM_UPDATE_%s", uid)
 	for _, displayNameToSet := range []string{tempDisplayName, displayName} {
-		status, err := client.Update(ctx, msgraph.Group{
-			DirectoryObject: msgraph.DirectoryObject{
-				Id: group.ID(),
+		updateOptions := groupBeta.UpdateGroupOperationOptions{
+			RetryFunc: func(resp *http.Response, o *odata.OData) (bool, error) {
+				return response.WasNotFound(resp), nil
 			},
-			DisplayName: pointer.To(displayNameToSet),
-		})
+		}
+		resp, err := client.UpdateGroup(ctx, id, beta.Group{
+			DisplayName: nullable.Value(displayNameToSet),
+		}, updateOptions)
 		if err != nil {
-			if status == http.StatusNotFound {
-				return tf.ErrorDiagF(err, "Timed out whilst waiting for new group to be replicated in Azure AD")
+			if response.WasNotFound(resp.HttpResponse) {
+				return tf.ErrorDiagF(err, "Timed out whilst waiting for new %s to be replicated in Azure AD", id)
 			}
-			return tf.ErrorDiagF(err, "Failed to patch group with object ID %q after creating", *group.ID())
+			return tf.ErrorDiagF(err, "Failed to patch %s after creating", id)
 		}
 	}
 
 	// Wait for DisplayName to be updated
-	if err := helpers.WaitForUpdate(ctx, func(ctx context.Context) (*bool, error) {
-		defer func() { client.BaseClient.DisableRetries = false }()
-		client.BaseClient.DisableRetries = true
-		group, status, err := client.Get(ctx, *group.ID(), odata.Query{})
+	if err := consistency.WaitForUpdate(ctx, func(ctx context.Context) (*bool, error) {
+		resp, err := client.GetGroup(ctx, id, groupBeta.DefaultGetGroupOperationOptions())
 		if err != nil {
-			if status == http.StatusNotFound {
+			if response.WasNotFound(resp.HttpResponse) {
 				return pointer.To(false), nil
 			}
 			return nil, err
 		}
-		return pointer.To(group.DisplayName != nil && *group.DisplayName == displayName), nil
+		group := resp.Model
+		return pointer.To(group != nil && group.DisplayName.GetOrZero() == displayName), nil
 	}); err != nil {
-		return tf.ErrorDiagF(err, "Waiting for update of `display_name` for group with object ID %q", *group.ID())
+		return tf.ErrorDiagF(err, "Waiting for update of `display_name` for %s", id)
 	}
 
-	if hasGroupType(groupTypes, msgraph.GroupTypeUnified) {
+	if slices.Contains(groupTypes, GroupTypeUnified) {
 		// Newly created Unified groups now get a description added out-of-band, so we'll wait a couple of minutes to see if this appears and then clear it
 		// See https://github.com/microsoftgraph/msgraph-metadata/issues/331
 		if description == "" {
 			// Ignoring the error result here because the description might not be updated out of band, in which case we skip over this
-			if updated, _ := helpers.WaitForUpdateWithTimeout(ctx, 2*time.Minute, func(ctx context.Context) (*bool, error) {
-				defer func() { client.BaseClient.DisableRetries = false }()
-				client.BaseClient.DisableRetries = true
-				group, _, err := client.Get(ctx, *group.ID(), odata.Query{})
+			if updated, _ := consistency.WaitForUpdateWithTimeout(ctx, 2*time.Minute, func(ctx context.Context) (*bool, error) {
+				resp, err := client.GetGroup(ctx, id, groupBeta.DefaultGetGroupOperationOptions())
 				if err != nil {
 					return nil, err
 				}
-				return pointer.To(group.Description != nil && *group.Description != ""), nil
+				group := resp.Model
+				return pointer.To(group != nil && !group.Description.IsNull() && group.Description.GetOrZero() != ""), nil
 			}); updated {
-				status, err = client.Update(ctx, msgraph.Group{
-					DirectoryObject: msgraph.DirectoryObject{
-						Id: group.ID(),
+				updateOptions := groupBeta.UpdateGroupOperationOptions{
+					RetryFunc: func(resp *http.Response, o *odata.OData) (bool, error) {
+						return response.WasNotFound(resp), nil
 					},
-					Description: tf.NullableString(""),
-				})
+				}
+				resp, err := client.UpdateGroup(ctx, id, beta.Group{
+					Description: nullable.NoZero(""),
+				}, updateOptions)
 				if err != nil {
-					if status == http.StatusNotFound {
-						return tf.ErrorDiagF(err, "Timed out whilst waiting for new group to be replicated in Azure AD")
+					if response.WasNotFound(resp.HttpResponse) {
+						return tf.ErrorDiagF(err, "Timed out whilst waiting for new %s to be replicated in Azure AD", id)
 					}
-					return tf.ErrorDiagF(err, "Failed to patch `description` for group with object ID %q after creating", *group.ID())
+					return tf.ErrorDiagF(err, "Failed to patch `description` for %s after creating", id)
 				}
 
 				// Wait for Description to be removed
-				if err = helpers.WaitForUpdate(ctx, func(ctx context.Context) (*bool, error) {
-					defer func() { client.BaseClient.DisableRetries = false }()
-					client.BaseClient.DisableRetries = true
-					group, _, err = client.Get(ctx, *group.ID(), odata.Query{})
+				if err = consistency.WaitForUpdate(ctx, func(ctx context.Context) (*bool, error) {
+					resp, err := client.GetGroup(ctx, id, groupBeta.DefaultGetGroupOperationOptions())
 					if err != nil {
 						return nil, err
 					}
-					return pointer.To(group.Description == nil || *group.Description == ""), nil
+					group := resp.Model
+					return pointer.To(group != nil && group.Description.IsNull()), nil
 				}); err != nil {
-					return tf.ErrorDiagF(err, "Waiting to remove `description` for group with object ID %q", *group.ID())
+					return tf.ErrorDiagF(err, "Waiting to remove `description` for %s", id)
 				}
 			}
 		}
 
-		// The following unified group properties in this block only support delegated auth
+		// The following unified group properties in this block only support delegated authentication.
 		// Application-authenticated requests will return a 4xx error, so we only
 		// set these when explicitly configured, as they each default to false anyway
 		// See https://docs.microsoft.com/en-us/graph/known-issues#groups
 
 		// AllowExternalSenders can only be set in its own PATCH request; including other properties returns a 400
 		if allowExternalSenders, ok := d.GetOkExists("external_senders_allowed"); ok { //nolint:staticcheck
-			if _, err := client.Update(ctx, msgraph.Group{
-				DirectoryObject: msgraph.DirectoryObject{
-					Id: group.ID(),
-				},
-				AllowExternalSenders: pointer.To(allowExternalSenders.(bool)),
-			}); err != nil {
-				return tf.ErrorDiagF(err, "Failed to set `external_senders_allowed` for group with object ID %q", *group.ID())
+			if _, err = client.UpdateGroup(ctx, id, beta.Group{
+				AllowExternalSenders: nullable.Value(allowExternalSenders.(bool)),
+			}, groupBeta.DefaultUpdateGroupOperationOptions()); err != nil {
+				return tf.CheckDelegatedAuthDiagF(err, "Failed to set `external_senders_allowed` for %s", id)
 			}
 
 			// Wait for AllowExternalSenders to be updated
-			if err := helpers.WaitForUpdate(ctx, func(ctx context.Context) (*bool, error) {
-				defer func() { client.BaseClient.DisableRetries = false }()
-				client.BaseClient.DisableRetries = true
-				groupExtra, err := groupGetAdditional(ctx, client, *group.ID())
+			if err := consistency.WaitForUpdate(ctx, func(ctx context.Context) (*bool, error) {
+				groupExtra, err := groupGetAdditional(ctx, client, id)
 				if err != nil {
 					return nil, err
 				}
-				return pointer.To(groupExtra != nil && groupExtra.AllowExternalSenders != nil && *groupExtra.AllowExternalSenders == allowExternalSenders), nil
+				return pointer.To(groupExtra != nil && groupExtra.AllowExternalSenders.GetOrZero() == allowExternalSenders), nil
 			}); err != nil {
-				return tf.ErrorDiagF(err, "Waiting for update of `external_senders_allowed` for group with object ID %q", *group.ID())
+				return tf.ErrorDiagF(err, "Waiting for update of `external_senders_allowed` for %s", id)
 			}
 		}
 
 		// AutoSubscribeNewMembers can only be set in its own PATCH request; including other properties returns a 400
 		if autoSubscribeNewMembers, ok := d.GetOkExists("auto_subscribe_new_members"); ok { //nolint:staticcheck
-			if _, err := client.Update(ctx, msgraph.Group{
-				DirectoryObject: msgraph.DirectoryObject{
-					Id: group.ID(),
-				},
-				AutoSubscribeNewMembers: pointer.To(autoSubscribeNewMembers.(bool)),
-			}); err != nil {
-				return tf.ErrorDiagF(err, "Failed to set `auto_subscribe_new_members` for group with object ID %q", *group.ID())
+			if _, err = client.UpdateGroup(ctx, id, beta.Group{
+				AutoSubscribeNewMembers: nullable.Value(autoSubscribeNewMembers.(bool)),
+			}, groupBeta.DefaultUpdateGroupOperationOptions()); err != nil {
+				return tf.CheckDelegatedAuthDiagF(err, "Failed to set `auto_subscribe_new_members` for %s", id)
 			}
 
 			// Wait for AutoSubscribeNewMembers to be updated
-			if err := helpers.WaitForUpdate(ctx, func(ctx context.Context) (*bool, error) {
-				defer func() { client.BaseClient.DisableRetries = false }()
-				client.BaseClient.DisableRetries = true
-				groupExtra, err := groupGetAdditional(ctx, client, *group.ID())
+			if err = consistency.WaitForUpdate(ctx, func(ctx context.Context) (*bool, error) {
+				groupExtra, err := groupGetAdditional(ctx, client, id)
 				if err != nil {
 					return nil, err
 				}
-				return pointer.To(groupExtra != nil && groupExtra.AutoSubscribeNewMembers != nil && *groupExtra.AutoSubscribeNewMembers == autoSubscribeNewMembers), nil
+				return pointer.To(groupExtra != nil && groupExtra.AutoSubscribeNewMembers.GetOrZero() == autoSubscribeNewMembers), nil
 			}); err != nil {
-				return tf.ErrorDiagF(err, "Waiting for update of `auto_subscribe_new_members` for group with object ID %q", *group.ID())
+				return tf.ErrorDiagF(err, "Waiting for update of `auto_subscribe_new_members` for %s", id)
 			}
 		}
 
 		// HideFromAddressLists can only be set in its own PATCH request; including other properties returns a 400
 		if hideFromAddressList, ok := d.GetOkExists("hide_from_address_lists"); ok { //nolint:staticcheck
-			if _, err := client.Update(ctx, msgraph.Group{
-				DirectoryObject: msgraph.DirectoryObject{
-					Id: group.ID(),
-				},
-				HideFromAddressLists: pointer.To(hideFromAddressList.(bool)),
-			}); err != nil {
-				return tf.ErrorDiagF(err, "Failed to set `hide_from_address_lists` for group with object ID %q", *group.ID())
+			if _, err = client.UpdateGroup(ctx, id, beta.Group{
+				HideFromAddressLists: nullable.Value(hideFromAddressList.(bool)),
+			}, groupBeta.DefaultUpdateGroupOperationOptions()); err != nil {
+				return tf.CheckDelegatedAuthDiagF(err, "Failed to set `hide_from_address_lists` for %s", id)
 			}
 
 			// Wait for HideFromAddressLists to be updated
-			if err := helpers.WaitForUpdate(ctx, func(ctx context.Context) (*bool, error) {
-				defer func() { client.BaseClient.DisableRetries = false }()
-				client.BaseClient.DisableRetries = true
-				groupExtra, err := groupGetAdditional(ctx, client, *group.ID())
+			if err = consistency.WaitForUpdate(ctx, func(ctx context.Context) (*bool, error) {
+				groupExtra, err := groupGetAdditional(ctx, client, id)
 				if err != nil {
 					return nil, err
 				}
-				return pointer.To(groupExtra != nil && groupExtra.HideFromAddressLists != nil && *groupExtra.HideFromAddressLists == hideFromAddressList), nil
+				return pointer.To(groupExtra != nil && groupExtra.HideFromAddressLists.GetOrZero() == hideFromAddressList), nil
 			}); err != nil {
-				return tf.ErrorDiagF(err, "Waiting for update of `hide_from_address_lists` for group with object ID %q", *group.ID())
+				return tf.ErrorDiagF(err, "Waiting for update of `hide_from_address_lists` for %s", id)
 			}
 		}
 
 		// HideFromOutlookClients can only be set in its own PATCH request; including other properties returns a 400
 		if hideFromOutlookClients, ok := d.GetOkExists("hide_from_outlook_clients"); ok { //nolint:staticcheck
-			if _, err := client.Update(ctx, msgraph.Group{
-				DirectoryObject: msgraph.DirectoryObject{
-					Id: group.ID(),
-				},
-				HideFromOutlookClients: pointer.To(hideFromOutlookClients.(bool)),
-			}); err != nil {
-				return tf.ErrorDiagF(err, "Failed to set `hide_from_outlook_clients` for group with object ID %q", *group.ID())
+			if _, err = client.UpdateGroup(ctx, id, beta.Group{
+				HideFromOutlookClients: nullable.Value(hideFromOutlookClients.(bool)),
+			}, groupBeta.DefaultUpdateGroupOperationOptions()); err != nil {
+				return tf.CheckDelegatedAuthDiagF(err, "Failed to set `hide_from_outlook_clients` for %s", id)
 			}
 
 			// Wait for HideFromOutlookClients to be updated
-			if err := helpers.WaitForUpdate(ctx, func(ctx context.Context) (*bool, error) {
-				defer func() { client.BaseClient.DisableRetries = false }()
-				client.BaseClient.DisableRetries = true
-				groupExtra, err := groupGetAdditional(ctx, client, *group.ID())
+			if err = consistency.WaitForUpdate(ctx, func(ctx context.Context) (*bool, error) {
+				groupExtra, err := groupGetAdditional(ctx, client, id)
 				if err != nil {
 					return nil, err
 				}
-				return pointer.To(groupExtra != nil && groupExtra.HideFromOutlookClients != nil && *groupExtra.HideFromOutlookClients == hideFromOutlookClients), nil
+				return pointer.To(groupExtra != nil && groupExtra.HideFromOutlookClients.GetOrZero() == hideFromOutlookClients), nil
 			}); err != nil {
-				return tf.ErrorDiagF(err, "Waiting for update of `hide_from_outlook_clients` for group with object ID %q", *group.ID())
+				return tf.ErrorDiagF(err, "Waiting for update of `hide_from_outlook_clients` for %s", id)
 			}
 		}
 	}
 
 	// Add any remaining owners after the group is created
-	if len(ownersExtra) > 0 {
-		group.Owners = &ownersExtra
-		if _, err := client.AddOwners(ctx, group); err != nil {
-			return tf.ErrorDiagF(err, "Could not add owners to group with object ID: %q", d.Id())
+	for _, o := range ownersExtra {
+		if _, err = ownerClient.AddOwnerRef(ctx, id, o, ownerBeta.DefaultAddOwnerRefOperationOptions()); err != nil {
+			return tf.ErrorDiagF(err, "Could not add owners to %s", id)
 		}
 	}
 
 	// Add members after the group is created
-	members := make(msgraph.Members, 0)
 	if v, ok := d.GetOk("members"); ok {
 		for _, memberId := range v.(*pluginsdk.Set).List() {
-			memberObject, _, err := directoryObjectsClient.Get(ctx, memberId.(string), odata.Query{})
-			if err != nil {
-				return tf.ErrorDiagF(err, "Could not retrieve member principal object %q", memberId)
+			ref := beta.ReferenceCreate{
+				ODataId: pointer.To(client.Client.BaseUri + beta.NewDirectoryObjectID(memberId.(string)).ID()),
 			}
-			if memberObject == nil {
-				return tf.ErrorDiagF(errors.New("memberObject was nil"), "Could not retrieve member principal object %q", memberId)
+			if _, err = memberClient.AddMemberRef(ctx, id, ref, memberBeta.DefaultAddMemberRefOperationOptions()); err != nil {
+				return tf.ErrorDiagF(err, "Could not add members to group with object ID: %q", d.Id())
 			}
-			memberObject.ODataId = (*odata.Id)(pointer.To(fmt.Sprintf("%s/v1.0/%s/directoryObjects/%s",
-				client.BaseClient.Endpoint, tenantId, memberId)))
-
-			members = append(members, *memberObject)
-		}
-	}
-	if len(members) > 0 {
-		group.Members = &members
-		if _, err := client.AddMembers(ctx, group); err != nil {
-			return tf.ErrorDiagF(err, "Could not add members to group with object ID: %q", d.Id())
 		}
 	}
 
-	// We have observed that when creating a group with an administrative_unit_id and querying the group with the /groups endpoint and specifying $select=allowExternalSenders,autoSubscribeNewMembers,hideFromAddressLists,hideFromOutlookClients, it returns a 404 for ~11 minutes.
+	enableRetries := false
 	if _, ok := d.GetOk("administrative_unit_ids"); ok {
-		meta.(*clients.Client).Groups.GroupsClient.BaseClient.DisableRetries = false
-		meta.(*clients.Client).Groups.GroupsClient.BaseClient.RetryableClient.RetryWaitMax = 1 * time.Minute
-		meta.(*clients.Client).Groups.GroupsClient.BaseClient.RetryableClient.RetryWaitMin = 10 * time.Second
-		meta.(*clients.Client).Groups.GroupsClient.BaseClient.RetryableClient.RetryMax = 15
+		// It has been observed that when creating a group within an administrative unit and querying the group with the `/groups` endpoint whilst
+		// specifying `$select=allowExternalSenders,autoSubscribeNewMembers,hideFromAddressLists,hideFromOutlookClients, a 404 is returned for ~11 minutes.
+		enableRetries = true
 	}
 
-	return groupResourceRead(ctx, d, meta)
+	return groupResourceReadFunc(enableRetries)(ctx, d, meta)
 }

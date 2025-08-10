@@ -1,18 +1,20 @@
 package github.com/hashicorp/terraform-provider-azuread/internal/services/serviceprincipals
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
-	"net/http"
 	"time"
 
 	"github.com/hashicorp/go-azure-helpers/lang/pointer"
-	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/go-azure-helpers/lang/response"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/stable"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/serviceprincipals/stable/claimsmappingpolicy"
 	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
-	"github.com/hashicorp/terraform-provider-azuread/internal/services/serviceprincipals/parse"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
-	"github.com/manicminer/hamilton/msgraph"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/validation"
+	"github.com/hashicorp/terraform-provider-azuread/internal/services/serviceprincipals/migrations"
 )
 func servicePrincipalClaimsMappingPolicyAssignmentResource() *pluginsdk.Resource {
 	return &pluginsdk.Resource{
@@ -27,23 +29,40 @@ func servicePrincipalClaimsMappingPolicyAssignmentResource() *pluginsdk.Resource
 		},
 
 		Importer: pluginsdk.ImporterValidatingResourceId(func(id string) error {
-			_, err := parse.ObjectSubResourceID(id, "claimsMappingPolicy")
-			return err
+			if _, errs := stable.ValidateServicePrincipalIdClaimsMappingPolicyID(id, "id"); len(errs) > 0 {
+				out := ""
+				for _, err := range errs {
+					out += err.Error()
+				}
+				return fmt.Errorf(out)
+			}
+			return nil
 		}),
+
+		SchemaVersion: 1,
+		StateUpgraders: []pluginsdk.StateUpgrader{
+			{
+				Type:    migrations.ResourceServicePrincipalClaimsMappingPolicyAssignmentInstanceResourceV0().CoreConfigSchema().ImpliedType(),
+				Upgrade: migrations.ResourceServicePrincipalClaimsMappingPolicyAssignmentInstanceStateUpgradeV0,
+				Version: 0,
+			},
+		},
 
 		Schema: map[string]*pluginsdk.Schema{
 			"claims_mapping_policy_id": {
-				Description: "ID of the claims mapping policy to assign",
-				Type:        pluginsdk.TypeString,
-				ForceNew:    true,
-				Required:    true,
+				Description:  "ID of the claims mapping policy to assign",
+				Type:         pluginsdk.TypeString,
+				ForceNew:     true,
+				Required:     true,
+				ValidateFunc: validation.StringIsNotEmpty,
 			},
 
 			"service_principal_id": {
-				Description: "Object ID of the service principal for which to assign the policy",
-				Type:        pluginsdk.TypeString,
-				ForceNew:    true,
-				Required:    true,
+				Description:  "Object ID of the service principal for which to assign the policy",
+				Type:         pluginsdk.TypeString,
+				ForceNew:     true,
+				Required:     true,
+				ValidateFunc: validation.IsUUID,
 			},
 		},
 	}

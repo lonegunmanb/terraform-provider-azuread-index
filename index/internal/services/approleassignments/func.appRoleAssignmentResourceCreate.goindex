@@ -8,48 +8,70 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-helpers/lang/response"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/stable"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/serviceprincipals/stable/approleassignedto"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/serviceprincipals/stable/serviceprincipal"
+	"github.com/hashicorp/go-azure-sdk/sdk/nullable"
 	"github.com/hashicorp/go-azure-sdk/sdk/odata"
 	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
-	"github.com/hashicorp/terraform-provider-azuread/internal/services/approleassignments/parse"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
-	"github.com/manicminer/hamilton/msgraph"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/validation"
+	"github.com/hashicorp/terraform-provider-azuread/internal/services/approleassignments/migrations"
 )
 func appRoleAssignmentResourceCreate(ctx context.Context, d *pluginsdk.ResourceData, meta interface{}) pluginsdk.Diagnostics {
 	client := meta.(*clients.Client).AppRoleAssignments.AppRoleAssignedToClient
-	servicePrincipalsClient := meta.(*clients.Client).AppRoleAssignments.ServicePrincipalsClient
+	servicePrincipalClient := meta.(*clients.Client).AppRoleAssignments.ServicePrincipalClient
 
 	appRoleId := d.Get("app_role_id").(string)
 	principalId := d.Get("principal_object_id").(string)
 	resourceId := d.Get("resource_object_id").(string)
-	if _, status, err := servicePrincipalsClient.Get(ctx, resourceId, odata.Query{}); err != nil {
-		if status == http.StatusNotFound {
+
+	if resp, err := servicePrincipalClient.GetServicePrincipal(ctx, stable.NewServicePrincipalID(resourceId), serviceprincipal.DefaultGetServicePrincipalOperationOptions()); err != nil {
+		if response.WasNotFound(resp.HttpResponse) {
 			return tf.ErrorDiagPathF(err, "principal_object_id", "Service principal not found for resource (Object ID: %q)", resourceId)
 		}
 		return tf.ErrorDiagF(err, "Could not retrieve service principal for resource (Object ID: %q)", resourceId)
 	}
-	properties := msgraph.AppRoleAssignment{
+
+	properties := stable.AppRoleAssignment{
 		AppRoleId:   pointer.To(appRoleId),
-		PrincipalId: pointer.To(principalId),
-		ResourceId:  pointer.To(resourceId),
+		PrincipalId: nullable.Value(principalId),
+		ResourceId:  nullable.Value(resourceId),
 	}
 
-	appRoleAssignment, _, err := client.Assign(ctx, properties)
+	options := approleassignedto.CreateAppRoleAssignedToOperationOptions{
+		RetryFunc: func(resp *http.Response, o *odata.OData) (bool, error) {
+			if response.WasNotFound(resp) {
+				return true, nil
+			} else if response.WasBadRequest(resp) && o != nil && o.Error != nil {
+				return o.Error.Match("Not a valid reference update"), nil
+			}
+			return false, nil
+		},
+	}
+
+	resp, err := client.CreateAppRoleAssignedTo(ctx, stable.NewServicePrincipalID(resourceId), properties, options)
 	if err != nil {
 		return tf.ErrorDiagF(err, "Could not create app role assignment")
+	}
+
+	appRoleAssignment := resp.Model
+	if appRoleAssignment == nil {
+		return tf.ErrorDiagF(errors.New("model was nil"), "Could not create app role assignment")
 	}
 
 	if appRoleAssignment.Id == nil || *appRoleAssignment.Id == "" {
 		return tf.ErrorDiagF(errors.New("ID returned for app role assignment is nil"), "Bad API response")
 	}
 
-	if appRoleAssignment.ResourceId == nil || *appRoleAssignment.ResourceId == "" {
+	if appRoleAssignment.ResourceId.IsNull() || appRoleAssignment.ResourceId.GetOrZero() == "" {
 		return tf.ErrorDiagF(errors.New("Resource ID returned for app role assignment is nil"), "Bad API response")
 	}
 
-	id := parse.NewAppRoleAssignmentID(*appRoleAssignment.ResourceId, *appRoleAssignment.Id)
-	d.SetId(id.String())
+	id := stable.NewServicePrincipalIdAppRoleAssignedToID(appRoleAssignment.ResourceId.GetOrZero(), pointer.From(appRoleAssignment.Id))
+	d.SetId(id.ID())
 
 	return appRoleAssignmentResourceRead(ctx, d, meta)
 }

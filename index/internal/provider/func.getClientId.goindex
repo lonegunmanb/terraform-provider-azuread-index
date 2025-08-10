@@ -6,7 +6,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/pluginsdk"
 )
 func getClientId(d *pluginsdk.ResourceData) (*string, error) {
 	clientId := strings.TrimSpace(d.Get("client_id").(string))

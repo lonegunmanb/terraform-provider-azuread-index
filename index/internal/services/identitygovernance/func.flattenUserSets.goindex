@@ -1,23 +1,40 @@
 package github.com/hashicorp/terraform-provider-azuread/internal/services/identitygovernance
 import (
+	"context"
 	"fmt"
-	"time"
+	"strings"
 
 	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/beta"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/identitygovernance/beta/entitlementmanagementaccesspackage"
+	"github.com/hashicorp/go-azure-sdk/sdk/nullable"
 	"github.com/hashicorp/go-azure-sdk/sdk/odata"
-	"github.com/manicminer/hamilton/msgraph"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
-func flattenUserSets(input *[]msgraph.UserSet) []interface{} {
+func flattenUserSets(input *[]beta.UserSet) []map[string]interface{} {
 	if input == nil || len(*input) == 0 {
 		return nil
 	}
 
-	userSets := make([]interface{}, 0)
-	for _, v := range *input {
+	userSets := make([]map[string]interface{}, 0)
+	for _, raw := range *input {
+		v := raw.UserSet()
+		var id *string
+
+		switch impl := raw.(type) {
+		case beta.ConnectedOrganizationMembers:
+			id = impl.Id.Get()
+		case beta.GroupMembers:
+			id = impl.Id.Get()
+		case beta.SingleUser:
+			id = impl.Id.Get()
+		}
+
 		userSet := map[string]interface{}{
-			"subject_type": userSetShortType(*v.ODataType),
-			"backup":       v.IsBackup,
-			"object_id":    v.ID,
+			"subject_type": formatODataType(pointer.From(v.ODataType)),
+			"backup":       v.IsBackup.GetOrZero(),
+			"object_id":    pointer.From(id),
 		}
 
 		userSets = append(userSets, userSet)

@@ -2,54 +2,56 @@ package github.com/hashicorp/terraform-provider-azuread/internal/services/applic
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"strings"
 	"time"
 
 	"github.com/hashicorp/go-azure-helpers/lang/pointer"
-	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/go-azure-helpers/lang/response"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/applications/stable/application"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/stable"
+	"github.com/hashicorp/go-azure-sdk/sdk/nullable"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/validation"
 	"github.com/hashicorp/terraform-provider-azuread/internal/sdk"
 	"github.com/hashicorp/terraform-provider-azuread/internal/services/applications/parse"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
-	"github.com/manicminer/hamilton/msgraph"
 )
 func (r ApplicationApiAccessResource) Read() sdk.ResourceFunc {
 	return sdk.ResourceFunc{
 		Timeout: 5 * time.Minute,
 		Func: func(ctx context.Context, metadata sdk.ResourceMetaData) error {
-			client := metadata.Client.Applications.ApplicationsClient
-			client.BaseClient.DisableRetries = true
-			defer func() { client.BaseClient.DisableRetries = false }()
+			client := metadata.Client.Applications.ApplicationClient
 
 			id, err := parse.ParseApiAccessID(metadata.ResourceData.Id())
 			if err != nil {
 				return err
 			}
 
-			applicationId := parse.NewApplicationID(id.ApplicationId)
+			applicationId := stable.NewApplicationID(id.ApplicationId)
 
 			tf.LockByName(applicationResourceName, id.ApplicationId)
 			defer tf.UnlockByName(applicationResourceName, id.ApplicationId)
 
-			result, status, err := client.Get(ctx, id.ApplicationId, odata.Query{})
+			resp, err := client.GetApplication(ctx, applicationId, application.DefaultGetApplicationOperationOptions())
 			if err != nil {
-				if status == http.StatusNotFound {
+				if response.WasNotFound(resp.HttpResponse) {
 					return metadata.MarkAsGone(id)
 				}
-				return fmt.Errorf("retrieving %s: %+v", id, err)
+				return fmt.Errorf("retrieving %s: %+v", applicationId, err)
 			}
-			if result == nil {
-				return fmt.Errorf("retrieving %s: result was nil", id)
+
+			app := resp.Model
+			if app == nil {
+				return fmt.Errorf("retrieving %s: model was nil", applicationId)
 			}
-			if result.RequiredResourceAccess == nil {
+
+			if app.RequiredResourceAccess == nil {
 				return metadata.MarkAsGone(id)
 			}
 
 			// Identify the API
-			var api *msgraph.RequiredResourceAccess
-			for _, existingApi := range *result.RequiredResourceAccess {
+			var api *stable.RequiredResourceAccess
+			for _, existingApi := range *app.RequiredResourceAccess {
 				if strings.EqualFold(*existingApi.ResourceAppId, id.ApiClientId) {
 					api = &existingApi
 					break
@@ -66,11 +68,11 @@ func (r ApplicationApiAccessResource) Read() sdk.ResourceFunc {
 			roleIds := make([]string, 0)
 			scopeIds := make([]string, 0)
 			for _, permission := range *api.ResourceAccess {
-				switch permission.Type {
-				case msgraph.ResourceAccessTypeRole:
-					roleIds = append(roleIds, pointer.From(permission.ID))
-				case msgraph.ResourceAccessTypeScope:
-					scopeIds = append(scopeIds, pointer.From(permission.ID))
+				switch permission.Type.GetOrZero() {
+				case ResourceAccessTypeRole:
+					roleIds = append(roleIds, pointer.From(permission.Id))
+				case ResourceAccessTypeScope:
+					scopeIds = append(scopeIds, pointer.From(permission.Id))
 				}
 			}
 

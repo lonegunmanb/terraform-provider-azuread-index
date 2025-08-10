@@ -1,0 +1,36 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/groups
+import (
+	"context"
+	"fmt"
+	"math/rand"
+
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-helpers/lang/response"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/beta"
+	groupBeta "github.com/hashicorp/go-azure-sdk/microsoft-graph/groups/beta/group"
+	memberBeta "github.com/hashicorp/go-azure-sdk/microsoft-graph/groups/beta/member"
+)
+func groupGetMember(ctx context.Context, client *memberBeta.MemberClient, id beta.GroupIdMemberId) (*beta.DirectoryObject, error) {
+	options := memberBeta.ListMembersOperationOptions{
+		Filter: pointer.To(fmt.Sprintf("id eq '%s'", id.DirectoryObjectId)),
+	}
+
+	resp, err := client.ListMembers(ctx, beta.NewGroupID(id.GroupId), options)
+	if err != nil {
+		if response.WasNotFound(resp.HttpResponse) {
+			return nil, nil
+		} else {
+			return nil, err
+		}
+	}
+
+	if resp.Model != nil {
+		for _, member := range *resp.Model {
+			if member.DirectoryObject().Id != nil && *member.DirectoryObject().Id == id.DirectoryObjectId {
+				return &member, nil
+			}
+		}
+	}
+
+	return nil, nil
+}

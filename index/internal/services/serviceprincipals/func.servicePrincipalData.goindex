@@ -3,18 +3,21 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/http"
 	"strings"
 	"time"
 
 	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-helpers/lang/response"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/beta"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/stable"
+	serviceprincipalBeta "github.com/hashicorp/go-azure-sdk/microsoft-graph/serviceprincipals/beta/serviceprincipal"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/serviceprincipals/stable/serviceprincipal"
 	"github.com/hashicorp/go-azure-sdk/sdk/odata"
 	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
-	"github.com/hashicorp/terraform-provider-azuread/internal/helpers"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
-	"github.com/manicminer/hamilton/msgraph"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/applications"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/validation"
 )
 func servicePrincipalData() *pluginsdk.Resource {
 	return &pluginsdk.Resource{
@@ -30,7 +33,7 @@ func servicePrincipalData() *pluginsdk.Resource {
 				Type:         pluginsdk.TypeString,
 				Optional:     true,
 				Computed:     true,
-				ExactlyOneOf: []string{"client_id", "application_id", "display_name", "object_id"},
+				ExactlyOneOf: []string{"client_id", "display_name", "object_id"},
 				ValidateFunc: validation.IsUUID,
 			},
 
@@ -39,7 +42,7 @@ func servicePrincipalData() *pluginsdk.Resource {
 				Type:         pluginsdk.TypeString,
 				Optional:     true,
 				Computed:     true,
-				ExactlyOneOf: []string{"client_id", "application_id", "display_name", "object_id"},
+				ExactlyOneOf: []string{"client_id", "display_name", "object_id"},
 				ValidateFunc: validation.StringIsNotEmpty,
 			},
 
@@ -48,18 +51,8 @@ func servicePrincipalData() *pluginsdk.Resource {
 				Type:         pluginsdk.TypeString,
 				Optional:     true,
 				Computed:     true,
-				ExactlyOneOf: []string{"client_id", "application_id", "display_name", "object_id"},
+				ExactlyOneOf: []string{"client_id", "display_name", "object_id"},
 				ValidateFunc: validation.IsUUID,
-			},
-
-			"application_id": {
-				Description:  "The application ID (client ID) of the application associated with this service principal",
-				Type:         pluginsdk.TypeString,
-				Optional:     true,
-				Computed:     true,
-				ExactlyOneOf: []string{"client_id", "application_id", "display_name", "object_id"},
-				ValidateFunc: validation.IsUUID,
-				Deprecated:   "The `application_id` property has been replaced with the `client_id` property and will be removed in version 3.0 of the AzureAD provider",
 			},
 
 			"account_enabled": {

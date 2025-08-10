@@ -4,17 +4,17 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"net/http"
 	"time"
 
-	"github.com/hashicorp/go-azure-helpers/lang/pointer"
-	"github.com/hashicorp/go-azure-sdk/sdk/odata"
-	"github.com/hashicorp/go-uuid"
+	"github.com/hashicorp/go-azure-helpers/lang/response"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/stable"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/rolemanagement/stable/directoryroledefinition"
+	"github.com/hashicorp/go-azure-sdk/sdk/nullable"
 	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
-	"github.com/manicminer/hamilton/msgraph"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/validation"
+	"github.com/hashicorp/terraform-provider-azuread/internal/services/directoryroles/migrations"
 )
 func customDirectoryRoleResource() *pluginsdk.Resource {
 	return &pluginsdk.Resource{
@@ -31,18 +31,31 @@ func customDirectoryRoleResource() *pluginsdk.Resource {
 		},
 
 		Importer: pluginsdk.ImporterValidatingResourceId(func(id string) error {
-			if _, err := uuid.ParseUUID(id); err != nil {
-				return fmt.Errorf("specified ID (%q) is not valid: %s", id, err)
+			if _, errs := stable.ValidateRoleManagementDirectoryRoleDefinitionID(id, "id"); len(errs) > 0 {
+				out := ""
+				for _, err := range errs {
+					out += err.Error()
+				}
+				return fmt.Errorf(out)
 			}
 			return nil
 		}),
 
+		SchemaVersion: 1,
+		StateUpgraders: []pluginsdk.StateUpgrader{
+			{
+				Type:    migrations.ResourceCustomDirectoryRoleInstanceResourceV0().CoreConfigSchema().ImpliedType(),
+				Upgrade: migrations.ResourceCustomDirectoryRoleInstanceStateUpgradeV0,
+				Version: 0,
+			},
+		},
+
 		Schema: map[string]*pluginsdk.Schema{
 			"display_name": {
-				Description:      "The display name of the custom directory role",
-				Type:             pluginsdk.TypeString,
-				Required:         true,
-				ValidateDiagFunc: validation.ValidateDiag(validation.StringIsNotEmpty),
+				Description:  "The display name of the custom directory role",
+				Type:         pluginsdk.TypeString,
+				Required:     true,
+				ValidateFunc: validation.StringIsNotEmpty,
 			},
 
 			"enabled": {
@@ -62,8 +75,8 @@ func customDirectoryRoleResource() *pluginsdk.Resource {
 							Type:        pluginsdk.TypeSet,
 							Required:    true,
 							Elem: &pluginsdk.Schema{
-								Type:             pluginsdk.TypeString,
-								ValidateDiagFunc: validation.ValidateDiag(validation.StringIsNotEmpty),
+								Type:         pluginsdk.TypeString,
+								ValidateFunc: validation.StringIsNotEmpty,
 							},
 						},
 					},
@@ -71,10 +84,10 @@ func customDirectoryRoleResource() *pluginsdk.Resource {
 			},
 
 			"version": {
-				Description:      "The version of the role definition.",
-				Type:             pluginsdk.TypeString,
-				Required:         true,
-				ValidateDiagFunc: validation.ValidateDiag(validation.StringLenBetween(1, 128)),
+				Description:  "The version of the role definition.",
+				Type:         pluginsdk.TypeString,
+				Required:     true,
+				ValidateFunc: validation.StringLenBetween(1, 128),
 			},
 
 			"description": {
@@ -84,11 +97,11 @@ func customDirectoryRoleResource() *pluginsdk.Resource {
 			},
 
 			"template_id": {
-				Description:      "Custom template identifier that is typically used if one needs an identifier to be the same across different directories.",
-				Type:             pluginsdk.TypeString,
-				Optional:         true,
-				Computed:         true,
-				ValidateDiagFunc: validation.ValidateDiag(validation.IsUUID),
+				Description:  "Custom template identifier that is typically used if one needs an identifier to be the same across different directories.",
+				Type:         pluginsdk.TypeString,
+				Optional:     true,
+				Computed:     true,
+				ValidateFunc: validation.IsUUID,
 
 				// The template ID _can_ technically be changed but doing so mutates the role ID - essentially
 				// causing the equivalent of a ForceNew by the API :/

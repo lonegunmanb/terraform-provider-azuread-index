@@ -1,21 +1,39 @@
 package github.com/hashicorp/terraform-provider-azuread/internal/services/identitygovernance/client
 import (
 	"github.com/hashicorp/terraform-provider-azuread/internal/common"
-	"github.com/manicminer/hamilton/msgraph"
+
+	// Beta clients
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/identitygovernance/beta/entitlementmanagementaccesspackage"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/identitygovernance/beta/entitlementmanagementaccesspackageaccesspackageresourcerolescope"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/identitygovernance/beta/entitlementmanagementaccesspackageassignmentpolicy"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/identitygovernance/beta/entitlementmanagementaccesspackagecatalog"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/identitygovernance/beta/entitlementmanagementaccesspackagecatalogaccesspackageresource"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/identitygovernance/beta/entitlementmanagementaccesspackageresourcerequest"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/rolemanagement/beta/entitlementmanagementroleassignment"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/rolemanagement/beta/entitlementmanagementroledefinition"
+
+	// Stable clients
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/identitygovernance/stable/privilegedaccessgroupassignmentschedule"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/identitygovernance/stable/privilegedaccessgroupassignmentscheduleinstance"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/identitygovernance/stable/privilegedaccessgroupassignmentschedulerequest"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/identitygovernance/stable/privilegedaccessgroupeligibilityschedule"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/identitygovernance/stable/privilegedaccessgroupeligibilityscheduleinstance"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/identitygovernance/stable/privilegedaccessgroupeligibilityschedulerequest"
 )
 type Client struct {
-	AccessPackageAssignmentPolicyClient                     *msgraph.AccessPackageAssignmentPolicyClient
-	AccessPackageCatalogClient                              *msgraph.AccessPackageCatalogClient
-	AccessPackageCatalogRoleAssignmentsClient               *msgraph.EntitlementRoleAssignmentsClient
-	AccessPackageCatalogRoleClient                          *msgraph.EntitlementRoleDefinitionsClient
-	AccessPackageClient                                     *msgraph.AccessPackageClient
-	AccessPackageResourceClient                             *msgraph.AccessPackageResourceClient
-	AccessPackageResourceRequestClient                      *msgraph.AccessPackageResourceRequestClient
-	AccessPackageResourceRoleScopeClient                    *msgraph.AccessPackageResourceRoleScopeClient
-	PrivilegedAccessGroupAssignmentScheduleClient           *msgraph.PrivilegedAccessGroupAssignmentScheduleClient
-	PrivilegedAccessGroupAssignmentScheduleInstancesClient  *msgraph.PrivilegedAccessGroupAssignmentScheduleInstancesClient
-	PrivilegedAccessGroupAssignmentScheduleRequestsClient   *msgraph.PrivilegedAccessGroupAssignmentScheduleRequestsClient
-	PrivilegedAccessGroupEligibilityScheduleClient          *msgraph.PrivilegedAccessGroupEligibilityScheduleClient
-	PrivilegedAccessGroupEligibilityScheduleInstancesClient *msgraph.PrivilegedAccessGroupEligibilityScheduleInstancesClient
-	PrivilegedAccessGroupEligibilityScheduleRequestsClient  *msgraph.PrivilegedAccessGroupEligibilityScheduleRequestsClient
+	AccessPackageAssignmentPolicyClient  *entitlementmanagementaccesspackageassignmentpolicy.EntitlementManagementAccessPackageAssignmentPolicyClient
+	AccessPackageCatalogClient           *entitlementmanagementaccesspackagecatalog.EntitlementManagementAccessPackageCatalogClient
+	AccessPackageCatalogResourceClient   *entitlementmanagementaccesspackagecatalogaccesspackageresource.EntitlementManagementAccessPackageCatalogAccessPackageResourceClient
+	AccessPackageClient                  *entitlementmanagementaccesspackage.EntitlementManagementAccessPackageClient
+	AccessPackageResourceRequestClient   *entitlementmanagementaccesspackageresourcerequest.EntitlementManagementAccessPackageResourceRequestClient
+	AccessPackageResourceRoleScopeClient *entitlementmanagementaccesspackageaccesspackageresourcerolescope.EntitlementManagementAccessPackageAccessPackageResourceRoleScopeClient
+	RoleAssignmentClient                 *entitlementmanagementroleassignment.EntitlementManagementRoleAssignmentClient
+	RoleDefinitionClient                 *entitlementmanagementroledefinition.EntitlementManagementRoleDefinitionClient
+
+	PrivilegedAccessGroupAssignmentScheduleClient          *privilegedaccessgroupassignmentschedule.PrivilegedAccessGroupAssignmentScheduleClient
+	PrivilegedAccessGroupAssignmentScheduleInstanceClient  *privilegedaccessgroupassignmentscheduleinstance.PrivilegedAccessGroupAssignmentScheduleInstanceClient
+	PrivilegedAccessGroupAssignmentScheduleRequestClient   *privilegedaccessgroupassignmentschedulerequest.PrivilegedAccessGroupAssignmentScheduleRequestClient
+	PrivilegedAccessGroupEligibilityScheduleClient         *privilegedaccessgroupeligibilityschedule.PrivilegedAccessGroupEligibilityScheduleClient
+	PrivilegedAccessGroupEligibilityScheduleInstanceClient *privilegedaccessgroupeligibilityscheduleinstance.PrivilegedAccessGroupEligibilityScheduleInstanceClient
+	PrivilegedAccessGroupEligibilityScheduleRequestClient  *privilegedaccessgroupeligibilityschedulerequest.PrivilegedAccessGroupEligibilityScheduleRequestClient
 }

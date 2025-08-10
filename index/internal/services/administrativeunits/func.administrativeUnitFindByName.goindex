@@ -3,22 +3,25 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/hashicorp/go-azure-sdk/sdk/odata"
-	"github.com/manicminer/hamilton/msgraph"
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-helpers/lang/response"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/stable"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/directory/stable/administrativeunit"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/directory/stable/administrativeunitmember"
 )
-func administrativeUnitFindByName(ctx context.Context, client *msgraph.AdministrativeUnitsClient, displayName string) (*[]msgraph.AdministrativeUnit, error) {
-	query := odata.Query{
-		Filter: fmt.Sprintf("displayName eq '%s'", displayName),
+func administrativeUnitFindByName(ctx context.Context, client *administrativeunit.AdministrativeUnitClient, displayName string) (*[]stable.AdministrativeUnit, error) {
+	options := administrativeunit.ListAdministrativeUnitsOperationOptions{
+		Filter: pointer.To(fmt.Sprintf("displayName eq '%s'", displayName)),
 	}
-	administrativeUnits, _, err := client.List(ctx, query)
+	resp, err := client.ListAdministrativeUnits(ctx, options)
 	if err != nil {
-		return nil, fmt.Errorf("unable to list Administrative Units with filter %q: %+v", query.Filter, err)
+		return nil, fmt.Errorf("unable to list Administrative Units with filter %q: %+v", *options.Filter, err)
 	}
 
-	result := make([]msgraph.AdministrativeUnit, 0)
-	if administrativeUnits != nil {
+	result := make([]stable.AdministrativeUnit, 0)
+	if administrativeUnits := resp.Model; administrativeUnits != nil {
 		for _, au := range *administrativeUnits {
-			if au.DisplayName != nil && *au.DisplayName == displayName {
+			if au.DisplayName.GetOrZero() == displayName {
 				result = append(result, au)
 			}
 		}

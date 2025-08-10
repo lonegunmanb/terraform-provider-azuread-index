@@ -1,19 +1,20 @@
 package github.com/hashicorp/terraform-provider-azuread/internal/services/applications
 import (
 	"context"
+	"errors"
 	"fmt"
-	"net/http"
 	"time"
 
 	"github.com/hashicorp/go-azure-helpers/lang/pointer"
-	"github.com/hashicorp/go-azure-sdk/sdk/odata"
-	"github.com/hashicorp/terraform-provider-azuread/internal/helpers"
+	"github.com/hashicorp/go-azure-helpers/lang/response"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/applications/stable/application"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/stable"
+	"github.com/hashicorp/go-azure-sdk/sdk/nullable"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/consistency"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/validation"
 	"github.com/hashicorp/terraform-provider-azuread/internal/sdk"
-	"github.com/hashicorp/terraform-provider-azuread/internal/services/applications/parse"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
-	"github.com/manicminer/hamilton/msgraph"
 )
 func (r ApplicationRegistrationResource) Arguments() map[string]*pluginsdk.Schema {
 	return map[string]*pluginsdk.Schema{
@@ -36,14 +37,8 @@ func (r ApplicationRegistrationResource) Arguments() map[string]*pluginsdk.Schem
 			Type:        pluginsdk.TypeSet,
 			Optional:    true,
 			Elem: &pluginsdk.Schema{
-				Type: pluginsdk.TypeString,
-				ValidateFunc: validation.StringInSlice([]string{
-					msgraph.GroupMembershipClaimAll,
-					msgraph.GroupMembershipClaimNone,
-					msgraph.GroupMembershipClaimApplicationGroup,
-					msgraph.GroupMembershipClaimDirectoryRole,
-					msgraph.GroupMembershipClaimSecurityGroup,
-				}, false),
+				Type:         pluginsdk.TypeString,
+				ValidateFunc: validation.StringInSlice(possibleValuesForGroupMembershipClaim, false),
 			},
 		},
 
@@ -110,16 +105,11 @@ func (r ApplicationRegistrationResource) Arguments() map[string]*pluginsdk.Schem
 		},
 
 		"sign_in_audience": {
-			Description: "The Microsoft account types that are supported for the current application",
-			Type:        pluginsdk.TypeString,
-			Optional:    true,
-			Default:     msgraph.SignInAudienceAzureADMyOrg,
-			ValidateFunc: validation.StringInSlice([]string{
-				msgraph.SignInAudienceAzureADMyOrg,
-				msgraph.SignInAudienceAzureADMultipleOrgs,
-				msgraph.SignInAudienceAzureADandPersonalMicrosoftAccount,
-				msgraph.SignInAudiencePersonalMicrosoftAccount,
-			}, false),
+			Description:  "The Microsoft account types that are supported for the current application",
+			Type:         pluginsdk.TypeString,
+			Optional:     true,
+			Default:      SignInAudienceAzureADMyOrg,
+			ValidateFunc: validation.StringInSlice(possibleValuesForSignInAudience, false),
 		},
 
 		"support_url": {

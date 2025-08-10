@@ -1,0 +1,11 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/directoryroles/migrations
+import (
+	"context"
+	"fmt"
+	"log"
+
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/stable"
+	"github.com/hashicorp/go-uuid"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/pluginsdk"
+)
+type ResourceDirectoryRoleStateUpgradeV0 struct{}

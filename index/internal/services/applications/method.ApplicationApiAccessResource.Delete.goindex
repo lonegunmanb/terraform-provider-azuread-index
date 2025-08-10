@@ -2,26 +2,25 @@ package github.com/hashicorp/terraform-provider-azuread/internal/services/applic
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"strings"
 	"time"
 
 	"github.com/hashicorp/go-azure-helpers/lang/pointer"
-	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/go-azure-helpers/lang/response"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/applications/stable/application"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/stable"
+	"github.com/hashicorp/go-azure-sdk/sdk/nullable"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/validation"
 	"github.com/hashicorp/terraform-provider-azuread/internal/sdk"
 	"github.com/hashicorp/terraform-provider-azuread/internal/services/applications/parse"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
-	"github.com/manicminer/hamilton/msgraph"
 )
 func (r ApplicationApiAccessResource) Delete() sdk.ResourceFunc {
 	return sdk.ResourceFunc{
 		Timeout: 5 * time.Minute,
 		Func: func(ctx context.Context, metadata sdk.ResourceMetaData) error {
-			client := metadata.Client.Applications.ApplicationsClient
-			client.BaseClient.DisableRetries = true
-			defer func() { client.BaseClient.DisableRetries = false }()
+			client := metadata.Client.Applications.ApplicationClient
 
 			id, err := parse.ParseApiAccessID(metadata.ResourceData.Id())
 			if err != nil {
@@ -33,22 +32,25 @@ func (r ApplicationApiAccessResource) Delete() sdk.ResourceFunc {
 				return fmt.Errorf("decoding: %+v", err)
 			}
 
+			applicationId := stable.NewApplicationID(id.ApplicationId)
+
 			tf.LockByName(applicationResourceName, id.ApplicationId)
 			defer tf.UnlockByName(applicationResourceName, id.ApplicationId)
 
-			applicationId := parse.NewApplicationID(id.ApplicationId)
-			result, _, err := client.Get(ctx, applicationId.ApplicationId, odata.Query{})
+			resp, err := client.GetApplication(ctx, applicationId, application.DefaultGetApplicationOperationOptions())
 			if err != nil {
 				return fmt.Errorf("retrieving %s: %+v", applicationId, err)
 			}
-			if result == nil || result.RequiredResourceAccess == nil {
+
+			app := resp.Model
+			if app == nil || app.RequiredResourceAccess == nil {
 				return fmt.Errorf("retrieving %s: requiredResourceAccess was nil", applicationId)
 			}
 
 			// Look for an API to remove
-			newApis := make([]msgraph.RequiredResourceAccess, 0)
+			newApis := make([]stable.RequiredResourceAccess, 0)
 			found := false
-			for _, existingApi := range *result.RequiredResourceAccess {
+			for _, existingApi := range *app.RequiredResourceAccess {
 				if strings.EqualFold(*existingApi.ResourceAppId, id.ApiClientId) {
 					found = true
 				} else {
@@ -59,16 +61,13 @@ func (r ApplicationApiAccessResource) Delete() sdk.ResourceFunc {
 				return fmt.Errorf("deleting %s: could not identify existing API", id)
 			}
 
-			properties := msgraph.Application{
-				DirectoryObject: msgraph.DirectoryObject{
-					Id: &applicationId.ApplicationId,
-				},
+			properties := stable.Application{
+				Id:                     &applicationId.ApplicationId,
 				RequiredResourceAccess: &newApis,
 			}
 
 			// Patch the application with the new set of APIs
-			_, err = client.Update(ctx, properties)
-			if err != nil {
+			if _, err = client.UpdateApplication(ctx, applicationId, properties, application.DefaultUpdateApplicationOperationOptions()); err != nil {
 				return fmt.Errorf("deleting %s: %+v", id, err)
 			}
 

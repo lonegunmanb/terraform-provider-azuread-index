@@ -1,80 +1,80 @@
 package github.com/hashicorp/terraform-provider-azuread/internal/services/applications
 import (
 	"context"
+	"errors"
 	"fmt"
-	"net/http"
 	"time"
 
 	"github.com/hashicorp/go-azure-helpers/lang/pointer"
-	"github.com/hashicorp/go-azure-sdk/sdk/odata"
-	"github.com/hashicorp/terraform-provider-azuread/internal/helpers"
+	"github.com/hashicorp/go-azure-helpers/lang/response"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/applications/stable/application"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/stable"
+	"github.com/hashicorp/go-azure-sdk/sdk/nullable"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/consistency"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/validation"
 	"github.com/hashicorp/terraform-provider-azuread/internal/sdk"
-	"github.com/hashicorp/terraform-provider-azuread/internal/services/applications/parse"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
-	"github.com/manicminer/hamilton/msgraph"
 )
 func (r ApplicationRegistrationResource) Read() sdk.ResourceFunc {
 	return sdk.ResourceFunc{
 		Timeout: 5 * time.Minute,
 		Func: func(ctx context.Context, metadata sdk.ResourceMetaData) error {
-			client := metadata.Client.Applications.ApplicationsClient
-			client.BaseClient.DisableRetries = true
-			defer func() { client.BaseClient.DisableRetries = false }()
+			client := metadata.Client.Applications.ApplicationClient
 
-			id, err := parse.ParseApplicationID(metadata.ResourceData.Id())
+			id, err := stable.ParseApplicationID(metadata.ResourceData.Id())
 			if err != nil {
 				return err
 			}
 
-			result, status, err := client.Get(ctx, id.ApplicationId, odata.Query{})
+			resp, err := client.GetApplication(ctx, *id, application.DefaultGetApplicationOperationOptions())
 			if err != nil {
-				if status == http.StatusNotFound {
+				if response.WasNotFound(resp.HttpResponse) {
 					return metadata.MarkAsGone(id)
 				}
 				return fmt.Errorf("retrieving %s: %+v", id, err)
 			}
 
-			if result == nil {
-				return fmt.Errorf("retrieving %s: result was nil", id)
+			app := resp.Model
+			if app == nil {
+				return fmt.Errorf("retrieving %s: model was nil", id)
 			}
 
 			state := ApplicationRegistrationModel{
-				ClientId:                   pointer.From(result.AppId),
-				Description:                string(pointer.From(result.Description)),
-				DisplayName:                pointer.From(result.DisplayName),
-				GroupMembershipClaims:      pointer.From(result.GroupMembershipClaims),
-				Notes:                      string(pointer.From(result.Notes)),
-				ObjectId:                   pointer.From(result.ID()),
-				PublisherDomain:            pointer.From(result.PublisherDomain),
-				ServiceManagementReference: string(pointer.From(result.ServiceManagementReference)),
-				SignInAudience:             pointer.From(result.SignInAudience),
+				ClientId:                   app.AppId.GetOrZero(),
+				Description:                app.Description.GetOrZero(),
+				DisplayName:                app.DisplayName.GetOrZero(),
+				GroupMembershipClaims:      tf.ExpandStringSlice(flattenApplicationGroupMembershipClaims(app.GroupMembershipClaims)),
+				Notes:                      app.Notes.GetOrZero(),
+				ObjectId:                   pointer.From(app.Id),
+				PublisherDomain:            app.PublisherDomain.GetOrZero(),
+				ServiceManagementReference: app.ServiceManagementReference.GetOrZero(),
+				SignInAudience:             app.SignInAudience.GetOrZero(),
 			}
 
-			if api := result.Api; api != nil {
-				state.RequestedAccessTokenVersion = int(pointer.From(api.RequestedAccessTokenVersion))
+			if api := app.Api; api != nil {
+				state.RequestedAccessTokenVersion = int(api.RequestedAccessTokenVersion.GetOrZero())
 			}
 
-			if info := result.Info; info != nil {
-				state.MarketingUrl = string(pointer.From(info.MarketingUrl))
-				state.PrivacyStatementUrl = string(pointer.From(info.PrivacyStatementUrl))
-				state.SupportUrl = string(pointer.From(info.SupportUrl))
-				state.TermsOfServiceUrl = string(pointer.From(info.TermsOfServiceUrl))
+			if info := app.Info; info != nil {
+				state.MarketingUrl = info.MarketingUrl.GetOrZero()
+				state.PrivacyStatementUrl = info.PrivacyStatementUrl.GetOrZero()
+				state.SupportUrl = info.SupportUrl.GetOrZero()
+				state.TermsOfServiceUrl = info.TermsOfServiceUrl.GetOrZero()
 			}
 
-			if web := result.Web; web != nil {
-				state.HomepageUrl = string(pointer.From(web.HomePageUrl))
-				state.LogoutUrl = string(pointer.From(web.LogoutUrl))
+			if web := app.Web; web != nil {
+				state.HomepageUrl = web.HomePageUrl.GetOrZero()
+				state.LogoutUrl = web.LogoutUrl.GetOrZero()
 
 				if implicitGrant := web.ImplicitGrantSettings; implicitGrant != nil {
-					state.ImplicitAccessTokenIssuanceEnabled = pointer.From(implicitGrant.EnableAccessTokenIssuance)
-					state.ImplicitIdTokenIssuanceEnabled = pointer.From(implicitGrant.EnableIdTokenIssuance)
+					state.ImplicitAccessTokenIssuanceEnabled = implicitGrant.EnableAccessTokenIssuance.GetOrZero()
+					state.ImplicitIdTokenIssuanceEnabled = implicitGrant.EnableIdTokenIssuance.GetOrZero()
 				}
 			}
 
-			if result.DisabledByMicrosoftStatus != nil {
-				state.DisabledByMicrosoft = fmt.Sprintf("%v", result.DisabledByMicrosoftStatus)
+			if app.DisabledByMicrosoftStatus != nil {
+				state.DisabledByMicrosoft = fmt.Sprintf("%v", app.DisabledByMicrosoftStatus)
 			}
 
 			return metadata.Encode(&state)

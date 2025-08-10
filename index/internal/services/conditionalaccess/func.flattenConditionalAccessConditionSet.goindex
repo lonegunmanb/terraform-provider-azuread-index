@@ -1,12 +1,35 @@
 package github.com/hashicorp/terraform-provider-azuread/internal/services/conditionalaccess
 import (
+	"strings"
+
 	"github.com/hashicorp/go-azure-helpers/lang/pointer"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
-	"github.com/manicminer/hamilton/msgraph"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/stable"
+	"github.com/hashicorp/go-azure-sdk/sdk/nullable"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf"
 )
-func flattenConditionalAccessConditionSet(in *msgraph.ConditionalAccessConditionSet) []interface{} {
+func flattenConditionalAccessConditionSet(in *stable.ConditionalAccessConditionSet) []interface{} {
 	if in == nil {
 		return []interface{}{}
+	}
+
+	clientAppTypes := make([]string, 0)
+	for _, v := range in.ClientAppTypes {
+		clientAppTypes = append(clientAppTypes, string(v))
+	}
+
+	servicePrincipalRiskLevels := make([]string, 0)
+	for _, v := range pointer.From(in.ServicePrincipalRiskLevels) {
+		servicePrincipalRiskLevels = append(servicePrincipalRiskLevels, string(v))
+	}
+
+	signInRiskLevels := make([]string, 0)
+	for _, v := range in.SignInRiskLevels {
+		signInRiskLevels = append(signInRiskLevels, string(v))
+	}
+
+	userRiskLevels := make([]string, 0)
+	for _, v := range in.UserRiskLevels {
+		userRiskLevels = append(userRiskLevels, string(v))
 	}
 
 	return []interface{}{
@@ -14,13 +37,13 @@ func flattenConditionalAccessConditionSet(in *msgraph.ConditionalAccessCondition
 			"applications":                  flattenConditionalAccessApplications(in.Applications),
 			"client_applications":           flattenConditionalAccessClientApplications(in.ClientApplications),
 			"users":                         flattenConditionalAccessUsers(in.Users),
-			"client_app_types":              tf.FlattenStringSlicePtr(in.ClientAppTypes),
+			"client_app_types":              clientAppTypes,
 			"devices":                       flattenConditionalAccessDevices(in.Devices),
 			"locations":                     flattenConditionalAccessLocations(in.Locations),
 			"platforms":                     flattenConditionalAccessPlatforms(in.Platforms),
-			"service_principal_risk_levels": tf.FlattenStringSlicePtr(in.ServicePrincipalRiskLevels),
-			"sign_in_risk_levels":           tf.FlattenStringSlicePtr(in.SignInRiskLevels),
-			"user_risk_levels":              tf.FlattenStringSlicePtr(in.UserRiskLevels),
+			"service_principal_risk_levels": servicePrincipalRiskLevels,
+			"sign_in_risk_levels":           signInRiskLevels,
+			"user_risk_levels":              userRiskLevels,
 		},
 	}
 }

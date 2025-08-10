@@ -9,19 +9,25 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-helpers/lang/response"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/beta"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/stable"
+	userBeta "github.com/hashicorp/go-azure-sdk/microsoft-graph/users/beta/user"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/users/stable/manager"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/users/stable/user"
+	"github.com/hashicorp/go-azure-sdk/sdk/nullable"
 	"github.com/hashicorp/go-azure-sdk/sdk/odata"
-	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
-	"github.com/hashicorp/terraform-provider-azuread/internal/helpers"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
-	"github.com/manicminer/hamilton/msgraph"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/consistency"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/validation"
+	"github.com/hashicorp/terraform-provider-azuread/internal/services/users/migrations"
 )
 func userResourceCreate(ctx context.Context, d *pluginsdk.ResourceData, meta interface{}) pluginsdk.Diagnostics {
-	client := meta.(*clients.Client).Users.UsersClient
-	directoryObjectsClient := meta.(*clients.Client).Users.DirectoryObjectsClient
-	tenantId := meta.(*clients.Client).TenantID
+	client := meta.(*clients.Client).Users.UserClient
+	clientBeta := meta.(*clients.Client).Users.UserClientBeta
+	managerClient := meta.(*clients.Client).Users.ManagerClient
 
 	password := d.Get("password").(string)
 	if password == "" {
@@ -49,42 +55,41 @@ func userResourceCreate(ctx context.Context, d *pluginsdk.ResourceData, meta int
 		passwordPolicies = "DisablePasswordExpiration, DisableStrongPassword"
 	}
 
-	properties := msgraph.User{
-		AccountEnabled:          pointer.To(d.Get("account_enabled").(bool)),
-		AgeGroup:                tf.NullableString(d.Get("age_group").(string)),
-		City:                    tf.NullableString(d.Get("city").(string)),
-		ConsentProvidedForMinor: tf.NullableString(d.Get("consent_provided_for_minor").(string)),
-		CompanyName:             tf.NullableString(d.Get("company_name").(string)),
-		Country:                 tf.NullableString(d.Get("country").(string)),
-		Department:              tf.NullableString(d.Get("department").(string)),
-		DisplayName:             pointer.To(d.Get("display_name").(string)),
-		EmployeeId:              tf.NullableString(d.Get("employee_id").(string)),
-		EmployeeOrgData: &msgraph.EmployeeOrgData{
-			CostCenter: pointer.To(d.Get("cost_center").(string)),
-			Division:   pointer.To(d.Get("division").(string)),
+	properties := stable.User{
+		AccountEnabled:          nullable.Value(d.Get("account_enabled").(bool)),
+		AgeGroup:                nullable.NoZero(d.Get("age_group").(string)),
+		City:                    nullable.NoZero(d.Get("city").(string)),
+		ConsentProvidedForMinor: nullable.NoZero(d.Get("consent_provided_for_minor").(string)),
+		CompanyName:             nullable.NoZero(d.Get("company_name").(string)),
+		Country:                 nullable.NoZero(d.Get("country").(string)),
+		Department:              nullable.NoZero(d.Get("department").(string)),
+		DisplayName:             nullable.NoZero(d.Get("display_name").(string)),
+		EmployeeId:              nullable.NoZero(d.Get("employee_id").(string)),
+		EmployeeOrgData: &stable.EmployeeOrgData{
+			CostCenter: nullable.NoZero(d.Get("cost_center").(string)),
+			Division:   nullable.NoZero(d.Get("division").(string)),
 		},
-		EmployeeType:      tf.NullableString(d.Get("employee_type").(string)),
-		FaxNumber:         tf.NullableString(d.Get("fax_number").(string)),
-		GivenName:         tf.NullableString(d.Get("given_name").(string)),
-		JobTitle:          tf.NullableString(d.Get("job_title").(string)),
-		Mail:              tf.NullableString(d.Get("mail").(string)),
-		MailNickname:      pointer.To(mailNickName),
-		MobilePhone:       tf.NullableString(d.Get("mobile_phone").(string)),
-		OfficeLocation:    tf.NullableString(d.Get("office_location").(string)),
+		EmployeeType:      nullable.NoZero(d.Get("employee_type").(string)),
+		FaxNumber:         nullable.NoZero(d.Get("fax_number").(string)),
+		GivenName:         nullable.NoZero(d.Get("given_name").(string)),
+		JobTitle:          nullable.NoZero(d.Get("job_title").(string)),
+		Mail:              nullable.NoZero(d.Get("mail").(string)),
+		MailNickname:      nullable.NoZero(mailNickName),
+		MobilePhone:       nullable.NoZero(d.Get("mobile_phone").(string)),
+		OfficeLocation:    nullable.NoZero(d.Get("office_location").(string)),
 		OtherMails:        tf.ExpandStringSlicePtr(d.Get("other_mails").(*pluginsdk.Set).List()),
-		PasswordPolicies:  tf.NullableString(passwordPolicies),
-		PostalCode:        tf.NullableString(d.Get("postal_code").(string)),
-		PreferredLanguage: tf.NullableString(d.Get("preferred_language").(string)),
-		ShowInAddressList: pointer.To(d.Get("show_in_address_list").(bool)),
-		State:             tf.NullableString(d.Get("state").(string)),
-		StreetAddress:     tf.NullableString(d.Get("street_address").(string)),
-		Surname:           tf.NullableString(d.Get("surname").(string)),
-		UsageLocation:     tf.NullableString(d.Get("usage_location").(string)),
-		UserPrincipalName: pointer.To(upn),
+		PasswordPolicies:  nullable.NoZero(passwordPolicies),
+		PostalCode:        nullable.NoZero(d.Get("postal_code").(string)),
+		PreferredLanguage: nullable.NoZero(d.Get("preferred_language").(string)),
+		State:             nullable.NoZero(d.Get("state").(string)),
+		StreetAddress:     nullable.NoZero(d.Get("street_address").(string)),
+		Surname:           nullable.NoZero(d.Get("surname").(string)),
+		UsageLocation:     nullable.NoZero(d.Get("usage_location").(string)),
+		UserPrincipalName: nullable.NoZero(upn),
 
-		PasswordProfile: &msgraph.UserPasswordProfile{
-			ForceChangePasswordNextSignIn: pointer.To(d.Get("force_password_change").(bool)),
-			Password:                      pointer.To(password),
+		PasswordProfile: &stable.PasswordProfile{
+			ForceChangePasswordNextSignIn: nullable.Value(d.Get("force_password_change").(bool)),
+			Password:                      nullable.NoZero(password),
 		},
 	}
 
@@ -93,34 +98,65 @@ func userResourceCreate(ctx context.Context, d *pluginsdk.ResourceData, meta int
 	}
 
 	if v, ok := d.GetOk("onpremises_immutable_id"); ok {
-		properties.OnPremisesImmutableId = pointer.To(v.(string))
+		properties.OnPremisesImmutableId = nullable.NoZero(v.(string))
 	}
 
-	user, _, err := client.Create(ctx, properties)
+	options := user.CreateUserOperationOptions{
+		RetryFunc: func(resp *http.Response, o *odata.OData) (bool, error) {
+			if response.WasBadRequest(resp) && o != nil && o.Error != nil {
+				return o.Error.Match("One or more property values specified are invalid"), nil
+			}
+			return false, nil
+		},
+	}
+
+	resp, err := client.CreateUser(ctx, properties, options)
 	if err != nil {
 		return tf.ErrorDiagF(err, "Creating user %q", upn)
 	}
 
-	if user.ID() == nil || *user.ID() == "" {
+	u := resp.Model
+	if u.Id == nil || *u.Id == "" {
 		return tf.ErrorDiagF(errors.New("API returned group with nil object ID"), "Bad API Response")
 	}
 
-	d.SetId(*user.ID())
+	id := stable.NewUserID(*u.Id)
+	d.SetId(id.ID())
 
-	// Wait until the user is updatable (the SDK handles retries for us)
-	_, err = client.Update(ctx, msgraph.User{
-		DirectoryObject: msgraph.DirectoryObject{
-			Id: user.ID(),
+	// Set the `showInAddressList` field using the beta API, see https://developer.microsoft.com/en-us/graph/known-issues/?search=14972
+	updateProperties := beta.User{
+		ShowInAddressList: nullable.Value(d.Get("show_in_address_list").(bool)),
+	}
+	updateOptions := userBeta.UpdateUserOperationOptions{
+		RetryFunc: func(resp *http.Response, o *odata.OData) (bool, error) {
+			return response.WasNotFound(resp), nil
 		},
-	})
-	if err != nil {
-		return tf.ErrorDiagF(err, "Timed out whilst waiting for new user to be replicated in Azure AD")
+	}
+	if _, err = clientBeta.UpdateUser(ctx, beta.UserId(id), updateProperties, updateOptions); err != nil {
+		return tf.ErrorDiagF(err, "Setting `showInAddressList` for %s", id)
 	}
 
-	if managerId := d.Get("manager_id").(string); managerId != "" {
-		if err := assignManager(ctx, client, directoryObjectsClient, tenantId, d.Id(), managerId); err != nil {
-			return tf.ErrorDiagPathF(err, "manager_id", "Could not assign manager for user with object ID %q", d.Id())
+	if v := d.Get("manager_id").(string); v != "" {
+		managerRef := stable.ReferenceUpdate{
+			ODataId: pointer.To(client.Client.BaseUri + stable.NewDirectoryObjectID(v).ID()),
 		}
+		if _, err = managerClient.SetManagerRef(ctx, id, managerRef, manager.DefaultSetManagerRefOperationOptions()); err != nil {
+			return tf.ErrorDiagPathF(err, "manager_id", "Could not assign manager for %s", id)
+		}
+	}
+
+	// Now ensure we can retrieve the user consistently
+	if err = consistency.WaitForUpdate(ctx, func(ctx context.Context) (*bool, error) {
+		resp, err := client.GetUser(ctx, id, user.DefaultGetUserOperationOptions())
+		if err != nil {
+			if response.WasNotFound(resp.HttpResponse) {
+				return pointer.To(false), nil
+			}
+			return pointer.To(false), err
+		}
+		return pointer.To(resp.Model != nil), nil
+	}); err != nil {
+		return tf.ErrorDiagF(err, "Waiting for creation of %s", id)
 	}
 
 	return userResourceRead(ctx, d, meta)

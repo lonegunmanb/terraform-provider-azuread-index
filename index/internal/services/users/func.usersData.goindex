@@ -5,16 +5,18 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"net/http"
 	"strings"
 	"time"
 
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-helpers/lang/response"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/stable"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/users/stable/user"
 	"github.com/hashicorp/go-azure-sdk/sdk/odata"
 	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
-	"github.com/manicminer/hamilton/msgraph"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/validation"
 )
 func usersData() *pluginsdk.Resource {
 	return &pluginsdk.Resource{
@@ -32,8 +34,8 @@ func usersData() *pluginsdk.Resource {
 				Computed:     true,
 				ExactlyOneOf: []string{"object_ids", "user_principal_names", "mail_nicknames", "mails", "employee_ids", "return_all"},
 				Elem: &pluginsdk.Schema{
-					Type:             pluginsdk.TypeString,
-					ValidateDiagFunc: validation.ValidateDiag(validation.StringIsNotEmpty),
+					Type:         pluginsdk.TypeString,
+					ValidateFunc: validation.StringIsNotEmpty,
 				},
 			},
 
@@ -44,8 +46,8 @@ func usersData() *pluginsdk.Resource {
 				Computed:     true,
 				ExactlyOneOf: []string{"object_ids", "user_principal_names", "mail_nicknames", "mails", "employee_ids", "return_all"},
 				Elem: &pluginsdk.Schema{
-					Type:             pluginsdk.TypeString,
-					ValidateDiagFunc: validation.ValidateDiag(validation.StringIsNotEmpty),
+					Type:         pluginsdk.TypeString,
+					ValidateFunc: validation.StringIsNotEmpty,
 				},
 			},
 
@@ -56,8 +58,8 @@ func usersData() *pluginsdk.Resource {
 				Computed:     true,
 				ExactlyOneOf: []string{"object_ids", "user_principal_names", "mail_nicknames", "mails", "employee_ids", "return_all"},
 				Elem: &pluginsdk.Schema{
-					Type:             pluginsdk.TypeString,
-					ValidateDiagFunc: validation.ValidateDiag(validation.StringIsNotEmpty),
+					Type:         pluginsdk.TypeString,
+					ValidateFunc: validation.StringIsNotEmpty,
 				},
 			},
 
@@ -68,8 +70,8 @@ func usersData() *pluginsdk.Resource {
 				Computed:     true,
 				ExactlyOneOf: []string{"object_ids", "user_principal_names", "mail_nicknames", "mails", "employee_ids", "return_all"},
 				Elem: &pluginsdk.Schema{
-					Type:             pluginsdk.TypeString,
-					ValidateDiagFunc: validation.ValidateDiag(validation.IsUUID),
+					Type:         pluginsdk.TypeString,
+					ValidateFunc: validation.IsUUID,
 				},
 			},
 
@@ -80,8 +82,8 @@ func usersData() *pluginsdk.Resource {
 				Computed:     true,
 				ExactlyOneOf: []string{"object_ids", "user_principal_names", "mail_nicknames", "mails", "employee_ids", "return_all"},
 				Elem: &pluginsdk.Schema{
-					Type:             pluginsdk.TypeString,
-					ValidateDiagFunc: validation.ValidateDiag(validation.StringIsNotEmpty),
+					Type:         pluginsdk.TypeString,
+					ValidateFunc: validation.StringIsNotEmpty,
 				},
 			},
 

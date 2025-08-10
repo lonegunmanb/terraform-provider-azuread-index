@@ -1,0 +1,22 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/helpers/applications
+import (
+	"context"
+	"fmt"
+	"strings"
+
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-helpers/lang/response"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/applications/stable/owner"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/stable"
+)
+func FlattenOAuth2PermissionScopeIDs(in *[]stable.PermissionScope) map[string]string {
+	result := make(map[string]string)
+	if in != nil {
+		for _, scope := range *in {
+			if value := scope.Value.GetOrZero(); value != "" && scope.Id != nil {
+				result[value] = *scope.Id
+			}
+		}
+	}
+	return result
+}

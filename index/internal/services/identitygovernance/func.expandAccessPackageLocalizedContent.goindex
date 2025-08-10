@@ -1,29 +1,37 @@
 package github.com/hashicorp/terraform-provider-azuread/internal/services/identitygovernance
 import (
+	"context"
 	"fmt"
-	"time"
+	"strings"
 
 	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/beta"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/identitygovernance/beta/entitlementmanagementaccesspackage"
+	"github.com/hashicorp/go-azure-sdk/sdk/nullable"
 	"github.com/hashicorp/go-azure-sdk/sdk/odata"
-	"github.com/manicminer/hamilton/msgraph"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
-func expandAccessPackageLocalizedContent(input map[string]interface{}) *msgraph.AccessPackageLocalizedContent {
+func expandAccessPackageLocalizedContent(input map[string]interface{}) *beta.AccessPackageLocalizedContent {
 	if len(input) == 0 {
 		return nil
 	}
 
-	result := msgraph.AccessPackageLocalizedContent{
-		DefaultText: pointer.To(input["default_text"].(string)),
+	result := beta.AccessPackageLocalizedContent{
+		DefaultText: nullable.NoZero(input["default_text"].(string)),
 	}
 
-	texts := make([]msgraph.AccessPackageLocalizedTexts, 0)
+	texts := make([]beta.AccessPackageLocalizedText, 0)
 
-	for _, v := range input["localized_text"].([]interface{}) {
-		v_map := v.(map[string]interface{})
-		texts = append(texts, msgraph.AccessPackageLocalizedTexts{
-			LanguageCode: pointer.To(v_map["language_code"].(string)),
-			Text:         pointer.To(v_map["content"].(string)),
-		})
+	if _, ok := input["localized_text"]; ok {
+		for _, raw := range input["localized_text"].([]interface{}) {
+			v := raw.(map[string]interface{})
+
+			texts = append(texts, beta.AccessPackageLocalizedText{
+				LanguageCode: nullable.NoZero(v["language_code"].(string)),
+				Text:         nullable.NoZero(v["content"].(string)),
+			})
+		}
 	}
 
 	result.LocalizedTexts = &texts

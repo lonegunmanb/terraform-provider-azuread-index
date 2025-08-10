@@ -1,0 +1,51 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/administrativeunits/migrations
+import (
+	"context"
+	"fmt"
+	"log"
+
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/stable"
+	"github.com/hashicorp/go-uuid"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/pluginsdk"
+)
+func ResourceAdministrativeUnitInstanceResourceV0() *pluginsdk.Resource {
+	return &pluginsdk.Resource{
+		Schema: map[string]*pluginsdk.Schema{
+			"display_name": {
+				Type:     pluginsdk.TypeString,
+				Required: true,
+			},
+
+			"description": {
+				Type:     pluginsdk.TypeString,
+				Optional: true,
+			},
+
+			"members": {
+				Type:     pluginsdk.TypeSet,
+				Optional: true,
+				Computed: true,
+				Set:      pluginsdk.HashString,
+				Elem: &pluginsdk.Schema{
+					Type: pluginsdk.TypeString,
+				},
+			},
+
+			"prevent_duplicate_names": {
+				Type:     pluginsdk.TypeBool,
+				Optional: true,
+				Default:  false,
+			},
+
+			"hidden_membership_enabled": {
+				Type:     pluginsdk.TypeBool,
+				Optional: true,
+			},
+
+			"object_id": {
+				Type:     pluginsdk.TypeString,
+				Computed: true,
+			},
+		},
+	}
+}

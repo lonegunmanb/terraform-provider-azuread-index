@@ -1,8 +1,12 @@
 package github.com/hashicorp/terraform-provider-azuread/internal/services/synchronization
 import (
-	"time"
+	"net/http"
 
 	"github.com/hashicorp/go-azure-helpers/lang/pointer"
-	"github.com/manicminer/hamilton/msgraph"
+	"github.com/hashicorp/go-azure-helpers/lang/response"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/stable"
+	"github.com/hashicorp/go-azure-sdk/sdk/client"
+	"github.com/hashicorp/go-azure-sdk/sdk/nullable"
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
 )
 const servicePrincipalResourceName = "azuread_service_principal"

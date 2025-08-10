@@ -5,46 +5,45 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-helpers/lang/response"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/applications/stable/owner"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/stable"
 	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/applications"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/validation"
 	"github.com/hashicorp/terraform-provider-azuread/internal/sdk"
-	"github.com/hashicorp/terraform-provider-azuread/internal/services/applications/parse"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
-	"github.com/manicminer/hamilton/msgraph"
 )
 func (r ApplicationOwnerResource) Read() sdk.ResourceFunc {
 	return sdk.ResourceFunc{
 		Timeout: 5 * time.Minute,
 		Func: func(ctx context.Context, metadata sdk.ResourceMetaData) error {
-			client := metadata.Client.Applications.ApplicationsClient
-			client.BaseClient.DisableRetries = true
-			defer func() { client.BaseClient.DisableRetries = false }()
+			client := metadata.Client.Applications.ApplicationOwnerClient
 
-			id, err := parse.ParseOwnerID(metadata.ResourceData.Id())
+			id, err := stable.ParseApplicationIdOwnerID(metadata.ResourceData.Id())
 			if err != nil {
 				return err
 			}
 
-			applicationId := parse.NewApplicationID(id.ApplicationId)
+			applicationId := stable.NewApplicationID(id.ApplicationId)
+			ownerId := stable.NewApplicationIdOwnerID(applicationId.ApplicationId, id.DirectoryObjectId)
 
 			tf.LockByName(applicationResourceName, id.ApplicationId)
 			defer tf.UnlockByName(applicationResourceName, id.ApplicationId)
 
-			result, status, err := client.GetOwner(ctx, id.ApplicationId, id.OwnerId)
+			owner, err := applications.GetOwner(ctx, client, ownerId)
 			if err != nil {
-				if status == http.StatusNotFound {
-					return metadata.MarkAsGone(id)
-				}
 				return fmt.Errorf("retrieving %s: %+v", id, err)
 			}
-			if result == nil {
-				return fmt.Errorf("retrieving %s: result was nil", id)
+			if owner == nil {
+				return metadata.MarkAsGone(id)
 			}
 
 			state := ApplicationOwnerModel{
 				ApplicationId: applicationId.ID(),
-				OwnerObjectId: id.OwnerId,
+				OwnerObjectId: id.DirectoryObjectId,
 			}
 
 			return metadata.Encode(&state)

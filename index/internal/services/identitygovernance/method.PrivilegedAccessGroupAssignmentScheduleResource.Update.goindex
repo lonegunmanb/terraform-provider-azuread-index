@@ -2,24 +2,32 @@ package github.com/hashicorp/terraform-provider-azuread/internal/services/identi
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"time"
 
 	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-helpers/lang/response"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/stable"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/identitygovernance/stable/privilegedaccessgroupassignmentschedule"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/identitygovernance/stable/privilegedaccessgroupassignmentschedulerequest"
+	"github.com/hashicorp/go-azure-sdk/sdk/nullable"
 	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/pluginsdk"
 	"github.com/hashicorp/terraform-provider-azuread/internal/sdk"
 	"github.com/hashicorp/terraform-provider-azuread/internal/services/identitygovernance/parse"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
-	"github.com/manicminer/hamilton/msgraph"
 )
 func (r PrivilegedAccessGroupAssignmentScheduleResource) Update() sdk.ResourceFunc {
 	return sdk.ResourceFunc{
 		Timeout: 5 * time.Minute,
 		Func: func(ctx context.Context, metadata sdk.ResourceMetaData) error {
-			client := metadata.Client.IdentityGovernance.PrivilegedAccessGroupAssignmentScheduleRequestsClient
+			client := metadata.Client.IdentityGovernance.PrivilegedAccessGroupAssignmentScheduleRequestClient
+
+			resourceId, err := parse.ParsePrivilegedAccessGroupScheduleID(metadata.ResourceData.Id())
+			if err != nil {
+				return err
+			}
 
 			var model PrivilegedAccessGroupScheduleModel
-			if err := metadata.Decode(&model); err != nil {
+			if err = metadata.Decode(&model); err != nil {
 				return fmt.Errorf("decoding: %+v", err)
 			}
 
@@ -28,33 +36,37 @@ func (r PrivilegedAccessGroupAssignmentScheduleResource) Update() sdk.ResourceFu
 				return err
 			}
 
-			properties := msgraph.PrivilegedAccessGroupAssignmentScheduleRequest{
-				AccessId:      model.AssignmentType,
-				PrincipalId:   &model.PrincipalId,
-				GroupId:       &model.GroupId,
-				Action:        msgraph.PrivilegedAccessGroupActionAdminAssign,
-				Justification: &model.Justification,
+			properties := stable.PrivilegedAccessGroupAssignmentScheduleRequest{
+				AccessId:      stable.PrivilegedAccessGroupRelationships(resourceId.Relationship),
+				PrincipalId:   nullable.Value(model.PrincipalId),
+				GroupId:       nullable.Value(resourceId.GroupId),
+				Action:        pointer.To(stable.ScheduleRequestActions_AdminAssign),
+				Justification: nullable.NoZero(model.Justification),
 				ScheduleInfo:  schedule,
 			}
 
 			if model.TicketNumber != "" || model.TicketSystem != "" {
-				properties.TicketInfo = &msgraph.TicketInfo{
-					TicketNumber: &model.TicketNumber,
-					TicketSystem: &model.TicketSystem,
+				properties.TicketInfo = &stable.TicketInfo{
+					TicketNumber: nullable.NoZero(model.TicketNumber),
+					TicketSystem: nullable.NoZero(model.TicketSystem),
 				}
 			}
 
-			req, _, err := client.Create(ctx, properties)
+			resp, err := client.CreatePrivilegedAccessGroupAssignmentScheduleRequest(ctx, properties, privilegedaccessgroupassignmentschedulerequest.DefaultCreatePrivilegedAccessGroupAssignmentScheduleRequestOperationOptions())
 			if err != nil {
-				return fmt.Errorf("Could not create assignment schedule request, %+v", err)
+				return fmt.Errorf("creating updated assignment schedule request: %v", err)
 			}
 
-			if req.ID == nil || *req.ID == "" {
-				return fmt.Errorf("ID returned for assignment schedule request is nil/empty")
+			request := resp.Model
+			if request == nil {
+				return fmt.Errorf("creating updated assignment schedule request: model was nil")
+			}
+			if request.Id == nil || *request.Id == "" {
+				return fmt.Errorf("creating updated assignment schedule request: ID returned for request is nil/empty")
 			}
 
-			if req.Status == msgraph.PrivilegedAccessGroupAssignmentStatusFailed {
-				return fmt.Errorf("Assignment schedule request is in a failed state")
+			if pointer.From(request.Status) == PrivilegedAccessGroupScheduleRequestStatusFailed {
+				return fmt.Errorf("creating updated assignment schedule request: request is in a failed state")
 			}
 
 			return nil

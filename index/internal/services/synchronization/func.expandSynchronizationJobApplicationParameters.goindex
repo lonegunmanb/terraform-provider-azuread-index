@@ -1,12 +1,16 @@
 package github.com/hashicorp/terraform-provider-azuread/internal/services/synchronization
 import (
-	"time"
+	"net/http"
 
 	"github.com/hashicorp/go-azure-helpers/lang/pointer"
-	"github.com/manicminer/hamilton/msgraph"
+	"github.com/hashicorp/go-azure-helpers/lang/response"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/stable"
+	"github.com/hashicorp/go-azure-sdk/sdk/client"
+	"github.com/hashicorp/go-azure-sdk/sdk/nullable"
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
 )
-func expandSynchronizationJobApplicationParameters(in []interface{}) *[]msgraph.SynchronizationJobApplicationParameters {
-	result := make([]msgraph.SynchronizationJobApplicationParameters, 0)
+func expandSynchronizationJobApplicationParameters(in []interface{}) *[]stable.SynchronizationJobApplicationParameters {
+	result := make([]stable.SynchronizationJobApplicationParameters, 0)
 
 	for _, raw := range in {
 		if raw == nil {
@@ -14,9 +18,9 @@ func expandSynchronizationJobApplicationParameters(in []interface{}) *[]msgraph.
 		}
 		item := raw.(map[string]interface{})
 
-		result = append(result, msgraph.SynchronizationJobApplicationParameters{
+		result = append(result, stable.SynchronizationJobApplicationParameters{
 			Subjects: expandSynchronizationJobSubject(item["subject"].([]interface{})),
-			RuleId:   pointer.To(item["rule_id"].(string)),
+			RuleId:   nullable.Value(item["rule_id"].(string)),
 		})
 	}
 

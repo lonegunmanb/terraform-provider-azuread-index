@@ -1,22 +1,3 @@
 package github.com/hashicorp/terraform-provider-azuread/internal/services/groups
-import (
-	"context"
-	"errors"
-	"fmt"
-	"log"
-	"net/http"
-	"regexp"
-	"strings"
-	"time"
 
-	"github.com/hashicorp/go-azure-helpers/lang/pointer"
-	"github.com/hashicorp/go-azure-sdk/sdk/odata"
-	"github.com/hashicorp/go-uuid"
-	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
-	"github.com/hashicorp/terraform-provider-azuread/internal/helpers"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
-	"github.com/manicminer/hamilton/msgraph"
-)
 	groupResourceName        = "azuread_group"

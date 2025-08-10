@@ -1,11 +1,20 @@
 package github.com/hashicorp/terraform-provider-azuread/internal/services/serviceprincipals/client
 import (
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/directoryobjects/stable/directoryobject"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/oauth2permissiongrants/stable/oauth2permissiongrant"
+	serviceprincipalBeta "github.com/hashicorp/go-azure-sdk/microsoft-graph/serviceprincipals/beta/serviceprincipal"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/serviceprincipals/stable/claimsmappingpolicy"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/serviceprincipals/stable/owner"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/serviceprincipals/stable/serviceprincipal"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/serviceprincipals/stable/synchronizationjob"
 	"github.com/hashicorp/terraform-provider-azuread/internal/common"
-	"github.com/manicminer/hamilton/msgraph"
 )
 type Client struct {
-	DelegatedPermissionGrantsClient *msgraph.DelegatedPermissionGrantsClient
-	DirectoryObjectsClient          *msgraph.DirectoryObjectsClient
-	ServicePrincipalsClient         *msgraph.ServicePrincipalsClient
-	SynchronizationJobClient        *msgraph.SynchronizationJobClient
+	ClaimsMappingPolicyClient   *claimsmappingpolicy.ClaimsMappingPolicyClient
+	DirectoryObjectClient       *directoryobject.DirectoryObjectClient
+	OAuth2PermissionGrantClient *oauth2permissiongrant.OAuth2PermissionGrantClient
+	ServicePrincipalClient      *serviceprincipal.ServicePrincipalClient
+	ServicePrincipalClientBeta  *serviceprincipalBeta.ServicePrincipalClient
+	ServicePrincipalOwnerClient *owner.OwnerClient
+	SynchronizationJobClient    *synchronizationjob.SynchronizationJobClient
 }

@@ -1,0 +1,23 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/common
+import (
+	"context"
+	"fmt"
+	"log"
+	"net/http"
+	"net/http/httputil"
+	"os"
+	"strings"
+
+	"github.com/hashicorp/go-azure-sdk/sdk/auth"
+	"github.com/hashicorp/go-azure-sdk/sdk/client/msgraph"
+	"github.com/hashicorp/go-azure-sdk/sdk/environments"
+	"github.com/hashicorp/go-uuid"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/meta"
+	"github.com/hashicorp/terraform-provider-azuread/version"
+)
+func (o ClientOptions) Configure(c *msgraph.Client) {
+	c.SetAuthorizer(o.Authorizer)
+	c.SetUserAgent(o.userAgent(c.UserAgent))
+	c.AppendRequestMiddleware(o.requestLogger)
+	c.AppendResponseMiddleware(o.responseLogger)
+}

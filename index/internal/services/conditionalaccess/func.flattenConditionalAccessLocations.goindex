@@ -1,10 +1,13 @@
 package github.com/hashicorp/terraform-provider-azuread/internal/services/conditionalaccess
 import (
+	"strings"
+
 	"github.com/hashicorp/go-azure-helpers/lang/pointer"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
-	"github.com/manicminer/hamilton/msgraph"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/stable"
+	"github.com/hashicorp/go-azure-sdk/sdk/nullable"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf"
 )
-func flattenConditionalAccessLocations(in *msgraph.ConditionalAccessLocations) []interface{} {
+func flattenConditionalAccessLocations(in *stable.ConditionalAccessLocations) []interface{} {
 	if in == nil {
 		return []interface{}{}
 	}

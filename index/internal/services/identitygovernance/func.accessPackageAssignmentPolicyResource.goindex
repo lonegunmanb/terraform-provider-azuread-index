@@ -1,20 +1,23 @@
 package github.com/hashicorp/terraform-provider-azuread/internal/services/identitygovernance
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
-	"net/http"
 	"time"
 
 	"github.com/hashicorp/go-azure-helpers/lang/pointer"
-	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/go-azure-helpers/lang/response"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/beta"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/identitygovernance/beta/entitlementmanagementaccesspackage"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/identitygovernance/beta/entitlementmanagementaccesspackageassignmentpolicy"
+	"github.com/hashicorp/go-azure-sdk/sdk/nullable"
 	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
-	"github.com/hashicorp/terraform-provider-azuread/internal/helpers"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
-	"github.com/manicminer/hamilton/msgraph"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/consistency"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/validation"
 )
 func accessPackageAssignmentPolicyResource() *pluginsdk.Resource {
 	return &pluginsdk.Resource{
@@ -23,7 +26,7 @@ func accessPackageAssignmentPolicyResource() *pluginsdk.Resource {
 		UpdateContext: accessPackageAssignmentPolicyResourceUpdate,
 		DeleteContext: accessPackageAssignmentPolicyResourceDelete,
 
-		CustomizeDiff: assignmentPolicyCustomDiff,
+		CustomizeDiff: assignmentPolicyCustomizeDiff,
 
 		Timeouts: &pluginsdk.ResourceTimeout{
 			Create: pluginsdk.DefaultTimeout(5 * time.Minute),
@@ -41,24 +44,24 @@ func accessPackageAssignmentPolicyResource() *pluginsdk.Resource {
 
 		Schema: map[string]*pluginsdk.Schema{
 			"access_package_id": {
-				Description:      "The ID of the access package that will contain the policy",
-				Type:             pluginsdk.TypeString,
-				Required:         true,
-				ValidateDiagFunc: validation.ValidateDiag(validation.IsUUID),
+				Description:  "The ID of the access package that will contain the policy",
+				Type:         pluginsdk.TypeString,
+				Required:     true,
+				ValidateFunc: validation.IsUUID,
 			},
 
 			"display_name": {
-				Description:      "The display name of the policy",
-				Type:             pluginsdk.TypeString,
-				Required:         true,
-				ValidateDiagFunc: validation.ValidateDiag(validation.StringIsNotEmpty),
+				Description:  "The display name of the policy",
+				Type:         pluginsdk.TypeString,
+				Required:     true,
+				ValidateFunc: validation.StringIsNotEmpty,
 			},
 
 			"description": {
-				Description:      "The description of the policy",
-				Type:             pluginsdk.TypeString,
-				Required:         true,
-				ValidateDiagFunc: validation.ValidateDiag(validation.StringIsNotEmpty),
+				Description:  "The description of the policy",
+				Type:         pluginsdk.TypeString,
+				Required:     true,
+				ValidateFunc: validation.StringIsNotEmpty,
 			},
 
 			"duration_in_days": {
@@ -99,19 +102,10 @@ func accessPackageAssignmentPolicyResource() *pluginsdk.Resource {
 						},
 
 						"scope_type": {
-							Description: "Specify the scopes of the requestors",
-							Type:        pluginsdk.TypeString,
-							Optional:    true,
-							ValidateFunc: validation.StringInSlice([]string{
-								msgraph.RequestorSettingsScopeTypeAllConfiguredConnectedOrganizationSubjects,
-								msgraph.RequestorSettingsScopeTypeAllExistingConnectedOrganizationSubjects,
-								msgraph.RequestorSettingsScopeTypeAllExistingDirectoryMemberUsers,
-								msgraph.RequestorSettingsScopeTypeAllExistingDirectorySubjects,
-								msgraph.RequestorSettingsScopeTypeAllExternalSubjects,
-								msgraph.RequestorSettingsScopeTypeNoSubjects,
-								msgraph.RequestorSettingsScopeTypeSpecificConnectedOrganizationSubjects,
-								msgraph.RequestorSettingsScopeTypeSpecificDirectorySubjects,
-							}, false),
+							Description:  "Specify the scopes of the requestors",
+							Type:         pluginsdk.TypeString,
+							Optional:     true,
+							ValidateFunc: validation.StringInSlice(possibleValuesForRequestorScopeType, false),
 						},
 
 						"requestor": {
@@ -215,27 +209,17 @@ func accessPackageAssignmentPolicyResource() *pluginsdk.Resource {
 						},
 
 						"review_frequency": {
-							Description: "This will determine how often the access review campaign runs",
-							Type:        pluginsdk.TypeString,
-							Optional:    true,
-							ValidateFunc: validation.StringInSlice([]string{
-								msgraph.AccessReviewRecurrenceTypeAnnual,
-								msgraph.AccessReviewRecurrenceTypeHalfYearly,
-								msgraph.AccessReviewRecurrenceTypeQuarterly,
-								msgraph.AccessReviewRecurrenceTypeMonthly,
-								msgraph.AccessReviewRecurrenceTypeWeekly,
-							}, false),
+							Description:  "This will determine how often the access review campaign runs",
+							Type:         pluginsdk.TypeString,
+							Optional:     true,
+							ValidateFunc: validation.StringInSlice(possibleValuesForAccessReviewRecurrenceType, false),
 						},
 
 						"review_type": {
-							Description: "Self review or specific reviewers",
-							Type:        pluginsdk.TypeString,
-							Optional:    true,
-							ValidateFunc: validation.StringInSlice([]string{
-								msgraph.AccessReviewReviewerTypeManager,
-								msgraph.AccessReviewReviewerTypeReviewers,
-								msgraph.AccessReviewReviewerTypeSelf,
-							}, false),
+							Description:  "Self review or specific reviewers",
+							Type:         pluginsdk.TypeString,
+							Optional:     true,
+							ValidateFunc: validation.StringInSlice(possibleValuesForAccessReviewReviewerType, false),
 						},
 
 						"starting_on": {
@@ -271,14 +255,10 @@ func accessPackageAssignmentPolicyResource() *pluginsdk.Resource {
 						},
 
 						"access_review_timeout_behavior": {
-							Description: "What actions the system takes if reviewers don't respond in time",
-							Type:        pluginsdk.TypeString,
-							Optional:    true,
-							ValidateFunc: validation.StringInSlice([]string{
-								msgraph.AccessReviewTimeoutBehaviorTypeAcceptAccessRecommendation,
-								msgraph.AccessReviewTimeoutBehaviorTypeKeepAccess,
-								msgraph.AccessReviewTimeoutBehaviorTypeRemoveAccess,
-							}, false),
+							Description:  "What actions the system takes if reviewers don't respond in time",
+							Type:         pluginsdk.TypeString,
+							Optional:     true,
+							ValidateFunc: validation.StringInSlice(beta.PossibleValuesForAccessReviewTimeoutBehavior(), false),
 						},
 					},
 				},

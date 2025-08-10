@@ -8,14 +8,17 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-helpers/lang/response"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/stable"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/rolemanagement/stable/directoryroleeligibilityschedulerequest"
+	"github.com/hashicorp/go-azure-sdk/sdk/nullable"
 	"github.com/hashicorp/go-azure-sdk/sdk/odata"
 	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
-	"github.com/hashicorp/terraform-provider-azuread/internal/helpers"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/pluginsdk"
-	"github.com/hashicorp/terraform-provider-azuread/internal/tf/validation"
-	"github.com/manicminer/hamilton/msgraph"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/consistency"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/validation"
 )
 func directoryRoleEligibilityScheduleRequestResource() *pluginsdk.Resource {
 	return &pluginsdk.Resource{
@@ -24,7 +27,7 @@ func directoryRoleEligibilityScheduleRequestResource() *pluginsdk.Resource {
 		DeleteContext: directoryRoleEligibilityScheduleRequestResourceDelete,
 
 		Timeouts: &pluginsdk.ResourceTimeout{
-			Create: pluginsdk.DefaultTimeout(5 * time.Minute),
+			Create: pluginsdk.DefaultTimeout(10 * time.Minute),
 			Read:   pluginsdk.DefaultTimeout(5 * time.Minute),
 			Delete: pluginsdk.DefaultTimeout(5 * time.Minute),
 		},
@@ -38,35 +41,35 @@ func directoryRoleEligibilityScheduleRequestResource() *pluginsdk.Resource {
 
 		Schema: map[string]*pluginsdk.Schema{
 			"role_definition_id": {
-				Description:      "The object ID of the directory role for this role eligibility schedule request",
-				Type:             pluginsdk.TypeString,
-				Required:         true,
-				ForceNew:         true,
-				ValidateDiagFunc: validation.ValidateDiag(validation.IsUUID),
+				Description:  "The object ID of the directory role for this role eligibility schedule request",
+				Type:         pluginsdk.TypeString,
+				Required:     true,
+				ForceNew:     true,
+				ValidateFunc: validation.IsUUID,
 			},
 
 			"principal_id": {
-				Description:      "The object ID of the member principal",
-				Type:             pluginsdk.TypeString,
-				Required:         true,
-				ForceNew:         true,
-				ValidateDiagFunc: validation.ValidateDiag(validation.IsUUID),
+				Description:  "The object ID of the member principal",
+				Type:         pluginsdk.TypeString,
+				Required:     true,
+				ForceNew:     true,
+				ValidateFunc: validation.IsUUID,
 			},
 
 			"directory_scope_id": {
-				Description:      "Identifier of the directory object representing the scope of the role eligibility schedule request",
-				Type:             pluginsdk.TypeString,
-				Required:         true,
-				ForceNew:         true,
-				ValidateDiagFunc: validation.ValidateDiag(validation.StringIsNotEmpty),
+				Description:  "Identifier of the directory object representing the scope of the role eligibility schedule request",
+				Type:         pluginsdk.TypeString,
+				Required:     true,
+				ForceNew:     true,
+				ValidateFunc: validation.StringIsNotEmpty,
 			},
 
 			"justification": {
-				Description:      "Justification for why the role is assigned",
-				Type:             pluginsdk.TypeString,
-				Required:         true,
-				ForceNew:         true,
-				ValidateDiagFunc: validation.ValidateDiag(validation.StringIsNotEmpty),
+				Description:  "Justification for why the role is assigned",
+				Type:         pluginsdk.TypeString,
+				Required:     true,
+				ForceNew:     true,
+				ValidateFunc: validation.StringIsNotEmpty,
 			},
 		},
 	}
