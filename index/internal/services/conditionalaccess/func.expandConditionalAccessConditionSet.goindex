@@ -42,6 +42,10 @@ func expandConditionalAccessConditionSet(in []interface{}) *stable.ConditionalAc
 		userRiskLevels = append(userRiskLevels, stable.RiskLevel(elem.(string)))
 	}
 
+	if insiderRiskLevel, ok := config["insider_risk_levels"]; ok && insiderRiskLevel.(string) != "" {
+		result.InsiderRiskLevels = pointer.To(stable.ConditionalAccessInsiderRiskLevels(insiderRiskLevel.(string)))
+	}
+
 	result.Applications = expandConditionalAccessApplications(applications)
 	result.ClientAppTypes = clientAppTypes
 	result.ClientApplications = expandConditionalAccessClientApplications(clientApplications)

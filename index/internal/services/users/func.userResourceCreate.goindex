@@ -101,6 +101,14 @@ func userResourceCreate(ctx context.Context, d *pluginsdk.ResourceData, meta int
 		properties.OnPremisesImmutableId = nullable.NoZero(v.(string))
 	}
 
+	if v, ok := d.GetOk("employee_hire_date"); ok {
+		_, err := time.Parse(time.RFC3339, v.(string))
+		if err != nil {
+			tf.ErrorDiagF(err, "Unable to parse the provided employee_hire_date %q: %+v", v, err)
+		}
+		properties.EmployeeHireDate = nullable.NoZero(v.(string))
+	}
+
 	options := user.CreateUserOperationOptions{
 		RetryFunc: func(resp *http.Response, o *odata.OData) (bool, error) {
 			if response.WasBadRequest(resp) && o != nil && o.Error != nil {

@@ -21,5 +21,9 @@ func expandCountryNamedLocation(in []interface{}) *stable.CountryNamedLocation {
 	result.CountriesAndRegions = tf.ExpandStringSlice(countriesAndRegions)
 	result.IncludeUnknownCountriesAndRegions = pointer.To(includeUnknown.(bool))
 
+	if countryLookupMethodType, ok := config["country_lookup_method"]; ok && countryLookupMethodType.(string) != "" {
+		result.CountryLookupMethod = pointer.To(stable.CountryLookupMethodType(countryLookupMethodType.(string)))
+	}
+
 	return &result
 }

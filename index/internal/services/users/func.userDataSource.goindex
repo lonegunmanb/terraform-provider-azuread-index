@@ -145,6 +145,12 @@ func userDataSource() *pluginsdk.Resource {
 				Computed:    true,
 			},
 
+			"employee_hire_date": {
+				Description: "The hire date of the user, formatted as an RFC3339 date string (e.g. `2018-01-01T01:02:03Z`).",
+				Type:        pluginsdk.TypeString,
+				Computed:    true,
+			},
+
 			"employee_type": {
 				Description: "Captures enterprise worker type. For example, Employee, Contractor, Consultant, or Vendor.",
 				Type:        pluginsdk.TypeString,

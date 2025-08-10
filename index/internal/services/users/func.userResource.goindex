@@ -142,6 +142,13 @@ func userResource() *pluginsdk.Resource {
 				Optional:    true,
 			},
 
+			"employee_hire_date": {
+				Description:  "The hire date of the user, formatted as an RFC3339 date string (e.g. `2018-01-01T01:02:03Z`).",
+				Type:         pluginsdk.TypeString,
+				Optional:     true,
+				ValidateFunc: validation.IsRFC3339Time,
+			},
+
 			"employee_id": {
 				Description:  "The employee identifier assigned to the user by the organisation",
 				Type:         pluginsdk.TypeString,
