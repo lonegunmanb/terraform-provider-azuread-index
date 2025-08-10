@@ -44,6 +44,11 @@ func namedLocationResourceCreate(ctx context.Context, d *pluginsdk.ResourceData,
 		}
 
 		id := stable.NewIdentityConditionalAccessNamedLocationID(*namedLocation.Id)
+
+		if err := consistency.WaitForUpdateDelayStart(ctx, time.Second*15, ipNamedLocationWait(client, &id, v)); err != nil {
+			return tf.ErrorDiagF(err, "waiting for creation of %s", id)
+		}
+
 		d.SetId(id.ID())
 
 	} else if v, ok = d.GetOk("country"); ok {
@@ -70,6 +75,9 @@ func namedLocationResourceCreate(ctx context.Context, d *pluginsdk.ResourceData,
 
 		id := stable.NewIdentityConditionalAccessNamedLocationID(*namedLocation.Id)
 		d.SetId(id.ID())
+		if err := consistency.WaitForUpdateDelayStart(ctx, time.Second*15, countryNamedLocationWait(client, &id, v)); err != nil {
+			return tf.ErrorDiagF(err, "waiting for creation of %s", id)
+		}
 
 	} else {
 		return tf.ErrorDiagF(errors.New("one of `ip` or `country` must be specified"), "Unable to determine named location type")

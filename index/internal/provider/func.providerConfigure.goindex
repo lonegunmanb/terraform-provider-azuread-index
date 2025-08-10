@@ -83,9 +83,10 @@ func providerConfigure(p *schema.Provider) schema.ConfigureContextFunc {
 			ClientCertificatePath:     d.Get("client_certificate_path").(string),
 			ClientSecret:              *clientSecret,
 
-			OIDCAssertionToken:          *idToken,
-			GitHubOIDCTokenRequestURL:   d.Get("oidc_request_url").(string),
-			GitHubOIDCTokenRequestToken: d.Get("oidc_request_token").(string),
+			OIDCAssertionToken:             *idToken,
+			OIDCTokenRequestURL:            d.Get("oidc_request_url").(string),
+			OIDCTokenRequestToken:          d.Get("oidc_request_token").(string),
+			ADOPipelineServiceConnectionID: d.Get("ado_pipeline_service_connection_id").(string),
 
 			CustomManagedIdentityEndpoint: d.Get("msi_endpoint").(string),
 
@@ -94,6 +95,7 @@ func providerConfigure(p *schema.Provider) schema.ConfigureContextFunc {
 			EnableAuthenticatingUsingClientSecret:      true,
 			EnableAuthenticatingUsingManagedIdentity:   enableManagedIdentity,
 			EnableAuthenticationUsingGitHubOIDC:        enableOidc,
+			EnableAuthenticationUsingADOPipelineOIDC:   enableOidc,
 			EnableAuthenticationUsingOIDC:              enableOidc,
 		}
 

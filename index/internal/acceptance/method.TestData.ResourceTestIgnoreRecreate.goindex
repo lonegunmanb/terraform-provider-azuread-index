@@ -12,15 +12,17 @@ import (
 	"github.com/hashicorp/terraform-provider-azuread/internal/acceptance/types"
 	"github.com/hashicorp/terraform-provider-azuread/internal/provider"
 )
-func (td TestData) DataSourceTestInSequence(t *testing.T, steps []TestStep) {
-	// DataSources don't need a check destroy - however since this is a wrapper function
-	// and not matching the ignore pattern `XXX_data_source_test.go`, this needs to be explicitly opted out
-
-	// lintignore:AT001
+func (td TestData) ResourceTestIgnoreRecreate(t *testing.T, testResource types.TestResource, steps []TestStep) {
 	testCase := resource.TestCase{
 		PreCheck: func() { PreCheck(t) },
-		Steps:    steps,
+		CheckDestroy: func(s *terraform.State) error {
+			client, err := testclient.Build(td.TenantID)
+			if err != nil {
+				return fmt.Errorf("building client: %+v", err)
+			}
+			return helpers.CheckDestroyedFunc(client, testResource, td.ResourceType, td.ResourceName)(s)
+		},
+		Steps: steps,
 	}
-
-	td.runAcceptanceSequentialTest(t, testCase)
+	td.runAcceptanceTest(t, testCase)
 }

@@ -5,6 +5,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/plancheck"
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
 	"github.com/hashicorp/terraform-provider-azuread/internal/acceptance/helpers"
 	"github.com/hashicorp/terraform-provider-azuread/internal/acceptance/testclient"
@@ -15,7 +16,7 @@ func (td TestData) DataSourceTest(t *testing.T, steps []TestStep) {
 	// DataSources don't need a check destroy - however since this is a wrapper function
 	// and not matching the ignore pattern `XXX_data_source_test.go`, this needs to be explicitly opted out
 
-	//lintignore:AT001
+	// lintignore:AT001
 	testCase := resource.TestCase{
 		PreCheck: func() { PreCheck(t) },
 		Steps:    steps,

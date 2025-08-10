@@ -1,0 +1,160 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/groups
+import (
+	"context"
+	"errors"
+	"fmt"
+	"log"
+	"net/http"
+	"reflect"
+	"regexp"
+	"slices"
+	"strings"
+	"time"
+
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-helpers/lang/response"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/beta"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/stable"
+	administrativeunitmemberBeta "github.com/hashicorp/go-azure-sdk/microsoft-graph/directory/beta/administrativeunitmember"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/directoryobjects/stable/directoryobject"
+	groupBeta "github.com/hashicorp/go-azure-sdk/microsoft-graph/groups/beta/group"
+	memberofBeta "github.com/hashicorp/go-azure-sdk/microsoft-graph/groups/beta/memberof"
+	ownerBeta "github.com/hashicorp/go-azure-sdk/microsoft-graph/groups/beta/owner"
+	"github.com/hashicorp/go-azure-sdk/sdk/nullable"
+	"github.com/hashicorp/go-azure-sdk/sdk/odata"
+	"github.com/hashicorp/go-uuid"
+	"github.com/hashicorp/terraform-provider-azuread/internal/clients"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/consistency"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/validation"
+)
+func groupWithoutMembersResourceReadFunc(enableRetries bool) pluginsdk.ReadContextFunc {
+	return func(ctx context.Context, d *pluginsdk.ResourceData, meta interface{}) pluginsdk.Diagnostics {
+		client := meta.(*clients.Client).Groups.GroupClientBeta
+		ownerClient := meta.(*clients.Client).Groups.GroupOwnerClientBeta
+		memberOfClient := meta.(*clients.Client).Groups.GroupMemberOfClientBeta
+
+		id, err := beta.ParseGroupID(d.Id())
+		if err != nil {
+			return tf.ErrorDiagPathF(err, "id", "Parsing ID")
+		}
+
+		options := groupBeta.DefaultGetGroupOperationOptions()
+		if enableRetries {
+			// Keep retrying on 404 for up to 12 minutes to defeat extended replication delays
+			startTimeForRetries := time.Now()
+			options.RetryFunc = func(resp *http.Response, o *odata.OData) (bool, error) {
+				if response.WasNotFound(resp) && time.Since(startTimeForRetries).Minutes() < 12 {
+					return true, nil
+				}
+				return false, nil
+			}
+		}
+
+		resp, err := client.GetGroup(ctx, *id, options)
+		if err != nil {
+			if response.WasNotFound(resp.HttpResponse) {
+				log.Printf("[DEBUG] %s was not found - removing from state", id)
+				d.SetId("")
+				return nil
+			}
+			return tf.ErrorDiagF(err, "Retrieving %s", id)
+		}
+
+		group := resp.Model
+		if group == nil {
+			return tf.ErrorDiagF(errors.New("model was nil"), "Retrieving %s", id)
+		}
+
+		tf.Set(d, "assignable_to_role", group.IsAssignableToRole.GetOrZero())
+		tf.Set(d, "behaviors", tf.FlattenStringSlicePtr(group.ResourceBehaviorOptions))
+		tf.Set(d, "description", group.Description.GetOrZero())
+		tf.Set(d, "display_name", group.DisplayName.GetOrZero())
+		tf.Set(d, "mail_enabled", group.MailEnabled.GetOrZero())
+		tf.Set(d, "mail", group.Mail.GetOrZero())
+		tf.Set(d, "mail_nickname", group.MailNickname.GetOrZero())
+		tf.Set(d, "object_id", pointer.From(group.Id))
+		tf.Set(d, "onpremises_domain_name", group.OnPremisesDomainName.GetOrZero())
+		tf.Set(d, "onpremises_netbios_name", group.OnPremisesNetBiosName.GetOrZero())
+		tf.Set(d, "onpremises_sam_account_name", group.OnPremisesSamAccountName.GetOrZero())
+		tf.Set(d, "onpremises_security_identifier", group.OnPremisesSecurityIdentifier.GetOrZero())
+		tf.Set(d, "onpremises_sync_enabled", group.OnPremisesSyncEnabled.GetOrZero())
+		tf.Set(d, "preferred_language", group.PreferredLanguage.GetOrZero())
+		tf.Set(d, "provisioning_options", tf.FlattenStringSlicePtr(group.ResourceProvisioningOptions))
+		tf.Set(d, "proxy_addresses", tf.FlattenStringSlicePtr(group.ProxyAddresses))
+		tf.Set(d, "security_enabled", group.SecurityEnabled.GetOrZero())
+		tf.Set(d, "theme", group.Theme.GetOrZero())
+		tf.Set(d, "types", tf.FlattenStringSlicePtr(group.GroupTypes))
+		tf.Set(d, "visibility", group.Visibility.GetOrZero())
+
+		dynamicMembership := make([]interface{}, 0)
+		if !group.MembershipRule.IsNull() {
+			enabled := true
+			if group.MembershipRuleProcessingState.GetOrZero() == "Paused" {
+				enabled = false
+			}
+			dynamicMembership = append(dynamicMembership, map[string]interface{}{
+				"enabled": enabled,
+				"rule":    group.MembershipRule.GetOrZero(),
+			})
+		}
+		tf.Set(d, "dynamic_membership", dynamicMembership)
+
+		if group.WritebackConfiguration != nil {
+			tf.Set(d, "writeback_enabled", group.WritebackConfiguration.IsEnabled.GetOrZero())
+			tf.Set(d, "onpremises_group_type", group.WritebackConfiguration.OnPremisesGroupType.GetOrZero())
+		}
+
+		var allowExternalSenders, autoSubscribeNewMembers, hideFromAddressLists, hideFromOutlookClients bool
+		if group.GroupTypes != nil && slices.Contains(*group.GroupTypes, GroupTypeUnified) {
+			// Retrieve these properties in a separate request to sidestep API bugs
+			groupExtra, err := groupGetAdditional(ctx, client, *id)
+			if err != nil {
+				return tf.ErrorDiagF(err, "Could not retrieve group with object UID %q", d.Id())
+			}
+
+			if groupExtra != nil {
+				allowExternalSenders = groupExtra.AllowExternalSenders.GetOrZero()
+				autoSubscribeNewMembers = groupExtra.AutoSubscribeNewMembers.GetOrZero()
+				hideFromAddressLists = groupExtra.HideFromAddressLists.GetOrZero()
+				hideFromOutlookClients = groupExtra.HideFromOutlookClients.GetOrZero()
+			}
+		}
+
+		tf.Set(d, "auto_subscribe_new_members", autoSubscribeNewMembers)
+		tf.Set(d, "external_senders_allowed", allowExternalSenders)
+		tf.Set(d, "hide_from_address_lists", hideFromAddressLists)
+		tf.Set(d, "hide_from_outlook_clients", hideFromOutlookClients)
+
+		owners := make([]string, 0)
+		if resp, err := ownerClient.ListOwners(ctx, *id, ownerBeta.DefaultListOwnersOperationOptions()); err != nil {
+			return tf.ErrorDiagPathF(err, "owners", "Could not retrieve owners for %s", id)
+		} else if resp.Model != nil {
+			for _, o := range *resp.Model {
+				owners = append(owners, pointer.From(o.DirectoryObject().Id))
+			}
+		}
+		tf.Set(d, "owners", owners)
+
+		administrativeUnitIds := make([]string, 0)
+		if resp, err := memberOfClient.ListMemberOfs(ctx, *id, memberofBeta.DefaultListMemberOfsOperationOptions()); err != nil {
+			return tf.ErrorDiagPathF(err, "members", "Could not retrieve members for %s", id)
+		} else if resp.Model != nil {
+			for _, obj := range *resp.Model {
+				if _, ok := obj.(beta.AdministrativeUnit); ok {
+					administrativeUnitIds = append(administrativeUnitIds, *obj.DirectoryObject().Id)
+				}
+			}
+		}
+		tf.Set(d, "administrative_unit_ids", administrativeUnitIds)
+
+		preventDuplicates := false
+		if v := d.Get("prevent_duplicate_names").(bool); v {
+			preventDuplicates = v
+		}
+		tf.Set(d, "prevent_duplicate_names", preventDuplicates)
+
+		return nil
+	}
+}

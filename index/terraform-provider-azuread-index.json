@@ -1,6 +1,64 @@
 {
-  "version": "v3.1.0",
+  "version": "v3.2.0",
   "services": [
+    {
+      "service_name": "conditionalaccess",
+      "package_path": "github.com/hashicorp/terraform-provider-azuread/internal/services/conditionalaccess",
+      "supported_resources": {
+        "azuread_conditional_access_policy": "conditionalAccessPolicyResource",
+        "azuread_named_location": "namedLocationResource"
+      },
+      "supported_data_sources": {
+        "azuread_named_location": "namedLocationDataSource"
+      },
+      "resources": [],
+      "data_sources": [],
+      "ephemeral_functions": [],
+      "resource_crud_methods": {
+        "azuread_conditional_access_policy": {
+          "create_method": "conditionalAccessPolicyResourceCreate",
+          "read_method": "conditionalAccessPolicyResourceRead",
+          "update_method": "conditionalAccessPolicyResourceUpdate",
+          "delete_method": "conditionalAccessPolicyResourceDelete"
+        },
+        "azuread_named_location": {
+          "create_method": "namedLocationResourceCreate",
+          "read_method": "namedLocationResourceRead",
+          "update_method": "namedLocationResourceUpdate",
+          "delete_method": "namedLocationResourceDelete"
+        }
+      },
+      "data_source_methods": {
+        "azuread_named_location": {
+          "read_method": "namedLocationDataSourceRead"
+        }
+      },
+      "resource_terraform_types": {},
+      "data_source_terraform_types": {},
+      "ephemeral_terraform_types": {}
+    },
+    {
+      "service_name": "approleassignments",
+      "package_path": "github.com/hashicorp/terraform-provider-azuread/internal/services/approleassignments",
+      "supported_resources": {
+        "azuread_app_role_assignment": "appRoleAssignmentResource"
+      },
+      "supported_data_sources": {},
+      "resources": [],
+      "data_sources": [],
+      "ephemeral_functions": [],
+      "resource_crud_methods": {
+        "azuread_app_role_assignment": {
+          "create_method": "appRoleAssignmentResourceCreate",
+          "read_method": "appRoleAssignmentResourceRead",
+          "delete_method": "appRoleAssignmentResourceDelete"
+        }
+      },
+      "data_source_methods": {},
+      "resource_terraform_types": {},
+      "data_source_terraform_types": {},
+      "ephemeral_terraform_types": {}
+    },
     {
       "service_name": "administrativeunits",
       "package_path": "github.com/hashicorp/terraform-provider-azuread/internal/services/administrativeunits",
@@ -128,84 +186,6 @@
       "ephemeral_terraform_types": {}
     },
     {
-      "service_name": "approleassignments",
-      "package_path": "github.com/hashicorp/terraform-provider-azuread/internal/services/approleassignments",
-      "supported_resources": {
-        "azuread_app_role_assignment": "appRoleAssignmentResource"
-      },
-      "supported_data_sources": {},
-      "resources": [],
-      "data_sources": [],
-      "ephemeral_functions": [],
-      "resource_crud_methods": {
-        "azuread_app_role_assignment": {
-          "create_method": "appRoleAssignmentResourceCreate",
-          "read_method": "appRoleAssignmentResourceRead",
-          "delete_method": "appRoleAssignmentResourceDelete"
-        }
-      },
-      "data_source_methods": {},
-      "resource_terraform_types": {},
-      "data_source_terraform_types": {},
-      "ephemeral_terraform_types": {}
-    },
-    {
-      "service_name": "conditionalaccess",
-      "package_path": "github.com/hashicorp/terraform-provider-azuread/internal/services/conditionalaccess",
-      "supported_resources": {
-        "azuread_conditional_access_policy": "conditionalAccessPolicyResource",
-        "azuread_named_location": "namedLocationResource"
-      },
-      "supported_data_sources": {
-        "azuread_named_location": "namedLocationDataSource"
-      },
-      "resources": [],
-      "data_sources": [],
-      "ephemeral_functions": [],
-      "resource_crud_methods": {
-        "azuread_conditional_access_policy": {
-          "create_method": "conditionalAccessPolicyResourceCreate",
-          "read_method": "conditionalAccessPolicyResourceRead",
-          "update_method": "conditionalAccessPolicyResourceUpdate",
-          "delete_method": "conditionalAccessPolicyResourceDelete"
-        },
-        "azuread_named_location": {
-          "create_method": "namedLocationResourceCreate",
-          "read_method": "namedLocationResourceRead",
-          "update_method": "namedLocationResourceUpdate",
-          "delete_method": "namedLocationResourceDelete"
-        }
-      },
-      "data_source_methods": {
-        "azuread_named_location": {
-          "read_method": "namedLocationDataSourceRead"
-        }
-      },
-      "resource_terraform_types": {},
-      "data_source_terraform_types": {},
-      "ephemeral_terraform_types": {}
-    },
-    {
-      "service_name": "directoryobjects",
-      "package_path": "github.com/hashicorp/terraform-provider-azuread/internal/services/directoryobjects",
-      "supported_resources": {},
-      "supported_data_sources": {
-        "azuread_directory_object": "directoryObjectDataSource"
-      },
-      "resources": [],
-      "data_sources": [],
-      "ephemeral_functions": [],
-      "resource_crud_methods": {},
-      "data_source_methods": {
-        "azuread_directory_object": {
-          "read_method": "directoryObjectDataSourceRead"
-        }
-      },
-      "resource_terraform_types": {},
-      "data_source_terraform_types": {},
-      "ephemeral_terraform_types": {}
-    },
-    {
       "service_name": "directoryroles",
       "package_path": "github.com/hashicorp/terraform-provider-azuread/internal/services/directoryroles",
       "supported_resources": {
@@ -261,6 +241,26 @@
       "ephemeral_terraform_types": {}
     },
     {
+      "service_name": "directoryobjects",
+      "package_path": "github.com/hashicorp/terraform-provider-azuread/internal/services/directoryobjects",
+      "supported_resources": {},
+      "supported_data_sources": {
+        "azuread_directory_object": "directoryObjectDataSource"
+      },
+      "resources": [],
+      "data_sources": [],
+      "ephemeral_functions": [],
+      "resource_crud_methods": {},
+      "data_source_methods": {
+        "azuread_directory_object": {
+          "read_method": "directoryObjectDataSourceRead"
+        }
+      },
+      "resource_terraform_types": {},
+      "data_source_terraform_types": {},
+      "ephemeral_terraform_types": {}
+    },
+    {
       "service_name": "domains",
       "package_path": "github.com/hashicorp/terraform-provider-azuread/internal/services/domains",
       "supported_resources": {},
@@ -283,7 +283,8 @@
       "package_path": "github.com/hashicorp/terraform-provider-azuread/internal/services/groups",
       "supported_resources": {
         "azuread_group": "groupResource",
-        "azuread_group_member": "groupMemberResource"
+        "azuread_group_member": "groupMemberResource",
+        "azuread_group_without_members": "groupWithoutMembersResource"
       },
       "supported_data_sources": {
         "azuread_group": "groupDataSource",
@@ -302,6 +303,11 @@
           "create_method": "groupMemberResourceCreate",
           "read_method": "groupMemberResourceRead",
           "delete_method": "groupMemberResourceDelete"
+        },
+        "azuread_group_without_members": {
+          "create_method": "groupWithoutMembersResourceCreate",
+          "update_method": "groupWithoutMembersResourceUpdate",
+          "delete_method": "groupWithoutMembersResourceDelete"
         }
       },
       "data_source_methods": {
@@ -312,6 +318,28 @@
           "read_method": "groupsDataSourceRead"
         }
       },
+      "resource_terraform_types": {},
+      "data_source_terraform_types": {},
+      "ephemeral_terraform_types": {}
+    },
+    {
+      "service_name": "invitations",
+      "package_path": "github.com/hashicorp/terraform-provider-azuread/internal/services/invitations",
+      "supported_resources": {
+        "azuread_invitation": "invitationResource"
+      },
+      "supported_data_sources": {},
+      "resources": [],
+      "data_sources": [],
+      "ephemeral_functions": [],
+      "resource_crud_methods": {
+        "azuread_invitation": {
+          "create_method": "invitationResourceCreate",
+          "read_method": "invitationResourceRead",
+          "delete_method": "invitationResourceDelete"
+        }
+      },
+      "data_source_methods": {},
       "resource_terraform_types": {},
       "data_source_terraform_types": {},
       "ephemeral_terraform_types": {}
@@ -388,28 +416,6 @@
         "PrivilegedAccessGroupAssignmentScheduleResource": "azuread_privileged_access_group_assignment_schedule",
         "PrivilegedAccessGroupEligibilityScheduleResource": "azuread_privileged_access_group_eligibility_schedule"
       },
-      "data_source_terraform_types": {},
-      "ephemeral_terraform_types": {}
-    },
-    {
-      "service_name": "invitations",
-      "package_path": "github.com/hashicorp/terraform-provider-azuread/internal/services/invitations",
-      "supported_resources": {
-        "azuread_invitation": "invitationResource"
-      },
-      "supported_data_sources": {},
-      "resources": [],
-      "data_sources": [],
-      "ephemeral_functions": [],
-      "resource_crud_methods": {
-        "azuread_invitation": {
-          "create_method": "invitationResourceCreate",
-          "read_method": "invitationResourceRead",
-          "delete_method": "invitationResourceDelete"
-        }
-      },
-      "data_source_methods": {},
-      "resource_terraform_types": {},
       "data_source_terraform_types": {},
       "ephemeral_terraform_types": {}
     },
@@ -615,8 +621,8 @@
   "statistics": {
     "service_count": 15,
     "total_data_sources": 20,
-    "total_resources": 52,
-    "legacy_resources": 37,
+    "total_resources": 53,
+    "legacy_resources": 38,
     "modern_resources": 15,
     "ephemeral_resources": 0
   }

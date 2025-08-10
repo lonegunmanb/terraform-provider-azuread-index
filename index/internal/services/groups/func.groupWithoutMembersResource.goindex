@@ -18,7 +18,6 @@ import (
 	administrativeunitmemberBeta "github.com/hashicorp/go-azure-sdk/microsoft-graph/directory/beta/administrativeunitmember"
 	"github.com/hashicorp/go-azure-sdk/microsoft-graph/directoryobjects/stable/directoryobject"
 	groupBeta "github.com/hashicorp/go-azure-sdk/microsoft-graph/groups/beta/group"
-	memberBeta "github.com/hashicorp/go-azure-sdk/microsoft-graph/groups/beta/member"
 	memberofBeta "github.com/hashicorp/go-azure-sdk/microsoft-graph/groups/beta/memberof"
 	ownerBeta "github.com/hashicorp/go-azure-sdk/microsoft-graph/groups/beta/owner"
 	"github.com/hashicorp/go-azure-sdk/sdk/nullable"
@@ -29,16 +28,15 @@ import (
 	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf"
 	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/pluginsdk"
 	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/validation"
-	"github.com/hashicorp/terraform-provider-azuread/internal/services/groups/migrations"
 )
-func groupResource() *pluginsdk.Resource {
+func groupWithoutMembersResource() *pluginsdk.Resource {
 	return &pluginsdk.Resource{
-		CreateContext: groupResourceCreate,
-		ReadContext:   groupResourceReadFunc(false),
-		UpdateContext: groupResourceUpdate,
-		DeleteContext: groupResourceDelete,
+		CreateContext: groupWithoutMembersResourceCreate,
+		ReadContext:   groupWithoutMembersResourceReadFunc(false),
+		UpdateContext: groupWithoutMembersResourceUpdate,
+		DeleteContext: groupWithoutMembersResourceDelete,
 
-		CustomizeDiff: groupResourceCustomizeDiff,
+		CustomizeDiff: groupWithoutMembersResourceCustomizeDiff,
 
 		Timeouts: &pluginsdk.ResourceTimeout{
 			Create: pluginsdk.DefaultTimeout(20 * time.Minute),
@@ -57,15 +55,6 @@ func groupResource() *pluginsdk.Resource {
 			}
 			return nil
 		}),
-
-		SchemaVersion: 1,
-		StateUpgraders: []pluginsdk.StateUpgrader{
-			{
-				Type:    migrations.ResourceGroupInstanceResourceV0().CoreConfigSchema().ImpliedType(),
-				Upgrade: migrations.ResourceGroupInstanceStateUpgradeV0,
-				Version: 0,
-			},
-		},
 
 		Schema: map[string]*pluginsdk.Schema{
 			"display_name": {
@@ -117,11 +106,10 @@ func groupResource() *pluginsdk.Resource {
 			},
 
 			"dynamic_membership": {
-				Description:   "An optional block to configure dynamic membership for the group. Cannot be used with `members`",
-				Type:          pluginsdk.TypeList,
-				Optional:      true,
-				MaxItems:      1,
-				ConflictsWith: []string{"members"},
+				Description: "An optional block to configure dynamic membership for the group.",
+				Type:        pluginsdk.TypeList,
+				Optional:    true,
+				MaxItems:    1,
 				Elem: &pluginsdk.Resource{
 					Schema: map[string]*pluginsdk.Schema{
 						"enabled": {
@@ -176,19 +164,6 @@ func groupResource() *pluginsdk.Resource {
 				ValidateDiagFunc: validation.MailNickname,
 			},
 
-			"members": {
-				Description:   "A set of members who should be present in this group. Supported object types are Users, Groups or Service Principals",
-				Type:          pluginsdk.TypeSet,
-				Optional:      true,
-				Computed:      true,
-				ConflictsWith: []string{"dynamic_membership"},
-				Set:           pluginsdk.HashString,
-				Elem: &pluginsdk.Schema{
-					Type:         pluginsdk.TypeString,
-					ValidateFunc: validation.IsUUID,
-				},
-			},
-
 			"onpremises_group_type": {
 				Description:  "Indicates the target on-premise group type the group will be written back as",
 				Type:         pluginsdk.TypeString,
@@ -203,8 +178,8 @@ func groupResource() *pluginsdk.Resource {
 				Optional:    true,
 				Computed:    true,
 				MaxItems:    100,
-				ConfigMode:  pluginsdk.SchemaConfigModeAttr,
 				Set:         pluginsdk.HashString,
+				ConfigMode:  pluginsdk.SchemaConfigModeAttr,
 				Elem: &pluginsdk.Schema{
 					Type:         pluginsdk.TypeString,
 					ValidateFunc: validation.IsUUID,

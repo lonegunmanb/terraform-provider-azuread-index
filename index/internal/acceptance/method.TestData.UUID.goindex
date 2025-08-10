@@ -8,7 +8,7 @@ import (
 	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/acctest"
 )
-func (t TestData) UUID() string {
+func (td TestData) UUID() string {
 	uuid, err := uuid.GenerateUUID()
 	if err != nil {
 		panic(err)
