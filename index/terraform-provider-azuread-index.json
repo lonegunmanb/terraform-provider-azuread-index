@@ -1,64 +1,6 @@
 {
-  "version": "v3.3.0",
+  "version": "v3.4.0",
   "services": [
-    {
-      "service_name": "conditionalaccess",
-      "package_path": "github.com/hashicorp/terraform-provider-azuread/internal/services/conditionalaccess",
-      "supported_resources": {
-        "azuread_conditional_access_policy": "conditionalAccessPolicyResource",
-        "azuread_named_location": "namedLocationResource"
-      },
-      "supported_data_sources": {
-        "azuread_named_location": "namedLocationDataSource"
-      },
-      "resources": [],
-      "data_sources": [],
-      "ephemeral_functions": [],
-      "resource_crud_methods": {
-        "azuread_conditional_access_policy": {
-          "create_method": "conditionalAccessPolicyResourceCreate",
-          "read_method": "conditionalAccessPolicyResourceRead",
-          "update_method": "conditionalAccessPolicyResourceUpdate",
-          "delete_method": "conditionalAccessPolicyResourceDelete"
-        },
-        "azuread_named_location": {
-          "create_method": "namedLocationResourceCreate",
-          "read_method": "namedLocationResourceRead",
-          "update_method": "namedLocationResourceUpdate",
-          "delete_method": "namedLocationResourceDelete"
-        }
-      },
-      "data_source_methods": {
-        "azuread_named_location": {
-          "read_method": "namedLocationDataSourceRead"
-        }
-      },
-      "resource_terraform_types": {},
-      "data_source_terraform_types": {},
-      "ephemeral_terraform_types": {}
-    },
-    {
-      "service_name": "approleassignments",
-      "package_path": "github.com/hashicorp/terraform-provider-azuread/internal/services/approleassignments",
-      "supported_resources": {
-        "azuread_app_role_assignment": "appRoleAssignmentResource"
-      },
-      "supported_data_sources": {},
-      "resources": [],
-      "data_sources": [],
-      "ephemeral_functions": [],
-      "resource_crud_methods": {
-        "azuread_app_role_assignment": {
-          "create_method": "appRoleAssignmentResourceCreate",
-          "read_method": "appRoleAssignmentResourceRead",
-          "delete_method": "appRoleAssignmentResourceDelete"
-        }
-      },
-      "data_source_methods": {},
-      "resource_terraform_types": {},
-      "data_source_terraform_types": {},
-      "ephemeral_terraform_types": {}
-    },
     {
       "service_name": "administrativeunits",
       "package_path": "github.com/hashicorp/terraform-provider-azuread/internal/services/administrativeunits",
@@ -94,6 +36,64 @@
       "data_source_methods": {
         "azuread_administrative_unit": {
           "read_method": "administrativeUnitDataSourceRead"
+        }
+      },
+      "resource_terraform_types": {},
+      "data_source_terraform_types": {},
+      "ephemeral_terraform_types": {}
+    },
+    {
+      "service_name": "approleassignments",
+      "package_path": "github.com/hashicorp/terraform-provider-azuread/internal/services/approleassignments",
+      "supported_resources": {
+        "azuread_app_role_assignment": "appRoleAssignmentResource"
+      },
+      "supported_data_sources": {},
+      "resources": [],
+      "data_sources": [],
+      "ephemeral_functions": [],
+      "resource_crud_methods": {
+        "azuread_app_role_assignment": {
+          "create_method": "appRoleAssignmentResourceCreate",
+          "read_method": "appRoleAssignmentResourceRead",
+          "delete_method": "appRoleAssignmentResourceDelete"
+        }
+      },
+      "data_source_methods": {},
+      "resource_terraform_types": {},
+      "data_source_terraform_types": {},
+      "ephemeral_terraform_types": {}
+    },
+    {
+      "service_name": "conditionalaccess",
+      "package_path": "github.com/hashicorp/terraform-provider-azuread/internal/services/conditionalaccess",
+      "supported_resources": {
+        "azuread_conditional_access_policy": "conditionalAccessPolicyResource",
+        "azuread_named_location": "namedLocationResource"
+      },
+      "supported_data_sources": {
+        "azuread_named_location": "namedLocationDataSource"
+      },
+      "resources": [],
+      "data_sources": [],
+      "ephemeral_functions": [],
+      "resource_crud_methods": {
+        "azuread_conditional_access_policy": {
+          "create_method": "conditionalAccessPolicyResourceCreate",
+          "read_method": "conditionalAccessPolicyResourceRead",
+          "update_method": "conditionalAccessPolicyResourceUpdate",
+          "delete_method": "conditionalAccessPolicyResourceDelete"
+        },
+        "azuread_named_location": {
+          "create_method": "namedLocationResourceCreate",
+          "read_method": "namedLocationResourceRead",
+          "update_method": "namedLocationResourceUpdate",
+          "delete_method": "namedLocationResourceDelete"
+        }
+      },
+      "data_source_methods": {
+        "azuread_named_location": {
+          "read_method": "namedLocationDataSourceRead"
         }
       },
       "resource_terraform_types": {},
@@ -345,44 +345,6 @@
       "ephemeral_terraform_types": {}
     },
     {
-      "service_name": "policies",
-      "package_path": "github.com/hashicorp/terraform-provider-azuread/internal/services/policies",
-      "supported_resources": {
-        "azuread_authentication_strength_policy": "authenticationStrengthPolicyResource",
-        "azuread_claims_mapping_policy": "claimsMappingPolicyResource"
-      },
-      "supported_data_sources": {},
-      "resources": [
-        "GroupRoleManagementPolicyResource"
-      ],
-      "data_sources": [
-        "GroupRoleManagementPolicyDataSource"
-      ],
-      "ephemeral_functions": [],
-      "resource_crud_methods": {
-        "azuread_authentication_strength_policy": {
-          "create_method": "authenticationStrengthPolicyCreate",
-          "read_method": "authenticationStrengthPolicyRead",
-          "update_method": "authenticationStrengthPolicyUpdate",
-          "delete_method": "authenticationStrengthPolicyDelete"
-        },
-        "azuread_claims_mapping_policy": {
-          "create_method": "claimsMappingPolicyResourceCreate",
-          "read_method": "claimsMappingPolicyResourceRead",
-          "update_method": "claimsMappingPolicyResourceUpdate",
-          "delete_method": "claimsMappingPolicyResourceDelete"
-        }
-      },
-      "data_source_methods": {},
-      "resource_terraform_types": {
-        "GroupRoleManagementPolicyResource": "azuread_group_role_management_policy"
-      },
-      "data_source_terraform_types": {
-        "GroupRoleManagementPolicyDataSource": "azuread_group_role_management_policy"
-      },
-      "ephemeral_terraform_types": {}
-    },
-    {
       "service_name": "identitygovernance",
       "package_path": "github.com/hashicorp/terraform-provider-azuread/internal/services/identitygovernance",
       "supported_resources": {
@@ -455,6 +417,44 @@
         "PrivilegedAccessGroupEligibilityScheduleResource": "azuread_privileged_access_group_eligibility_schedule"
       },
       "data_source_terraform_types": {},
+      "ephemeral_terraform_types": {}
+    },
+    {
+      "service_name": "policies",
+      "package_path": "github.com/hashicorp/terraform-provider-azuread/internal/services/policies",
+      "supported_resources": {
+        "azuread_authentication_strength_policy": "authenticationStrengthPolicyResource",
+        "azuread_claims_mapping_policy": "claimsMappingPolicyResource"
+      },
+      "supported_data_sources": {},
+      "resources": [
+        "GroupRoleManagementPolicyResource"
+      ],
+      "data_sources": [
+        "GroupRoleManagementPolicyDataSource"
+      ],
+      "ephemeral_functions": [],
+      "resource_crud_methods": {
+        "azuread_authentication_strength_policy": {
+          "create_method": "authenticationStrengthPolicyCreate",
+          "read_method": "authenticationStrengthPolicyRead",
+          "update_method": "authenticationStrengthPolicyUpdate",
+          "delete_method": "authenticationStrengthPolicyDelete"
+        },
+        "azuread_claims_mapping_policy": {
+          "create_method": "claimsMappingPolicyResourceCreate",
+          "read_method": "claimsMappingPolicyResourceRead",
+          "update_method": "claimsMappingPolicyResourceUpdate",
+          "delete_method": "claimsMappingPolicyResourceDelete"
+        }
+      },
+      "data_source_methods": {},
+      "resource_terraform_types": {
+        "GroupRoleManagementPolicyResource": "azuread_group_role_management_policy"
+      },
+      "data_source_terraform_types": {
+        "GroupRoleManagementPolicyDataSource": "azuread_group_role_management_policy"
+      },
       "ephemeral_terraform_types": {}
     },
     {
