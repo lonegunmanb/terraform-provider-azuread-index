@@ -37,6 +37,10 @@ func namedLocationResourceDelete(ctx context.Context, d *pluginsdk.ResourceData,
 
 			return tf.ErrorDiagF(err, "updating %s prior to deletion", id)
 		}
+
+		if err = consistency.WaitForUpdate(ctx, ipNamedLocationTrustedDeleteWait(client, id)); err != nil {
+			return tf.ErrorDiagF(err, "waiting for removal of trusted status on %s", id)
+		}
 	}
 
 	resp, err := client.DeleteConditionalAccessNamedLocation(ctx, *id, conditionalaccessnamedlocation.DefaultDeleteConditionalAccessNamedLocationOperationOptions())

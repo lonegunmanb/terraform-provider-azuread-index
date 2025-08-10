@@ -5,7 +5,9 @@ import (
 	"github.com/hashicorp/go-azure-helpers/lang/pointer"
 	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/stable"
 	"github.com/hashicorp/go-azure-sdk/sdk/nullable"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
 	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/pluginsdk"
 )
 func flattenConditionalAccessClientApplications(in *stable.ConditionalAccessClientApplications) []interface{} {
 	if in == nil {
@@ -16,6 +18,7 @@ func flattenConditionalAccessClientApplications(in *stable.ConditionalAccessClie
 		map[string]interface{}{
 			"included_service_principals": tf.FlattenStringSlicePtr(in.IncludeServicePrincipals),
 			"excluded_service_principals": tf.FlattenStringSlicePtr(in.ExcludeServicePrincipals),
+			"filter":                      flattenConditionalAccessFilter(in.ServicePrincipalFilter),
 		},
 	}
 }
