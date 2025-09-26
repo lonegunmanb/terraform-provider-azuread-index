@@ -1,5 +1,5 @@
 {
-  "version": "v3.5.0",
+  "version": "v3.6.0",
   "services": [
     {
       "service_name": "approleassignments",
@@ -53,6 +53,47 @@
       "data_source_methods": {
         "azuread_named_location": {
           "read_method": "namedLocationDataSourceRead"
+        }
+      },
+      "resource_terraform_types": {},
+      "data_source_terraform_types": {},
+      "ephemeral_terraform_types": {}
+    },
+    {
+      "service_name": "administrativeunits",
+      "package_path": "github.com/hashicorp/terraform-provider-azuread/internal/services/administrativeunits",
+      "supported_resources": {
+        "azuread_administrative_unit": "administrativeUnitResource",
+        "azuread_administrative_unit_member": "administrativeUnitMemberResource",
+        "azuread_administrative_unit_role_member": "administrativeUnitRoleMemberResource"
+      },
+      "supported_data_sources": {
+        "azuread_administrative_unit": "administrativeUnitDataSource"
+      },
+      "resources": [],
+      "data_sources": [],
+      "ephemeral_functions": [],
+      "resource_crud_methods": {
+        "azuread_administrative_unit": {
+          "create_method": "administrativeUnitResourceCreate",
+          "read_method": "administrativeUnitResourceRead",
+          "update_method": "administrativeUnitResourceUpdate",
+          "delete_method": "administrativeUnitResourceDelete"
+        },
+        "azuread_administrative_unit_member": {
+          "create_method": "administrativeUnitMemberResourceCreate",
+          "read_method": "administrativeUnitMemberResourceRead",
+          "delete_method": "administrativeUnitMemberResourceDelete"
+        },
+        "azuread_administrative_unit_role_member": {
+          "create_method": "administrativeUnitRoleMemberResourceCreate",
+          "read_method": "administrativeUnitRoleMemberResourceRead",
+          "delete_method": "administrativeUnitRoleMemberResourceDelete"
+        }
+      },
+      "data_source_methods": {
+        "azuread_administrative_unit": {
+          "read_method": "administrativeUnitDataSourceRead"
         }
       },
       "resource_terraform_types": {},
@@ -141,47 +182,6 @@
         "ApplicationRedirectUrisResource": "azuread_application_redirect_uris",
         "ApplicationRegistrationResource": "azuread_application_registration"
       },
-      "data_source_terraform_types": {},
-      "ephemeral_terraform_types": {}
-    },
-    {
-      "service_name": "administrativeunits",
-      "package_path": "github.com/hashicorp/terraform-provider-azuread/internal/services/administrativeunits",
-      "supported_resources": {
-        "azuread_administrative_unit": "administrativeUnitResource",
-        "azuread_administrative_unit_member": "administrativeUnitMemberResource",
-        "azuread_administrative_unit_role_member": "administrativeUnitRoleMemberResource"
-      },
-      "supported_data_sources": {
-        "azuread_administrative_unit": "administrativeUnitDataSource"
-      },
-      "resources": [],
-      "data_sources": [],
-      "ephemeral_functions": [],
-      "resource_crud_methods": {
-        "azuread_administrative_unit": {
-          "create_method": "administrativeUnitResourceCreate",
-          "read_method": "administrativeUnitResourceRead",
-          "update_method": "administrativeUnitResourceUpdate",
-          "delete_method": "administrativeUnitResourceDelete"
-        },
-        "azuread_administrative_unit_member": {
-          "create_method": "administrativeUnitMemberResourceCreate",
-          "read_method": "administrativeUnitMemberResourceRead",
-          "delete_method": "administrativeUnitMemberResourceDelete"
-        },
-        "azuread_administrative_unit_role_member": {
-          "create_method": "administrativeUnitRoleMemberResourceCreate",
-          "read_method": "administrativeUnitRoleMemberResourceRead",
-          "delete_method": "administrativeUnitRoleMemberResourceDelete"
-        }
-      },
-      "data_source_methods": {
-        "azuread_administrative_unit": {
-          "read_method": "administrativeUnitDataSourceRead"
-        }
-      },
-      "resource_terraform_types": {},
       "data_source_terraform_types": {},
       "ephemeral_terraform_types": {}
     },
@@ -323,6 +323,28 @@
       "ephemeral_terraform_types": {}
     },
     {
+      "service_name": "invitations",
+      "package_path": "github.com/hashicorp/terraform-provider-azuread/internal/services/invitations",
+      "supported_resources": {
+        "azuread_invitation": "invitationResource"
+      },
+      "supported_data_sources": {},
+      "resources": [],
+      "data_sources": [],
+      "ephemeral_functions": [],
+      "resource_crud_methods": {
+        "azuread_invitation": {
+          "create_method": "invitationResourceCreate",
+          "read_method": "invitationResourceRead",
+          "delete_method": "invitationResourceDelete"
+        }
+      },
+      "data_source_methods": {},
+      "resource_terraform_types": {},
+      "data_source_terraform_types": {},
+      "ephemeral_terraform_types": {}
+    },
+    {
       "service_name": "identitygovernance",
       "package_path": "github.com/hashicorp/terraform-provider-azuread/internal/services/identitygovernance",
       "supported_resources": {
@@ -394,28 +416,6 @@
         "PrivilegedAccessGroupAssignmentScheduleResource": "azuread_privileged_access_group_assignment_schedule",
         "PrivilegedAccessGroupEligibilityScheduleResource": "azuread_privileged_access_group_eligibility_schedule"
       },
-      "data_source_terraform_types": {},
-      "ephemeral_terraform_types": {}
-    },
-    {
-      "service_name": "invitations",
-      "package_path": "github.com/hashicorp/terraform-provider-azuread/internal/services/invitations",
-      "supported_resources": {
-        "azuread_invitation": "invitationResource"
-      },
-      "supported_data_sources": {},
-      "resources": [],
-      "data_sources": [],
-      "ephemeral_functions": [],
-      "resource_crud_methods": {
-        "azuread_invitation": {
-          "create_method": "invitationResourceCreate",
-          "read_method": "invitationResourceRead",
-          "delete_method": "invitationResourceDelete"
-        }
-      },
-      "data_source_methods": {},
-      "resource_terraform_types": {},
       "data_source_terraform_types": {},
       "ephemeral_terraform_types": {}
     },

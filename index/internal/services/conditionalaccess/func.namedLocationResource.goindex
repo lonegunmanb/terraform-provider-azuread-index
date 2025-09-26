@@ -114,6 +114,12 @@ func namedLocationResource() *pluginsdk.Resource {
 					},
 				},
 			},
+
+			"object_id": {
+				Description: "The object ID of the named location",
+				Type:        pluginsdk.TypeString,
+				Computed:    true,
+			},
 		},
 	}
 }
