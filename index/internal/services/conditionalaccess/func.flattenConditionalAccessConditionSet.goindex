@@ -41,17 +41,18 @@ func flattenConditionalAccessConditionSet(in *stable.ConditionalAccessConditionS
 
 	return []interface{}{
 		map[string]interface{}{
-			"applications":                  flattenConditionalAccessApplications(in.Applications),
-			"client_applications":           flattenConditionalAccessClientApplications(in.ClientApplications),
-			"users":                         flattenConditionalAccessUsers(in.Users),
-			"client_app_types":              clientAppTypes,
-			"devices":                       flattenConditionalAccessDevices(in.Devices),
-			"locations":                     flattenConditionalAccessLocations(in.Locations),
-			"platforms":                     flattenConditionalAccessPlatforms(in.Platforms),
-			"service_principal_risk_levels": servicePrincipalRiskLevels,
-			"sign_in_risk_levels":           signInRiskLevels,
-			"user_risk_levels":              userRiskLevels,
-			"insider_risk_levels":           insiderRiskLevels,
+			"applications":                         flattenConditionalAccessApplications(in.Applications),
+			"authentication_flow_transfer_methods": flattenAuthenticationFlowTransferMethods(in.AuthenticationFlows),
+			"client_applications":                  flattenConditionalAccessClientApplications(in.ClientApplications),
+			"users":                                flattenConditionalAccessUsers(in.Users),
+			"client_app_types":                     clientAppTypes,
+			"devices":                              flattenConditionalAccessDevices(in.Devices),
+			"locations":                            flattenConditionalAccessLocations(in.Locations),
+			"platforms":                            flattenConditionalAccessPlatforms(in.Platforms),
+			"service_principal_risk_levels":        servicePrincipalRiskLevels,
+			"sign_in_risk_levels":                  signInRiskLevels,
+			"user_risk_levels":                     userRiskLevels,
+			"insider_risk_levels":                  insiderRiskLevels,
 		},
 	}
 }

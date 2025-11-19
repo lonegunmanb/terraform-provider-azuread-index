@@ -1,5 +1,5 @@
 {
-  "version": "v3.6.0",
+  "version": "v3.7.0",
   "services": [
     {
       "service_name": "approleassignments",
@@ -119,6 +119,7 @@
         "ApplicationApiAccessResource",
         "ApplicationAppRoleResource",
         "ApplicationFallbackPublicClientResource",
+        "flexibleFederatedIdentityCredentialResource",
         "ApplicationFromTemplateResource",
         "ApplicationIdentifierUriResource",
         "ApplicationKnownClientsResource",
@@ -180,7 +181,8 @@
         "ApplicationOwnerResource": "azuread_application_owner",
         "ApplicationPermissionScopeResource": "azuread_application_permission_scope",
         "ApplicationRedirectUrisResource": "azuread_application_redirect_uris",
-        "ApplicationRegistrationResource": "azuread_application_registration"
+        "ApplicationRegistrationResource": "azuread_application_registration",
+        "flexibleFederatedIdentityCredentialResource": "azuread_application_flexible_federated_identity_credential"
       },
       "data_source_terraform_types": {},
       "ephemeral_terraform_types": {}
@@ -621,9 +623,9 @@
   "statistics": {
     "service_count": 15,
     "total_data_sources": 20,
-    "total_resources": 53,
+    "total_resources": 54,
     "legacy_resources": 38,
-    "modern_resources": 15,
+    "modern_resources": 16,
     "ephemeral_resources": 0
   }
 }

@@ -18,6 +18,7 @@ func expandConditionalAccessConditionSet(in []interface{}) *stable.ConditionalAc
 	config := in[0].(map[string]interface{})
 
 	applications := config["applications"].([]interface{})
+	authenticationFlowTransferMethods := config["authentication_flow_transfer_methods"].(*pluginsdk.Set).List()
 	clientApplications := config["client_applications"].([]interface{})
 	devices := config["devices"].([]interface{})
 	locations := config["locations"].([]interface{})
@@ -49,6 +50,7 @@ func expandConditionalAccessConditionSet(in []interface{}) *stable.ConditionalAc
 	}
 
 	result.Applications = expandConditionalAccessApplications(applications)
+	result.AuthenticationFlows = expandAuthenticationFlowTransferMethods(authenticationFlowTransferMethods)
 	result.ClientAppTypes = clientAppTypes
 	result.ClientApplications = expandConditionalAccessClientApplications(clientApplications)
 	result.Devices = expandConditionalAccessDevices(devices)

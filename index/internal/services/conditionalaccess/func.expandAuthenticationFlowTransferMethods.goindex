@@ -1,0 +1,20 @@
+package github.com/hashicorp/terraform-provider-azuread/internal/services/conditionalaccess
+import (
+	"strings"
+
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-sdk/microsoft-graph/common-types/stable"
+	"github.com/hashicorp/go-azure-sdk/sdk/nullable"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf"
+	"github.com/hashicorp/terraform-provider-azuread/internal/helpers/tf/pluginsdk"
+)
+func expandAuthenticationFlowTransferMethods(in []interface{}) *stable.ConditionalAccessAuthenticationFlows {
+	if len(in) == 0 {
+		return nil
+	}
+
+	return &stable.ConditionalAccessAuthenticationFlows{
+		TransferMethods: pointer.ToEnum[stable.ConditionalAccessTransferMethods](strings.Join(tf.ExpandStringSlice(in), ",")),
+	}
+}

@@ -1,6 +1,7 @@
 package github.com/hashicorp/terraform-provider-azuread/internal/services/applications/client
 import (
 	applicationBeta "github.com/hashicorp/go-azure-sdk/microsoft-graph/applications/beta/application"
+	flexibleFederatedIdentityCredential "github.com/hashicorp/go-azure-sdk/microsoft-graph/applications/beta/federatedidentitycredential" // Flexible FIC Only available in beta currently, when it goes GA we should be able to flatten down to 1 client
 	"github.com/hashicorp/go-azure-sdk/microsoft-graph/applications/stable/application"
 	"github.com/hashicorp/go-azure-sdk/microsoft-graph/applications/stable/federatedidentitycredential"
 	"github.com/hashicorp/go-azure-sdk/microsoft-graph/applications/stable/logo"
@@ -11,11 +12,12 @@ import (
 	"github.com/hashicorp/terraform-provider-azuread/internal/common"
 )
 type Client struct {
-	ApplicationClient                      *application.ApplicationClient
-	ApplicationClientBeta                  *applicationBeta.ApplicationClient
-	ApplicationLogoClient                  *logo.LogoClient
-	ApplicationOwnerClient                 *owner.OwnerClient
-	ApplicationFederatedIdentityCredential *federatedidentitycredential.FederatedIdentityCredentialClient
-	ApplicationTemplateClient              *applicationtemplate.ApplicationTemplateClient
-	ServicePrincipalClient                 *serviceprincipal.ServicePrincipalClient
+	ApplicationClient                              *application.ApplicationClient
+	ApplicationClientBeta                          *applicationBeta.ApplicationClient
+	ApplicationLogoClient                          *logo.LogoClient
+	ApplicationOwnerClient                         *owner.OwnerClient
+	ApplicationFederatedIdentityCredential         *federatedidentitycredential.FederatedIdentityCredentialClient
+	ApplicationFlexibleFederatedIdentityCredential *flexibleFederatedIdentityCredential.FederatedIdentityCredentialClient
+	ApplicationTemplateClient                      *applicationtemplate.ApplicationTemplateClient
+	ServicePrincipalClient                         *serviceprincipal.ServicePrincipalClient
 }
